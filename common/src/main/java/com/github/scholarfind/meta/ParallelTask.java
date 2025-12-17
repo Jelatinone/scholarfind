@@ -112,6 +112,10 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
             useState(COLLECTING);
           }
 
+          case AWAITING -> {
+            await();
+          }
+
           case COLLECTING -> {
             CollectionResult<Consumes> data = collect();
             switch (data) {
