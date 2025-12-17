@@ -8,11 +8,17 @@ public enum State {
 
   COLLECTING,
 
+  // Sequential-exclusive States
+
   OPERATING,
 
   POSTING,
 
   RETRYING,
+
+  // Parallel-exlusive States
+
+  DISPATCHING,
 
   RESTARTING,
 

@@ -154,7 +154,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
             }
           }
 
-          case OPERATING -> {
+          case DISPATCHING -> {
             operands.clear();
             results.clear();
             for (final Consumes element : _collected) {
