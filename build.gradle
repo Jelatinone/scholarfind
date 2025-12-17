@@ -1,0 +1,18 @@
+allprojects {
+    group = "com.github.jelatinone"
+    version = "1.0.0-ALPHA"
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: "java"
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+}
