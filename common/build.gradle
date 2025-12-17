@@ -7,6 +7,8 @@ repositories {
 }
 
 dependencies {
+  implementation platform ("software.amazon.awssdk:bom:2.40.10") 
+
   implementation ("com.fasterxml.jackson.core:jackson-databind:2.0.1")
   implementation ("org.slf4j:slf4j-simple:2.0.17")
 
