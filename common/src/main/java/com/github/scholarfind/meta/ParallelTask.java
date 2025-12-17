@@ -30,6 +30,10 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 
   @NonFinal
   Collection<Consumes> _collected;
+  @NonFinal
+  Collection<Consumes> operands;
+  @NonFinal
+  Collection<Produces> results;
 
   /**
    * Creates a new abstract Task
@@ -47,6 +51,9 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
     _failed = new HashSet<>();
 
     _attempts = new ConcurrentHashMap<>();
+
+    operands = new HashSet<>();
+    results = new HashSet<>();
   }
 
   /**
@@ -60,8 +67,16 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    */
   private CompletableFuture<Void> dispatch(final Consumes element) throws InterruptedException {
     _concurrency.acquire();
-    CompletableFuture<Void> product = CompletableFuture.supplyAsync(() -> operate(element), _executor)
-        .thenAccept(result -> handlePost(operand, result))
+    CompletableFuture<Void> product = CompletableFuture
+        .supplyAsync(() -> {
+          operands.add(element);
+          Produces result = operate(element);
+          results.add(result);
+
+          return result;
+
+        }, _executor)
+        .thenAccept(result -> handlePost(element, result))
         .exceptionally(exception -> {
           handleFailure(element, exception);
           return null;
@@ -83,6 +98,8 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
         _attempts.put(operand, attempt);
         _failed.add(operand);
       }
+    } else {
+      _attempts.put(operand, 0);
     }
     _concurrency.release();
   }
@@ -138,6 +155,8 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           }
 
           case OPERATING -> {
+            operands.clear();
+            results.clear();
             for (final Consumes element : _collected) {
               CompletableFuture<Void> product = dispatch(element);
               _dependencies.add(product);
@@ -171,5 +190,23 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
         throwable.printStackTrace();
       }
     }
+  }
+
+  /**
+   * Provides the most recent consumed operand
+   * 
+   * @return Previous consumed operand
+   */
+  public Collection<Consumes> getConsumed() {
+    return operands;
+  }
+
+  /**
+   * Provides the most recent produced operand
+   * 
+   * @return Previous produced operand
+   */
+  public Collection<Produces> getProduced() {
+    return results;
   }
 }

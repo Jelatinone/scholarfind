@@ -17,10 +17,15 @@ import lombok.experimental.NonFinal;
 public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task<Consumes, Produces> {
   static Logger _logger = Logger.getLogger(SequentialTask.class.getName());
 
-  @NonFinal
-  ListIterator<Consumes> _iterator;
   AtomicBoolean _lastOk;
   AtomicInteger _attempt;
+
+  @NonFinal
+  ListIterator<Consumes> _iterator;
+  @NonFinal
+  Consumes operand = null;
+  @NonFinal
+  Produces result = null;
 
   /**
    * Creates a new abstract Task
@@ -128,5 +133,23 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
         throwable.printStackTrace();
       }
     }
+  }
+
+  /**
+   * Provides the most recent consumed operand
+   * 
+   * @return Previous consumed operand
+   */
+  public Consumes getConsumed() {
+    return operand;
+  }
+
+  /**
+   * Provides the most recent produced operand
+   * 
+   * @return Previous produced operand
+   */
+  public Produces getProduced() {
+    return result;
   }
 }

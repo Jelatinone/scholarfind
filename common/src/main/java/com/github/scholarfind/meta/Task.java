@@ -33,11 +33,6 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   CompletableFuture<Void> _completable;
   Collection<Runnable> _listeners;
 
-  @NonFinal
-  Consumes operand = null;
-  @NonFinal
-  Produces result = null;
-
   /**
    * Creates a new abstract Task
    * 
@@ -101,7 +96,8 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    *          dead collection has been recieved.
    * 
    */
-  protected abstract void await() throws IOException;
+  protected void await() throws IOException {
+  }
 
   /**
    * Provides the {@link CompletableFuture Future} of this instance
@@ -174,23 +170,5 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    */
   public State getState() {
     return _state.get();
-  }
-
-  /**
-   * Provides the most recent consumed operand
-   * 
-   * @return Previous consumed operand
-   */
-  public Consumes getConsumed() {
-    return operand;
-  }
-
-  /**
-   * Provides the most recent produced operand
-   * 
-   * @return Previous produced operand
-   */
-  public Produces getProduced() {
-    return result;
   }
 }
