@@ -8,6 +8,12 @@ public enum State {
 
   COLLECTING,
 
+  RESTARTING,
+
+  COMPLETED,
+
+  FAILED,
+
   // Sequential-exclusive States
 
   OPERATING,
@@ -19,11 +25,5 @@ public enum State {
   // Parallel-exlusive States
 
   DISPATCHING,
-
-  RESTARTING,
-
-  COMPLETED,
-
-  FAILED,
 
 }
