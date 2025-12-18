@@ -1,16 +1,19 @@
 package com.github.scholarfind.meta;
 
 import static com.github.scholarfind.meta.State.*;
+import static java.util.concurrent.TimeUnit.*;
 
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
-import java.util.logging.Logger;
+
+import org.slf4j.LoggerFactory;
+
+import org.slf4j.Logger;
 
 import lombok.AccessLevel;
 import lombok.NonNull;
@@ -28,17 +31,13 @@ import lombok.experimental.NonFinal;
  */
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<Consumes, Produces> {
-  static Logger _logger = Logger.getLogger(ParallelTask.class.getName());
+
+  static Logger _logger = LoggerFactory.getLogger(ParallelTask.class);
 
   ExecutorService _executor;
   Semaphore _concurrency;
   Collection<CompletableFuture<Void>> _dependencies;
 
-  Map<Consumes, Integer> _attempts;
-  Collection<Consumes> _failed;
-
-  @NonFinal
-  Collection<Consumes> collected;
   @NonFinal
   Collection<Consumes> operands;
   @NonFinal
@@ -69,12 +68,9 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
     _concurrency = new Semaphore(_options.threadParallelism);
 
     _dependencies = new HashSet<>();
-    _failed = new HashSet<>();
 
-    _attempts = new ConcurrentHashMap<>();
-
-    operands = new HashSet<>();
-    results = new HashSet<>();
+    operands = ConcurrentHashMap.newKeySet(_options.collectionSize);
+    results = ConcurrentHashMap.newKeySet(_options.collectionSize);
   }
 
   /**
@@ -110,16 +106,17 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * @param operand Consumable unit of informaton
    * @param result  Produced unit of information
    */
-  private synchronized void handlePost(final Consumes operand, final Produces result) {
-    boolean ok = post(result);
-    if (!ok) {
+  private void handlePost(final Consumes operand, final Produces result) {
+    boolean currentStatus = post(result);
+    if (!currentStatus) {
       int attempt = _attempts.getOrDefault(operand, 0) + 1;
       if (attempt < _options.operandRetires) {
+        long delay = _retryScheduler.compute(attempt);
         _attempts.put(operand, attempt);
-        _failed.add(operand);
+        _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
       }
     } else {
-      _attempts.put(operand, 0);
+      _attempts.remove(operand);
     }
     _concurrency.release();
   }
@@ -130,37 +127,44 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * @param operand Consumable unit of informaton
    * @param cause   Rease for failure at any point during execution
    */
-  private synchronized void handleFailure(final Consumes operand, Throwable cause) {
+  private void handleFailure(final Consumes operand, Throwable cause) {
     int attempt = _attempts.getOrDefault(operand, 0) + 1;
     if (attempt < _options.operandRetires) {
+      long delay = _retryScheduler.compute(attempt);
       _attempts.put(operand, attempt);
-      _failed.add(operand);
+      _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
     }
     _concurrency.release();
   }
 
   @Override
-  public synchronized void run() {
+  public void run() {
     while (!_completable.isDone()) {
       try {
         State state = _state.get();
         switch (state) {
           case CREATED -> {
+            setup();
             useState(COLLECTING);
           }
 
           case AWAITING -> {
             await();
+            useState(COLLECTING);
           }
 
           case COLLECTING -> {
-            CollectionResult<Consumes> data = collect();
-            switch (data) {
-              case CollectionResult.Alive(List<Consumes> collection) -> {
-                _failed.clear();
+            CollectionResult<Consumes> result = collect();
+            switch (result) {
+              case CollectionResult.Alive(Queue<Consumes> collection) -> {
+                _collected.addAll(collection);
+                _collectScheduler.reset();
 
-                collected.addAll(_failed);
-                collected.addAll(collection);
+                DelayedValue<Consumes> failed;
+                while ((failed = _failed.poll()) != null) {
+                  _collected.offer(failed.operand);
+                }
+
                 useState(OPERATING);
               }
 
@@ -177,24 +181,36 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           case DISPATCHING -> {
             operands.clear();
             results.clear();
-            for (final Consumes element : collected) {
-              CompletableFuture<Void> product = dispatch(element);
-              _dependencies.add(product);
+
+            while (_concurrency.tryAcquire()) {
+              Consumes element = _collected.poll();
+              if (element == null) {
+                _concurrency.release();
+                break;
+              }
+              _dependencies.add(dispatch(element));
             }
             CompletableFuture
                 .allOf(_dependencies.toArray(CompletableFuture[]::new))
-                .join();
-            useState(COLLECTING);
+                .thenRun(() -> {
+                  _dependencies.clear();
+                  useState(COLLECTING);
+                });
+            useState(WORKING);
+          }
+
+          case WORKING -> {
           }
 
           case RESTARTING -> {
             restart();
-            _attempts.replaceAll((operand, attempt) -> 0);
+            _attempts.clear();
             _failed.clear();
             useState(CREATED);
           }
 
           case COMPLETED, FAILED -> {
+            shutdown();
             _completable.complete(null);
             return;
           }
@@ -206,6 +222,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
         }
       } catch (final Throwable throwable) {
         useState(FAILED);
+
         _completable.completeExceptionally(throwable);
         throwable.printStackTrace();
       }

@@ -31,10 +31,9 @@ public enum State {
 
   POSTING,
 
-  RETRYING,
-
   // Parallel-exlusive States
 
   DISPATCHING,
 
+  WORKING,
 }

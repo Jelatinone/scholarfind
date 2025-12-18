@@ -1,12 +1,13 @@
 package com.github.scholarfind.meta;
 
 import static com.github.scholarfind.meta.State.*;
+import static org.slf4j.event.Level.*;
+import static java.util.concurrent.TimeUnit.*;
 
-import java.util.List;
-import java.util.ListIterator;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Logger;
+import java.util.Queue;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import lombok.AccessLevel;
 import lombok.NonNull;
@@ -24,13 +25,8 @@ import lombok.experimental.NonFinal;
  */
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task<Consumes, Produces> {
-  static Logger _logger = Logger.getLogger(SequentialTask.class.getName());
+  static Logger _logger = LoggerFactory.getLogger(SequentialTask.class);
 
-  AtomicBoolean _lastOk;
-  AtomicInteger _attempt;
-
-  @NonFinal
-  ListIterator<Consumes> iterator;
   @NonFinal
   Consumes operand = null;
   @NonFinal
@@ -53,32 +49,37 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
    */
   protected SequentialTask(final @NonNull String name, final @NonNull Options options) {
     super(name, options);
-    _lastOk = new AtomicBoolean();
-    _attempt = new AtomicInteger();
   }
 
   @Override
-  public synchronized void run() {
-    iterator = null;
-    _lastOk.set(true);
+  public void run() {
     while (!_completable.isDone()) {
       try {
         State state = _state.get();
         switch (state) {
 
           case CREATED -> {
+            setup();
             useState(COLLECTING);
           }
 
           case AWAITING -> {
             await();
+            useState(COLLECTING);
           }
 
           case COLLECTING -> {
-            CollectionResult<Consumes> data = collect();
-            switch (data) {
-              case CollectionResult.Alive(List<Consumes> collection) -> {
-                iterator = collection.listIterator();
+            CollectionResult<Consumes> result = collect();
+            switch (result) {
+              case CollectionResult.Alive(Queue<Consumes> collection) -> {
+                _collected.addAll(collection);
+                _collectScheduler.reset();
+
+                DelayedValue<Consumes> failed;
+                while ((failed = _failed.poll()) != null) {
+                  _collected.offer(failed.operand);
+                }
+
                 useState(OPERATING);
               }
 
@@ -93,50 +94,37 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           }
 
           case OPERATING -> {
-            if (!iterator.hasNext()) {
+            operand = _collected.poll();
+            if (operand == null) {
               useState(COLLECTING);
               break;
             }
-            result = operate(operand = iterator.next());
+            result = operate(operand);
             useState(POSTING);
           }
 
           case POSTING -> {
-            boolean currentStatus = post(result);
-            boolean previousStatus = _lastOk.get();
-            if (!previousStatus && currentStatus) {
-              _attempt.set(0);
-            }
-            if (!currentStatus) {
-              useState(RETRYING);
+            boolean status = post(result);
+            int attempt = _attempts.getOrDefault(operand, 0) + 1;
+            if (!status && attempt < _options.operandRetires) {
+              long delay = _retryScheduler.compute(attempt);
+              _attempts.put(operand, attempt + 1);
+              _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
             } else {
-              useState(OPERATING);
+              _attempts.remove(operand);
             }
-            _lastOk.set(currentStatus);
+            useState(COLLECTING);
           }
 
           case RESTARTING -> {
             restart();
+            _attempts.clear();
+            _failed.clear();
             useState(CREATED);
-            _attempt.set(0);
-          }
-
-          case RETRYING -> {
-            final int currentAttempt = _attempt.getAndIncrement();
-            if (currentAttempt >= _options.operandRetires) {
-              _attempt.set(0);
-              if (iterator.hasNext()) {
-                useState(OPERATING);
-              } else {
-                useState(COLLECTING);
-              }
-            } else {
-              iterator.previous();
-              useState(OPERATING);
-            }
           }
 
           case COMPLETED, FAILED -> {
+            shutdown();
             _completable.complete(null);
             return;
           }
@@ -147,9 +135,10 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           }
         }
       } catch (final Throwable throwable) {
-        useState(FAILED);
         _completable.completeExceptionally(throwable);
-        throwable.printStackTrace();
+
+        useMessage("Operation interrupted by fatal throwable: ", ERROR, throwable.getMessage());
+        useState(FAILED);
       }
     }
   }

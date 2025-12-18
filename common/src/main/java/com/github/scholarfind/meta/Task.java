@@ -1,21 +1,32 @@
 package com.github.scholarfind.meta;
 
+import static com.github.scholarfind.meta.State.*;
+import static org.slf4j.event.Level.*;
+
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.DelayQueue;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.event.Level;
+
+import com.github.scholarfind.backoff.BackoffScheduler;
+import com.github.scholarfind.backoff.ExponentialBackoffScheduler;
 
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
-
-import static com.github.scholarfind.meta.State.*;
 
 /**
  * 
@@ -24,7 +35,6 @@ import static com.github.scholarfind.meta.State.*;
  * <p>
  * A generic description of a Tak which operates on the smallest possible unit
  * of `consumes` and outputs a result `produces`.
- * 
  * </p>
  * 
  * <p>
@@ -41,7 +51,11 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
     permits ParallelTask, SequentialTask {
 
   @Builder
-  public static class Options {
+  @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
+  public static final class Options {
+    @Builder.Default
+    Level logLevel = INFO;
+
     @Builder.Default
     Integer operandRetires = 5;
 
@@ -52,15 +66,30 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
     Integer threadParallelism = 5;
 
     @Builder.Default
-    Long awaitTime = 100L;
+    Long baseAwaitTimeout = 100L;
+
+    @Builder.Default
+    Long maximumAwaitTimeout = 3500L;
+
+    @Builder.Default
+    Long awaitFactor = 3 / 2L;
+
+    @Builder.Default
+    Long networkTimeout = 3500L;
   }
 
-  static Logger _logger = Logger.getLogger(Task.class.getName());
+  static Logger _logger = LoggerFactory.getLogger(Task.class);
 
   String _name;
   Options _options;
 
   AtomicReference<State> _state;
+  BackoffScheduler _collectScheduler;
+  BackoffScheduler _retryScheduler;
+
+  Map<Consumes, Integer> _attempts;
+  Queue<DelayedValue<Consumes>> _failed;
+  Queue<Consumes> _collected;
 
   @NonFinal
   CompletableFuture<Void> _completable;
@@ -76,10 +105,24 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
     _name = name;
     _options = options;
 
-    _state = new AtomicReference<State>(CREATED);
+    _state = new AtomicReference<State>();
+    _collectScheduler = new ExponentialBackoffScheduler(
+        _options.baseAwaitTimeout,
+        _options.maximumAwaitTimeout,
+        _options.awaitFactor);
+    _retryScheduler = new ExponentialBackoffScheduler(
+        _options.baseAwaitTimeout,
+        _options.maximumAwaitTimeout,
+        _options.awaitFactor);
+
+    _attempts = new ConcurrentHashMap<>();
+    _failed = new DelayQueue<>();
+    _collected = new ConcurrentLinkedQueue<>();
 
     _completable = new CompletableFuture<>();
     _listeners = new HashSet<>();
+
+    useState(CREATED);
   }
 
   /**
@@ -119,7 +162,29 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    *          {@link #useState(State) state modification} has occurred
    * 
    */
-  protected abstract void restart() throws IOException;
+  protected void restart() throws IOException {
+  }
+
+  /**
+   * Sets up the current instance for {@link #run() operation}, performing
+   * necessary operations that need to occur during the creation phase.
+   * 
+   * @throws IOException When a critical failure has occurred while trying to
+   *                     setup
+   */
+  protected void setup() throws IOException {
+  }
+
+  /**
+   * Shuts down the current instance for {@link #run() operation}, performing
+   * necessary cleaning operations that need to occur during the completion or
+   * failure phases.
+   * 
+   * @throws IOException When a critical failure has occurred while trying to
+   *                     shutdown
+   */
+  protected void shutdown() throws IOException {
+  }
 
   /**
    * Performs a waiting operation during {@link #run() operation} of this Task.
@@ -132,9 +197,11 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    *          dead collection has been recieved.
    * 
    */
-  protected void await() throws InterruptedException {
-    wait(_options.awaitTime);
-    useState(COLLECTING);
+  protected synchronized void await() throws InterruptedException {
+    long backoff = _collectScheduler.compute();
+    Thread.sleep(backoff);
+
+    useMessage(String.format("[%s] : awaited %s milliseconds", _name, backoff), _options.logLevel);
   }
 
   /**
@@ -158,29 +225,31 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    */
   public synchronized void useListener(final @NonNull Runnable listener) {
     _listeners.add(listener);
+    _logger.atLevel(_options.logLevel)
+        .log(String.format("[%s] : registered listener %s", _name, listener.getClass().getName()));
   }
 
   /**
    * Modifies the current status message of this {@link #run() operation} of this
-   * `Task`
-   * with a descriptive message.
+   * `Task` with a descriptive message.
    * 
-   * @param message Descriptive message of current operation of this Task
-   * @param level   Level of logging to attribute to this message
+   * @param message   Descriptive message of current operation of this Task
+   * @param level     Level of logging to attribute to this message
+   * @param arguments Additional arguments to include in this log
    */
-  public synchronized void useMessage(final @NonNull String message, final @NonNull Level level) {
-    throw new UnsupportedOperationException("Method not yet implemented");
+  public synchronized void useMessage(final @NonNull String message, final @NonNull Level level,
+      final @NonNull Object... arguments) {
+    _listeners.forEach(Runnable::run);
+    _logger.atLevel(_options.logLevel.toInt() > level.toInt() ? _options.logLevel : level)
+        .log(message, arguments);
   }
 
   /**
    * Modifies (safely) the current state of this instance.
    * 
    * @param state New state of task
-   * @throws IllegalStateException When modifications are made to a
-   *                               {@link State#FAILED failed} or
-   *                               {@link State#COMPLETED completed} Task
    */
-  protected synchronized void useState(final @NonNull State state) throws IllegalStateException {
+  protected synchronized void useState(final @NonNull State state) {
     final State currentState = _state.get();
     if (currentState == FAILED || currentState == COMPLETED) {
       _completable = new CompletableFuture<>();
@@ -188,8 +257,9 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
     if (state == COMPLETED || state == FAILED) {
       _completable.complete(null);
     }
+    _logger.atLevel(_options.logLevel)
+        .log(String.format("[%s] : state update (%s -> %s)", _name, _state, state));
     this._state.set(state);
-    _logger.fine(String.format("%s [%s] :: State Update", getName(), state.name()));
   }
 
   /**
