@@ -67,28 +67,28 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           }
 
           case COLLECTING -> {
+            useMessage(String.format("Adding failed jobs : %d", _failed.size()), DEBUG);
+            DelayedValue<Consumes> failed;
+            while ((failed = _failed.poll()) != null) {
+              _collected.offer(failed.operand);
+            }
+
             CollectionResult<Consumes> result = collect();
             switch (result) {
               case CollectionResult.Alive(Queue<Consumes> collection) -> {
-                useMessage(String.format("Adding new jobs : %d", collection.size()), DEBUG);
+                useMessage(String.format("Adding collected jobs : %d", collection.size()), DEBUG);
                 _collected.addAll(collection);
                 _collectScheduler.reset();
-
-                useMessage(String.format("Adding failed jobs : %d", _failed.size()), DEBUG);
-                DelayedValue<Consumes> failed;
-                while ((failed = _failed.poll()) != null) {
-                  _collected.offer(failed.operand);
-                }
 
                 useState(OPERATING);
               }
 
               case CollectionResult.Idle() -> {
-                useState(AWAITING);
+                useState(_collected.isEmpty() ? AWAITING : OPERATING);
               }
 
               case CollectionResult.Empty() -> {
-                useState(COMPLETED);
+                useState(_collected.isEmpty() ? COMPLETED : OPERATING);
               }
             }
           }
