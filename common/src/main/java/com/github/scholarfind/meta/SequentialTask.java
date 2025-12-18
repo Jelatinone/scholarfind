@@ -13,7 +13,7 @@ import lombok.experimental.NonFinal;
 
 /**
  * 
- * <h1>ParallelTask</h1>
+ * <h1>SequentialTask</h1>
  * 
  * Describes a {@link Task task} that can be {@link #run() operated} in
  * sequential units of execution.
