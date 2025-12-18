@@ -2,6 +2,9 @@ package com.github.scholarfind.meta;
 
 import static com.github.scholarfind.meta.State.*;
 import static java.util.concurrent.TimeUnit.*;
+import static org.slf4j.event.Level.DEBUG;
+import static org.slf4j.event.Level.ERROR;
+import static org.slf4j.event.Level.INFO;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -66,8 +69,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 
     _executor = executor;
     _concurrency = new Semaphore(_options.threadParallelism);
-
-    _dependencies = new HashSet<>();
+    _dependencies = new HashSet<>(_options.threadParallelism, 0f);
 
     operands = ConcurrentHashMap.newKeySet(_options.collectionSize);
     results = ConcurrentHashMap.newKeySet(_options.collectionSize);
@@ -97,6 +99,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           handleFailure(element, exception);
           return null;
         });
+    useMessage(String.format("Initialized dispatched job : %s", element.toString()), INFO);
     return product;
   }
 
@@ -109,13 +112,16 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
   private void handlePost(final Consumes operand, final Produces result) {
     boolean currentStatus = post(result);
     if (!currentStatus) {
+      useMessage(String.format("Failed dispatched job : %s", operand.toString()), ERROR);
       int attempt = _attempts.getOrDefault(operand, 0) + 1;
       if (attempt < _options.operandRetires) {
         long delay = _retryScheduler.compute(attempt);
         _attempts.put(operand, attempt);
         _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
+        useMessage(String.format("Queued dispatched job : %s", operand.toString()), DEBUG);
       }
     } else {
+      useMessage(String.format("Completed dispatched job : %s", operand.toString()), INFO);
       _attempts.remove(operand);
     }
     _concurrency.release();
@@ -128,20 +134,24 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * @param cause   Rease for failure at any point during execution
    */
   private void handleFailure(final Consumes operand, Throwable cause) {
+    useMessage(String.format("Failed dispatched job : %s", operand.toString()), ERROR);
     int attempt = _attempts.getOrDefault(operand, 0) + 1;
     if (attempt < _options.operandRetires) {
       long delay = _retryScheduler.compute(attempt);
       _attempts.put(operand, attempt);
       _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
+      useMessage(String.format("Queued dispatched job : %s", operand.toString()), DEBUG);
     }
     _concurrency.release();
   }
 
   @Override
   public void run() {
+    useMessage(String.format("Operation started : %s", _name), DEBUG);
     while (!_completable.isDone()) {
       try {
         State state = _state.get();
+        useMessage(String.format("Operation %s : %s", state, _name), INFO);
         switch (state) {
           case CREATED -> {
             setup();
@@ -157,9 +167,11 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
             CollectionResult<Consumes> result = collect();
             switch (result) {
               case CollectionResult.Alive(Queue<Consumes> collection) -> {
+                useMessage(String.format("Adding new jobs : %d", collection.size()), DEBUG);
                 _collected.addAll(collection);
                 _collectScheduler.reset();
 
+                useMessage(String.format("Adding failed jobs : %d", _failed.size()), DEBUG);
                 DelayedValue<Consumes> failed;
                 while ((failed = _failed.poll()) != null) {
                   _collected.offer(failed.operand);
@@ -222,11 +234,11 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
         }
       } catch (final Throwable throwable) {
         useState(FAILED);
-
+        useMessage(String.format("Operation interrupted : %s", throwable.getCause()), ERROR, throwable);
         _completable.completeExceptionally(throwable);
-        throwable.printStackTrace();
       }
     }
+    useMessage(String.format("Operation ended : %s", _name), DEBUG);
   }
 
   /**

@@ -201,7 +201,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
     long backoff = _collectScheduler.compute();
     Thread.sleep(backoff);
 
-    useMessage(String.format("[%s] : awaited %s milliseconds", _name, backoff), _options.logLevel);
+    useMessage(String.format("Awaited milliseconds : %s", backoff), INFO);
   }
 
   /**
@@ -225,8 +225,8 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    */
   public synchronized void useListener(final @NonNull Runnable listener) {
     _listeners.add(listener);
-    _logger.atLevel(_options.logLevel)
-        .log(String.format("[%s] : registered listener %s", _name, listener.getClass().getName()));
+
+    useMessage(String.format("Registered listener : %s", listener.getClass().getName()), DEBUG);
   }
 
   /**
@@ -257,8 +257,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
     if (state == COMPLETED || state == FAILED) {
       _completable.complete(null);
     }
-    _logger.atLevel(_options.logLevel)
-        .log(String.format("[%s] : state update (%s -> %s)", _name, _state, state));
+    useMessage(String.format("State update : %s -> %s", _state, state), INFO);
     this._state.set(state);
   }
 

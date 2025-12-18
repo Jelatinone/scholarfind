@@ -53,9 +53,11 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 
   @Override
   public void run() {
+    useMessage(String.format("Operation started : %s", _name), DEBUG);
     while (!_completable.isDone()) {
       try {
         State state = _state.get();
+        useMessage(String.format("Operation %s : %s", state, _name), INFO);
         switch (state) {
 
           case CREATED -> {
@@ -72,9 +74,11 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
             CollectionResult<Consumes> result = collect();
             switch (result) {
               case CollectionResult.Alive(Queue<Consumes> collection) -> {
+                useMessage(String.format("Adding new jobs : %d", collection.size()), DEBUG);
                 _collected.addAll(collection);
                 _collectScheduler.reset();
 
+                useMessage(String.format("Adding failed jobs : %d", _failed.size()), DEBUG);
                 DelayedValue<Consumes> failed;
                 while ((failed = _failed.poll()) != null) {
                   _collected.offer(failed.operand);
@@ -104,13 +108,18 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           }
 
           case POSTING -> {
-            boolean status = post(result);
-            int attempt = _attempts.getOrDefault(operand, 0) + 1;
-            if (!status && attempt < _options.operandRetires) {
-              long delay = _retryScheduler.compute(attempt);
-              _attempts.put(operand, attempt + 1);
-              _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
+            boolean currentStatus = post(result);
+            if (!currentStatus) {
+              int attempt = _attempts.getOrDefault(operand, 0) + 1;
+              useMessage(String.format("Failed dispatched job : %s", operand.toString()), ERROR);
+              if (attempt < _options.operandRetires) {
+                long delay = _retryScheduler.compute(attempt);
+                _attempts.put(operand, attempt + 1);
+                _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
+                useMessage(String.format("Queued dispatched job : %s", operand.toString()), DEBUG);
+              }
             } else {
+              useMessage(String.format("Completed dispatched job : %s", operand.toString()), INFO);
               _attempts.remove(operand);
             }
             useState(OPERATING);
@@ -135,12 +144,12 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           }
         }
       } catch (final Throwable throwable) {
-        _completable.completeExceptionally(throwable);
-
-        useMessage("Operation interrupted by fatal throwable: ", ERROR, throwable.getMessage());
         useState(FAILED);
+        useMessage(String.format("Operation interrupted : %s", throwable.getCause()), ERROR, throwable);
+        _completable.completeExceptionally(throwable);
       }
     }
+    useMessage(String.format("Operation ended : %s", _name), DEBUG);
   }
 
   /**
