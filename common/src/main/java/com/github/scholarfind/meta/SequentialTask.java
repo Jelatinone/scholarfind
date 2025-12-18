@@ -113,7 +113,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
             } else {
               _attempts.remove(operand);
             }
-            useState(COLLECTING);
+            useState(OPERATING);
           }
 
           case RESTARTING -> {
