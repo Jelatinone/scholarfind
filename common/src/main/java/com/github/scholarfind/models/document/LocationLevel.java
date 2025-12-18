@@ -10,7 +10,5 @@ public enum LocationLevel {
 
   CITY,
 
-  TOWN,
-
   ZIP
 }
