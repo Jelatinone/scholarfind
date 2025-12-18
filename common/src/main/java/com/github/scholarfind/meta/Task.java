@@ -10,22 +10,55 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 
 import static com.github.scholarfind.meta.State.*;
 
+/**
+ * 
+ * <h1>Task</h1>
+ * 
+ * <p>
+ * A generic description of a Tak which operates on the smallest possible unit
+ * of `consumes` and outputs a result `produces`.
+ * 
+ * </p>
+ * 
+ * <p>
+ * Used to perform mass operations of similar type `consumes` on a collection of
+ * consumable data.
+ * For example, a task which scrapes all of the data from a website, then parses
+ * each individual tag and converts it to a `String`.
+ * </p>
+ * 
+ * @author Cody Washington
+ */
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implements Runnable, AutoCloseable
     permits ParallelTask, SequentialTask {
-  static Integer DEFAULT_OPERAND_RETRIES = 5;
-  static Integer DEFAULT_COLLECTION_SIZE = 10;
-  static Integer DEFAULT_PARALLELISM = 5;
+
+  @Builder
+  public static class Options {
+    @Builder.Default
+    Integer operandRetires = 5;
+
+    @Builder.Default
+    Integer collectionSize = 10;
+
+    @Builder.Default
+    Integer threadParallelism = 5;
+
+    @Builder.Default
+    Long awaitTime = 100L;
+  }
 
   static Logger _logger = Logger.getLogger(Task.class.getName());
 
   String _name;
+  Options _options;
 
   AtomicReference<State> _state;
 
@@ -36,10 +69,12 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   /**
    * Creates a new abstract Task
    * 
-   * @param name Name of the task to be created
+   * @param name    Name of the task to be created
+   * @param options Options to associate with this task
    */
-  protected Task(final @NonNull String name) {
+  protected Task(final @NonNull String name, final @NonNull Options options) {
     _name = name;
+    _options = options;
 
     _state = new AtomicReference<State>(CREATED);
 
@@ -87,16 +122,19 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   protected abstract void restart() throws IOException;
 
   /**
-   * Performs a waiting operation during {@link #run() operation} of this Task
+   * Performs a waiting operation during {@link #run() operation} of this Task.
+   * This operation should also handle the updating of the state.
    * 
-   * @throws IOException When a critical failure has occurred while trying to
-   *                     restart
+   * @throws InterruptedException When this operation has been interrupted while
+   *                              awaiting
    * 
    * @apiNote Called only during {@link #run() operation} of this Task when a
    *          dead collection has been recieved.
    * 
    */
-  protected void await() throws IOException {
+  protected void await() throws InterruptedException {
+    wait(_options.awaitTime);
+    useState(COLLECTING);
   }
 
   /**

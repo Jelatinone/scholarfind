@@ -17,6 +17,15 @@ import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 
+/**
+ * 
+ * <h1>ParallelTask</h1>
+ * 
+ * Describes a {@link Task task} that can be {@link #run() operated} in parallel
+ * units of execution.
+ * 
+ * @author Cody Washington
+ */
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<Consumes, Produces> {
   static Logger _logger = Logger.getLogger(ParallelTask.class.getName());
@@ -29,23 +38,35 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
   Collection<Consumes> _failed;
 
   @NonFinal
-  Collection<Consumes> _collected;
+  Collection<Consumes> collected;
   @NonFinal
   Collection<Consumes> operands;
   @NonFinal
   Collection<Produces> results;
 
   /**
-   * Creates a new abstract Task
+   * Creates a new parallel Task
    * 
    * @param name     Name of the task to be created
    * @param executor Executor to execute parallel jobs with
    */
-  public ParallelTask(final @NonNull String name, final ExecutorService executor) {
-    super(name);
+  protected ParallelTask(final @NonNull String name, final @NonNull ExecutorService executor) {
+    this(name, executor, Options.builder().build());
+  }
+
+  /**
+   * Creates a new parallel Task
+   * 
+   * @param name     Name of the task to be created
+   * @param executor Executor to execute parallel jobs with
+   * @param options  Options to associate with this task
+   */
+  protected ParallelTask(final @NonNull String name, final @NonNull ExecutorService executor,
+      final @NonNull Options options) {
+    super(name, options);
 
     _executor = executor;
-    _concurrency = new Semaphore(DEFAULT_PARALLELISM);
+    _concurrency = new Semaphore(_options.threadParallelism);
 
     _dependencies = new HashSet<>();
     _failed = new HashSet<>();
@@ -74,7 +95,6 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           results.add(result);
 
           return result;
-
         }, _executor)
         .thenAccept(result -> handlePost(element, result))
         .exceptionally(exception -> {
@@ -94,7 +114,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
     boolean ok = post(result);
     if (!ok) {
       int attempt = _attempts.getOrDefault(operand, 0) + 1;
-      if (attempt < DEFAULT_OPERAND_RETRIES) {
+      if (attempt < _options.operandRetires) {
         _attempts.put(operand, attempt);
         _failed.add(operand);
       }
@@ -112,7 +132,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    */
   private synchronized void handleFailure(final Consumes operand, Throwable cause) {
     int attempt = _attempts.getOrDefault(operand, 0) + 1;
-    if (attempt < DEFAULT_OPERAND_RETRIES) {
+    if (attempt < _options.operandRetires) {
       _attempts.put(operand, attempt);
       _failed.add(operand);
     }
@@ -136,15 +156,15 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           case COLLECTING -> {
             CollectionResult<Consumes> data = collect();
             switch (data) {
-              case CollectionResult.Afloat(List<Consumes> collection) -> {
+              case CollectionResult.Alive(List<Consumes> collection) -> {
                 _failed.clear();
 
-                _collected.addAll(_failed);
-                _collected.addAll(collection);
+                collected.addAll(_failed);
+                collected.addAll(collection);
                 useState(OPERATING);
               }
 
-              case CollectionResult.Alive() -> {
+              case CollectionResult.Idle() -> {
                 useState(AWAITING);
               }
 
@@ -157,7 +177,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           case DISPATCHING -> {
             operands.clear();
             results.clear();
-            for (final Consumes element : _collected) {
+            for (final Consumes element : collected) {
               CompletableFuture<Void> product = dispatch(element);
               _dependencies.add(product);
             }

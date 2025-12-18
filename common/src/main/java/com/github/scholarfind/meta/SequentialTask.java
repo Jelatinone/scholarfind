@@ -13,6 +13,15 @@ import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 
+/**
+ * 
+ * <h1>ParallelTask</h1>
+ * 
+ * Describes a {@link Task task} that can be {@link #run() operated} in
+ * sequential units of execution.
+ * 
+ * @author Cody Washington
+ */
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task<Consumes, Produces> {
   static Logger _logger = Logger.getLogger(SequentialTask.class.getName());
@@ -21,26 +30,36 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
   AtomicInteger _attempt;
 
   @NonFinal
-  ListIterator<Consumes> _iterator;
+  ListIterator<Consumes> iterator;
   @NonFinal
   Consumes operand = null;
   @NonFinal
   Produces result = null;
 
   /**
-   * Creates a new abstract Task
+   * Creates a new sequential Task
    * 
    * @param name Name of the task to be created
    */
-  public SequentialTask(final @NonNull String name) {
-    super(name);
+  protected SequentialTask(final @NonNull String name) {
+    this(name, Options.builder().build());
+  }
+
+  /**
+   * Creates a new sequential Task
+   * 
+   * @param name    Name of the task to be created
+   * @param options Options to associate with this task
+   */
+  protected SequentialTask(final @NonNull String name, final @NonNull Options options) {
+    super(name, options);
     _lastOk = new AtomicBoolean();
     _attempt = new AtomicInteger();
   }
 
   @Override
   public synchronized void run() {
-    _iterator = null;
+    iterator = null;
     _lastOk.set(true);
     while (!_completable.isDone()) {
       try {
@@ -58,12 +77,12 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           case COLLECTING -> {
             CollectionResult<Consumes> data = collect();
             switch (data) {
-              case CollectionResult.Afloat(List<Consumes> collection) -> {
-                _iterator = collection.listIterator();
+              case CollectionResult.Alive(List<Consumes> collection) -> {
+                iterator = collection.listIterator();
                 useState(OPERATING);
               }
 
-              case CollectionResult.Alive() -> {
+              case CollectionResult.Idle() -> {
                 useState(AWAITING);
               }
 
@@ -74,11 +93,11 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           }
 
           case OPERATING -> {
-            if (!_iterator.hasNext()) {
+            if (!iterator.hasNext()) {
               useState(COLLECTING);
               break;
             }
-            result = operate(operand = _iterator.next());
+            result = operate(operand = iterator.next());
             useState(POSTING);
           }
 
@@ -104,15 +123,15 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 
           case RETRYING -> {
             final int currentAttempt = _attempt.getAndIncrement();
-            if (currentAttempt >= DEFAULT_OPERAND_RETRIES) {
+            if (currentAttempt >= _options.operandRetires) {
               _attempt.set(0);
-              if (_iterator.hasNext()) {
+              if (iterator.hasNext()) {
                 useState(OPERATING);
               } else {
                 useState(COLLECTING);
               }
             } else {
-              _iterator.previous();
+              iterator.previous();
               useState(OPERATING);
             }
           }
