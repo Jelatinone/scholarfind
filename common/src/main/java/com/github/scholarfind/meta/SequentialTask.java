@@ -6,9 +6,6 @@ import static java.util.concurrent.TimeUnit.*;
 
 import java.util.Queue;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import lombok.AccessLevel;
 import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
@@ -25,7 +22,6 @@ import lombok.experimental.NonFinal;
  */
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task<Consumes, Produces> {
-  static Logger _logger = LoggerFactory.getLogger(SequentialTask.class);
 
   @NonFinal
   Consumes operand = null;
@@ -38,17 +34,17 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
    * @param name Name of the task to be created
    */
   protected SequentialTask(final @NonNull String name) {
-    this(name, Options.builder().build());
+    this(name, Configuration.builder().build());
   }
 
   /**
    * Creates a new sequential Task
    * 
-   * @param name    Name of the task to be created
-   * @param options Options to associate with this task
+   * @param name   Name of the task to be created
+   * @param config Config to associate with this task
    */
-  protected SequentialTask(final @NonNull String name, final @NonNull Options options) {
-    super(name, options);
+  protected SequentialTask(final @NonNull String name, final @NonNull Configuration config) {
+    super(name, config);
   }
 
   @Override
@@ -112,7 +108,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
             if (!currentStatus) {
               int attempt = _attempts.getOrDefault(operand, 0) + 1;
               useMessage(String.format("Failed dispatched job : %s", operand.toString()), ERROR);
-              if (attempt < _options.operandRetires) {
+              if (attempt < _config.operandRetries) {
                 long delay = _retryScheduler.compute(attempt);
                 _attempts.put(operand, attempt + 1);
                 _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));

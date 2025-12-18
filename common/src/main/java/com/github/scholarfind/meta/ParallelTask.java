@@ -14,10 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 
-import org.slf4j.LoggerFactory;
-
-import org.slf4j.Logger;
-
 import lombok.AccessLevel;
 import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
@@ -35,11 +31,9 @@ import lombok.experimental.NonFinal;
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<Consumes, Produces> {
 
-  static Logger _logger = LoggerFactory.getLogger(ParallelTask.class);
-
   ExecutorService _executor;
-  Semaphore _concurrency;
-  Collection<CompletableFuture<Void>> _dependencies;
+  Semaphore _threads;
+  Collection<CompletableFuture<Void>> _jobs;
 
   @NonFinal
   Collection<Consumes> operands;
@@ -50,29 +44,29 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * Creates a new parallel Task
    * 
    * @param name     Name of the task to be created
-   * @param executor Executor to execute parallel jobs with
+   * @param executor Service to execute parallel jobs with
    */
   protected ParallelTask(final @NonNull String name, final @NonNull ExecutorService executor) {
-    this(name, executor, Options.builder().build());
+    this(name, executor, Configuration.builder().build());
   }
 
   /**
    * Creates a new parallel Task
    * 
    * @param name     Name of the task to be created
-   * @param executor Executor to execute parallel jobs with
-   * @param options  Options to associate with this task
+   * @param executor Service to execute parallel jobs with
+   * @param config   Config to associate with this task
    */
   protected ParallelTask(final @NonNull String name, final @NonNull ExecutorService executor,
-      final @NonNull Options options) {
-    super(name, options);
+      final @NonNull Configuration config) {
+    super(name, config);
 
     _executor = executor;
-    _concurrency = new Semaphore(_options.threadParallelism);
-    _dependencies = new HashSet<>(_options.threadParallelism, 0f);
+    _threads = new Semaphore(_config.threadParallelism);
+    _jobs = new HashSet<>(_config.threadParallelism, 0f);
 
-    operands = ConcurrentHashMap.newKeySet(_options.collectionSize);
-    results = ConcurrentHashMap.newKeySet(_options.collectionSize);
+    operands = ConcurrentHashMap.newKeySet(_config.collectionSize);
+    results = ConcurrentHashMap.newKeySet(_config.collectionSize);
   }
 
   /**
@@ -85,7 +79,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    *                              currently active threads.
    */
   private CompletableFuture<Void> dispatch(final Consumes element) throws InterruptedException {
-    _concurrency.acquire();
+    _threads.acquire();
     CompletableFuture<Void> product = CompletableFuture
         .supplyAsync(() -> {
           operands.add(element);
@@ -114,7 +108,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
     if (!currentStatus) {
       useMessage(String.format("Failed dispatched job : %s", operand.toString()), ERROR);
       int attempt = _attempts.getOrDefault(operand, 0) + 1;
-      if (attempt < _options.operandRetires) {
+      if (attempt < _config.operandRetries) {
         long delay = _retryScheduler.compute(attempt);
         _attempts.put(operand, attempt);
         _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
@@ -124,7 +118,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
       useMessage(String.format("Completed dispatched job : %s", operand.toString()), INFO);
       _attempts.remove(operand);
     }
-    _concurrency.release();
+    _threads.release();
   }
 
   /**
@@ -136,13 +130,13 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
   private void handleFailure(final Consumes operand, Throwable cause) {
     useMessage(String.format("Failed dispatched job : %s", operand.toString()), ERROR);
     int attempt = _attempts.getOrDefault(operand, 0) + 1;
-    if (attempt < _options.operandRetires) {
+    if (attempt < _config.operandRetries) {
       long delay = _retryScheduler.compute(attempt);
       _attempts.put(operand, attempt);
       _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
       useMessage(String.format("Queued dispatched job : %s", operand.toString()), DEBUG);
     }
-    _concurrency.release();
+    _threads.release();
   }
 
   @Override
@@ -194,18 +188,18 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
             operands.clear();
             results.clear();
 
-            while (_concurrency.tryAcquire()) {
+            while (_threads.tryAcquire()) {
               Consumes element = _collected.poll();
               if (element == null) {
-                _concurrency.release();
+                _threads.release();
                 break;
               }
-              _dependencies.add(dispatch(element));
+              _jobs.add(dispatch(element));
             }
             CompletableFuture
-                .allOf(_dependencies.toArray(CompletableFuture[]::new))
+                .allOf(_jobs.toArray(CompletableFuture[]::new))
                 .thenRun(() -> {
-                  _dependencies.clear();
+                  _jobs.clear();
                   useState(COLLECTING);
                 });
             useState(WORKING);

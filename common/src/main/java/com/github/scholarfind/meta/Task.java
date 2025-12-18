@@ -52,12 +52,12 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
-  public static final class Options {
+  public static final class Configuration {
     @Builder.Default
     Level logLevel = INFO;
 
     @Builder.Default
-    Integer operandRetires = 5;
+    Integer operandRetries = 5;
 
     @Builder.Default
     Integer collectionSize = 10;
@@ -73,15 +73,12 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
 
     @Builder.Default
     Long awaitFactor = 3 / 2L;
-
-    @Builder.Default
-    Long networkTimeout = 3500L;
   }
 
   static Logger _logger = LoggerFactory.getLogger(Task.class);
 
   String _name;
-  Options _options;
+  Configuration _config;
 
   AtomicReference<State> _state;
   BackoffScheduler _collectScheduler;
@@ -98,22 +95,22 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   /**
    * Creates a new abstract Task
    * 
-   * @param name    Name of the task to be created
-   * @param options Options to associate with this task
+   * @param name   Name of the task to be created
+   * @param config Options to associate with this task
    */
-  protected Task(final @NonNull String name, final @NonNull Options options) {
+  protected Task(final @NonNull String name, final @NonNull Configuration config) {
     _name = name;
-    _options = options;
+    _config = config;
 
     _state = new AtomicReference<State>();
     _collectScheduler = new ExponentialBackoffScheduler(
-        _options.baseAwaitTimeout,
-        _options.maximumAwaitTimeout,
-        _options.awaitFactor);
+        _config.baseAwaitTimeout,
+        _config.maximumAwaitTimeout,
+        _config.awaitFactor);
     _retryScheduler = new ExponentialBackoffScheduler(
-        _options.baseAwaitTimeout,
-        _options.maximumAwaitTimeout,
-        _options.awaitFactor);
+        _config.baseAwaitTimeout,
+        _config.maximumAwaitTimeout,
+        _config.awaitFactor);
 
     _attempts = new ConcurrentHashMap<>();
     _failed = new DelayQueue<>();
@@ -240,7 +237,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   public synchronized void useMessage(final @NonNull String message, final @NonNull Level level,
       final @NonNull Object... arguments) {
     _listeners.forEach(Runnable::run);
-    _logger.atLevel(_options.logLevel.toInt() > level.toInt() ? _options.logLevel : level)
+    _logger.atLevel(_config.logLevel.toInt() > level.toInt() ? _config.logLevel : level)
         .log(message, arguments);
   }
 
