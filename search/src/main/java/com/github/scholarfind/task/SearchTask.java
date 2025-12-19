@@ -4,6 +4,7 @@ import static org.slf4j.event.Level.*;
 import static software.amazon.awssdk.services.sqs.model.QueueAttributeName.*;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,6 +34,7 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueAttributesRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 import software.amazon.awssdk.services.sqs.model.Message;
+import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.QueueAttributeName;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
@@ -98,9 +100,11 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
         .queueUrl();
   }
 
-  private void sendQueuePayload(@NonNull String payload, @NonNull String queueUrl) {
+  private void sendQueuePayload(@NonNull String payload, @NonNull String queueUrl,
+      @NonNull Map<String, MessageAttributeValue> attributes) {
     SendMessageRequest sendRequest = SendMessageRequest.builder()
         .queueUrl(queueUrl)
+        .messageAttributes(attributes)
         .messageBody(payload)
         .build();
     SendMessageResponse sendResponse = _queueClient.sendMessage(sendRequest);
@@ -111,13 +115,13 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     final String payload = message.body();
     try {
       SearchDocument document = _mapper.readValue(payload, SearchDocument.class);
-      Integer attempts = document.header().attempt();
+      Integer attempts = document.trace().attempt();
 
       if (attempts > _taskConfig.operandRetries) {
         useMessage(
             "Document exceeds local maximum retries",
             ERROR);
-        sendQueuePayload(payload, _searchConfig.dlqQueueName);
+        sendQueuePayload(payload, _searchConfig.dlqQueueName, message.messageAttributes());
         return null;
       }
 
@@ -126,13 +130,13 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       useMessage(
           "JSON format failure",
           ERROR);
-      sendQueuePayload(payload, _searchConfig.dlqQueueName);
+      sendQueuePayload(payload, _searchConfig.dlqQueueName, message.messageAttributes());
       return null;
     } catch (final IOException exception) {
       useMessage(
           "Transfient payload failure",
           WARN);
-      sendQueuePayload(payload, _searchConfig.inQueueName);
+      sendQueuePayload(payload, _searchConfig.inQueueName, message.messageAttributes());
       return null;
     }
   }
@@ -207,6 +211,17 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
   @Override
   protected boolean post(SearchDocument operand) {
     String body = null;
+
+    // TODO: Repair Instances...?
+    Map<String, MessageAttributeValue> attributes = new HashMap<>();
+    attributes.put("origin", MessageAttributeValue.builder().stringValue(_taskConfig._name).build());
+    attributes.put("depth", MessageAttributeValue.builder().stringValue(operand.trace().depth().toString()).build());
+    attributes.put("attempts",
+        MessageAttributeValue.builder().stringValue(operand.trace().attempt().toString()).build());
+    attributes.put("reason", MessageAttributeValue.builder().stringValue(operand.reason().toString()).build());
+    attributes.put("url",
+        MessageAttributeValue.builder().stringValue(operand.trace().url().toString()).build());
+
     try {
       body = _mapper.writeValueAsString(operand);
       SendMessageRequest sendRequest = SendMessageRequest.builder()
@@ -219,12 +234,12 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       useMessage(
           String.format("JSON format failure : sent to dead letter queue"),
           ERROR);
-      sendQueuePayload(body != null ? body : "", _searchConfig.dlqQueueName);
+      sendQueuePayload(body != null ? body : "", _searchConfig.dlqQueueName, attributes);
     } catch (final IOException exception) {
       useMessage(
           String.format("Transfient payload failure : sent to retry queue"),
           WARN);
-      sendQueuePayload(body != null ? body : "", _searchConfig.inQueueName);
+      sendQueuePayload(body != null ? body : "", _searchConfig.inQueueName, attributes);
     }
     return false;
   }

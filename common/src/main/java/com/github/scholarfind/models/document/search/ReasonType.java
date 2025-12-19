@@ -16,6 +16,8 @@ public enum ReasonType {
 
   ERROR_RETRY,
 
+  PARSE_RETRY,
+
   DUPLICATE,
 
   OUT_OF_DATE
