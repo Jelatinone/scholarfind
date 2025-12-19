@@ -5,10 +5,11 @@ import java.util.Collection;
 
 import com.github.scholarfind.models.document.HeaderDocument;
 import com.github.scholarfind.models.document.LocationDocument;
+import com.github.scholarfind.models.document.TraceDocument;
 
 public record AnnotateDocument(
-                Long schemaVersion,
                 HeaderDocument header,
+                TraceDocument trace,
 
                 String organizationName,
                 String scholarshipName,

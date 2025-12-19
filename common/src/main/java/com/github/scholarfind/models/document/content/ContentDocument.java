@@ -1,10 +1,11 @@
 package com.github.scholarfind.models.document.content;
 
-import java.util.UUID;
+import com.github.scholarfind.models.document.HeaderDocument;
+import com.github.scholarfind.models.document.TraceDocument;
 
 public record ContentDocument(
-        Long schemaVersion,
-        UUID id,
+        HeaderDocument header,
+        TraceDocument trace,
         String rawContent,
         String fingerprint) {
 }
