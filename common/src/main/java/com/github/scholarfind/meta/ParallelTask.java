@@ -8,7 +8,7 @@ import static org.slf4j.event.Level.INFO;
 
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Queue;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -43,30 +43,19 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
   /**
    * Creates a new parallel Task
    * 
-   * @param name     Name of the task to be created
-   * @param executor Service to execute parallel jobs with
-   */
-  protected ParallelTask(final @NonNull String name, final @NonNull ExecutorService executor) {
-    this(name, executor, Configuration.builder().build());
-  }
-
-  /**
-   * Creates a new parallel Task
-   * 
-   * @param name     Name of the task to be created
    * @param executor Service to execute parallel jobs with
    * @param config   Config to associate with this task
    */
   protected ParallelTask(final @NonNull String name, final @NonNull ExecutorService executor,
       final @NonNull Configuration config) {
-    super(name, config);
+    super(config);
 
     _executor = executor;
-    _threads = new Semaphore(_config.threadParallelism);
-    _jobs = new HashSet<>(_config.threadParallelism, 0f);
+    _threads = new Semaphore(_taskConfig.threadParallelism);
+    _jobs = new HashSet<>(_taskConfig.threadParallelism, 0f);
 
-    operands = ConcurrentHashMap.newKeySet(_config.collectionSize);
-    results = ConcurrentHashMap.newKeySet(_config.collectionSize);
+    operands = ConcurrentHashMap.newKeySet(_taskConfig.collectionSize);
+    results = ConcurrentHashMap.newKeySet(_taskConfig.collectionSize);
   }
 
   /**
@@ -108,7 +97,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
     if (!currentStatus) {
       useMessage(String.format("Failed dispatched job : %s", operand.toString()), ERROR);
       int attempt = _attempts.getOrDefault(operand, 0) + 1;
-      if (attempt < _config.operandRetries) {
+      if (attempt < _taskConfig.logicalRetries) {
         long delay = _retryScheduler.compute(attempt);
         _attempts.put(operand, attempt);
         _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
@@ -130,7 +119,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
   private void handleFailure(final Consumes operand, Throwable cause) {
     useMessage(String.format("Failed dispatched job : %s", operand.toString()), ERROR);
     int attempt = _attempts.getOrDefault(operand, 0) + 1;
-    if (attempt < _config.operandRetries) {
+    if (attempt < _taskConfig.logicalRetries) {
       long delay = _retryScheduler.compute(attempt);
       _attempts.put(operand, attempt);
       _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
@@ -141,11 +130,11 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 
   @Override
   public void run() {
-    useMessage(String.format("Operation started : %s", _name), DEBUG);
+    useMessage(String.format("Operation started : %s", _taskConfig._name), DEBUG);
     while (!_completable.isDone()) {
       try {
         State state = _state.get();
-        useMessage(String.format("Operation %s : %s", state, _name), INFO);
+        useMessage(String.format("Operation %s : %s", state, _taskConfig._name), INFO);
         switch (state) {
           case CREATED -> {
             setup();
@@ -166,7 +155,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 
             CollectionResult<Consumes> result = collect();
             switch (result) {
-              case CollectionResult.Alive(Queue<Consumes> collection) -> {
+              case CollectionResult.Alive(List<Consumes> collection) -> {
                 useMessage(String.format("Adding collected jobs : %d", collection.size()), DEBUG);
                 _collected.addAll(collection);
                 _collectScheduler.reset();
@@ -232,7 +221,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
         _completable.completeExceptionally(throwable);
       }
     }
-    useMessage(String.format("Operation ended : %s", _name), DEBUG);
+    useMessage(String.format("Operation ended : %s", _taskConfig._name), DEBUG);
   }
 
   /**

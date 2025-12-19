@@ -7,23 +7,23 @@ import com.github.scholarfind.models.document.HeaderDocument;
 import com.github.scholarfind.models.document.LocationDocument;
 
 public record AnnotateDocument(
+                Long schemaVersion,
+                HeaderDocument header,
 
-        HeaderDocument header,
+                String organizationName,
+                String scholarshipName,
 
-        String organizationName,
-        String scholarshipName,
+                ChronoLocalDate openDate,
+                ChronoLocalDate closeDate,
 
-        ChronoLocalDate openDate,
-        ChronoLocalDate closeDate,
+                Double awardAmount,
 
-        Double awardAmount,
+                Collection<LocationDocument> location,
 
-        Collection<LocationDocument> location,
+                Collection<ActivityDocument> activities,
+                Collection<SupplementalType> supplements,
 
-        Collection<ActivityDocument> activities,
-        Collection<SupplementalType> supplements,
-
-        Collection<PursuedDegreeLevel> pursuedDegrees,
-        Collection<EducationLevel> educationLevels) {
+                Collection<PursuedDegreeLevel> pursuedDegrees,
+                Collection<EducationLevel> educationLevels) {
 
 }

@@ -54,10 +54,16 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration {
     @Builder.Default
+    String _name = "task";
+
+    @Builder.Default
     Level logLevel = INFO;
 
     @Builder.Default
-    Integer operandRetries = 5;
+    Integer operandRetries = 10;
+
+    @Builder.Default
+    Integer logicalRetries = 5;
 
     @Builder.Default
     Integer collectionSize = 10;
@@ -77,8 +83,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
 
   static Logger _logger = LoggerFactory.getLogger(Task.class);
 
-  String _name;
-  Configuration _config;
+  Configuration _taskConfig;
 
   AtomicReference<State> _state;
   BackoffScheduler _collectScheduler;
@@ -98,19 +103,18 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    * @param name   Name of the task to be created
    * @param config Options to associate with this task
    */
-  protected Task(final @NonNull String name, final @NonNull Configuration config) {
-    _name = name;
-    _config = config;
+  protected Task(final @NonNull Configuration config) {
+    _taskConfig = config;
 
     _state = new AtomicReference<State>();
     _collectScheduler = new ExponentialBackoffScheduler(
-        _config.baseAwaitTimeout,
-        _config.maximumAwaitTimeout,
-        _config.awaitFactor);
+        _taskConfig.baseAwaitTimeout,
+        _taskConfig.maximumAwaitTimeout,
+        _taskConfig.awaitFactor);
     _retryScheduler = new ExponentialBackoffScheduler(
-        _config.baseAwaitTimeout,
-        _config.maximumAwaitTimeout,
-        _config.awaitFactor);
+        _taskConfig.baseAwaitTimeout,
+        _taskConfig.maximumAwaitTimeout,
+        _taskConfig.awaitFactor);
 
     _attempts = new ConcurrentHashMap<>();
     _failed = new DelayQueue<>();
@@ -237,7 +241,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   public synchronized void useMessage(final @NonNull String message, final @NonNull Level level,
       final @NonNull Object... arguments) {
     _listeners.forEach(Runnable::run);
-    _logger.atLevel(_config.logLevel.toInt() > level.toInt() ? _config.logLevel : level)
+    _logger.atLevel(_taskConfig.logLevel.toInt() > level.toInt() ? _taskConfig.logLevel : level)
         .log(message, arguments);
   }
 
@@ -263,8 +267,8 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    * 
    * @return Name of this task
    */
-  public String getName() {
-    return _name;
+  public Configuration getConfig() {
+    return _taskConfig;
   }
 
   /**

@@ -4,7 +4,7 @@ import static com.github.scholarfind.meta.State.*;
 import static org.slf4j.event.Level.*;
 import static java.util.concurrent.TimeUnit.*;
 
-import java.util.Queue;
+import java.util.List;
 
 import lombok.AccessLevel;
 import lombok.NonNull;
@@ -31,29 +31,19 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
   /**
    * Creates a new sequential Task
    * 
-   * @param name Name of the task to be created
-   */
-  protected SequentialTask(final @NonNull String name) {
-    this(name, Configuration.builder().build());
-  }
-
-  /**
-   * Creates a new sequential Task
-   * 
-   * @param name   Name of the task to be created
    * @param config Config to associate with this task
    */
-  protected SequentialTask(final @NonNull String name, final @NonNull Configuration config) {
-    super(name, config);
+  protected SequentialTask(final @NonNull Configuration config) {
+    super(config);
   }
 
   @Override
   public void run() {
-    useMessage(String.format("Operation started : %s", _name), DEBUG);
+    useMessage(String.format("Operation started : %s", _taskConfig._name), DEBUG);
     while (!_completable.isDone()) {
       try {
         State state = _state.get();
-        useMessage(String.format("Operation %s : %s", state, _name), INFO);
+        useMessage(String.format("Operation %s : %s", state, _taskConfig._name), INFO);
         switch (state) {
 
           case CREATED -> {
@@ -75,7 +65,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 
             CollectionResult<Consumes> result = collect();
             switch (result) {
-              case CollectionResult.Alive(Queue<Consumes> collection) -> {
+              case CollectionResult.Alive(List<Consumes> collection) -> {
                 useMessage(String.format("Adding collected jobs : %d", collection.size()), DEBUG);
                 _collected.addAll(collection);
                 _collectScheduler.reset();
@@ -108,7 +98,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
             if (!currentStatus) {
               int attempt = _attempts.getOrDefault(operand, 0) + 1;
               useMessage(String.format("Failed dispatched job : %s", operand.toString()), ERROR);
-              if (attempt < _config.operandRetries) {
+              if (attempt < _taskConfig.logicalRetries) {
                 long delay = _retryScheduler.compute(attempt);
                 _attempts.put(operand, attempt + 1);
                 _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
@@ -145,7 +135,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
         _completable.completeExceptionally(throwable);
       }
     }
-    useMessage(String.format("Operation ended : %s", _name), DEBUG);
+    useMessage(String.format("Operation ended : %s", _taskConfig._name), DEBUG);
   }
 
   /**

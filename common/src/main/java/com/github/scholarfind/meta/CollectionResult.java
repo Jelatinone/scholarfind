@@ -1,6 +1,6 @@
 package com.github.scholarfind.meta;
 
-import java.util.Queue;
+import java.util.List;
 
 /**
  * 
@@ -17,7 +17,7 @@ public sealed interface CollectionResult<Type> {
     /**
      * Describes a list of data with elements
      */
-    public static record Alive<Type>(Queue<Type> collection) implements CollectionResult<Type> {
+    public static record Alive<Type>(List<Type> collection) implements CollectionResult<Type> {
     }
 
     /**

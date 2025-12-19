@@ -5,14 +5,17 @@ import java.time.chrono.ChronoLocalDate;
 import java.util.UUID;
 
 public record HeaderDocument(
-        UUID id,
+                UUID id,
 
-        URL url,
-        URL parentUrl,
+                URL url,
+                URL parentUrl,
 
-        Integer depth,
+                String origin,
 
-        ChronoLocalDate discoveredAt,
-        ChronoLocalDate reviewedAt) {
+                Integer depth,
+                Integer attempt,
+
+                ChronoLocalDate discoveredAt,
+                ChronoLocalDate reviewedAt) {
 
 }
