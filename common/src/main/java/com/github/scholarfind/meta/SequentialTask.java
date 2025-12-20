@@ -6,6 +6,8 @@ import static java.util.concurrent.TimeUnit.*;
 
 import java.util.List;
 
+import com.github.scholarfind.utility.DelayedValue;
+
 import lombok.AccessLevel;
 import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
@@ -57,29 +59,39 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           }
 
           case COLLECTING -> {
-            useMessage(String.format("Adding failed jobs : %d", _failed.size()), DEBUG);
             DelayedValue<Consumes> failed;
+            int failedCount = 0;
             while ((failed = _failed.poll()) != null) {
-              _collected.offer(failed.operand);
+              _collected.offer(failed.value);
+              failedCount++;
             }
+            useMessage(String.format("Adding failed work : %d", failedCount), DEBUG);
 
-            CollectionResult<Consumes> result = collect();
+            Collect<Consumes> result = collect();
             switch (result) {
-              case CollectionResult.Alive(List<Consumes> collection) -> {
-                useMessage(String.format("Adding collected jobs : %d", collection.size()), DEBUG);
+              case Collect.Alive(List<Consumes> collection) -> {
+                useMessage(String.format("Collection shape : Alive"), INFO);
+
                 _collected.addAll(collection);
                 _collectScheduler.reset();
+
+                useMessage(String.format("Added collected work : %d", collection.size()), DEBUG);
 
                 useState(OPERATING);
               }
 
-              case CollectionResult.Idle() -> {
+              case Collect.Idle() -> {
+                useMessage(String.format("Collection shape : Idle"), INFO);
                 useState(_collected.isEmpty() ? AWAITING : OPERATING);
               }
 
-              case CollectionResult.Empty() -> {
+              case Collect.Empty() -> {
+                useMessage(String.format("Collection shape : Empty"), INFO);
                 useState(_collected.isEmpty() ? COMPLETED : OPERATING);
               }
+            }
+            if (_collected.size() > 0) {
+              setup();
             }
           }
 
@@ -94,21 +106,32 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           }
 
           case POSTING -> {
-            boolean currentStatus = post(result);
-            if (!currentStatus) {
-              int attempt = _attempts.getOrDefault(operand, 0) + 1;
-              useMessage(String.format("Failed dispatched job : %s", operand.toString()), ERROR);
-              if (attempt < _taskConfig.logicalRetries) {
-                long delay = _retryScheduler.compute(attempt);
-                _attempts.put(operand, attempt + 1);
-                _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
-                useMessage(String.format("Queued dispatched job : %s", operand.toString()), DEBUG);
+            Post currentStatus = post(result);
+            String operandString = operand.toString();
+
+            useMessage(String.format("Posted work : %s", currentStatus), ERROR);
+
+            switch (currentStatus) {
+              case FAILURE_FATAL, SUCCESS -> {
+                _attempts.remove(operand);
+                useMessage(String.format("Completed work : %s", operandString), DEBUG);
               }
-            } else {
-              useMessage(String.format("Completed dispatched job : %s", operand.toString()), INFO);
-              _attempts.remove(operand);
+
+              case FAILURE_RETRY -> {
+                int attempt = _attempts.getOrDefault(operand, 0) + 1;
+
+                if (attempt < _taskConfig.logicalRetries) {
+                  long delay = _retryScheduler.compute(attempt);
+
+                  _attempts.put(operand, attempt);
+                  _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
+
+                  useMessage(String.format("Queued work : %s", operandString), DEBUG);
+                } else {
+                  _attempts.remove(operand);
+                }
+              }
             }
-            useState(OPERATING);
           }
 
           case RESTARTING -> {

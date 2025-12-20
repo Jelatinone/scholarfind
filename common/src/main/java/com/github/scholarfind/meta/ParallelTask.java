@@ -14,6 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 
+import com.github.scholarfind.utility.DelayedValue;
+
 import lombok.AccessLevel;
 import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
@@ -62,8 +64,8 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * Dispatches a new completable job using this instance's executor, and returns
    * the job.
    * 
-   * @param element Consumable unit of informaton
-   * @return Completeable job of work
+   * @param element Consumable unit of information
+   * @return Completable job of work
    * @throws InterruptedException When interrupted while updating the number of
    *                              currently active threads.
    */
@@ -89,23 +91,35 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
   /**
    * Handles determining the state of an {@link #operate(Object) operation}.
    * 
-   * @param operand Consumable unit of informaton
+   * @param operand Consumable unit of information
    * @param result  Produced unit of information
    */
   private void handlePost(final Consumes operand, final Produces result) {
-    boolean currentStatus = post(result);
-    if (!currentStatus) {
-      useMessage(String.format("Failed dispatched job : %s", operand.toString()), ERROR);
-      int attempt = _attempts.getOrDefault(operand, 0) + 1;
-      if (attempt < _taskConfig.logicalRetries) {
-        long delay = _retryScheduler.compute(attempt);
-        _attempts.put(operand, attempt);
-        _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
-        useMessage(String.format("Queued dispatched job : %s", operand.toString()), DEBUG);
+    Post currentStatus = post(result);
+    String operandString = operand.toString();
+
+    useMessage(String.format("Posted work : %s", currentStatus), ERROR);
+
+    switch (currentStatus) {
+      case FAILURE_FATAL, SUCCESS -> {
+        _attempts.remove(operand);
+        useMessage(String.format("Completed job : %s", operandString), DEBUG);
       }
-    } else {
-      useMessage(String.format("Completed dispatched job : %s", operand.toString()), INFO);
-      _attempts.remove(operand);
+
+      case FAILURE_RETRY -> {
+        int attempt = _attempts.getOrDefault(operand, 0) + 1;
+
+        if (attempt < _taskConfig.logicalRetries) {
+          long delay = _retryScheduler.compute(attempt);
+
+          _attempts.put(operand, attempt);
+          _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
+
+          useMessage(String.format("Queued job : %s", operandString), DEBUG);
+        } else {
+          _attempts.remove(operand);
+        }
+      }
     }
     _threads.release();
   }
@@ -113,17 +127,19 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
   /**
    * Handles determining the state of an {@link #operate(Object) operation}.
    * 
-   * @param operand Consumable unit of informaton
-   * @param cause   Rease for failure at any point during execution
+   * @param operand Consumable unit of information
+   * @param cause   Cause for failure at any point during execution
    */
   private void handleFailure(final Consumes operand, Throwable cause) {
-    useMessage(String.format("Failed dispatched job : %s", operand.toString()), ERROR);
+    String operandString = operand.toString();
     int attempt = _attempts.getOrDefault(operand, 0) + 1;
+
+    useMessage(String.format("Failed dispatched job : %s", operandString), ERROR);
     if (attempt < _taskConfig.logicalRetries) {
       long delay = _retryScheduler.compute(attempt);
       _attempts.put(operand, attempt);
       _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
-      useMessage(String.format("Queued dispatched job : %s", operand.toString()), DEBUG);
+      useMessage(String.format("Queued dispatched job : %s", operandString), DEBUG);
     }
     _threads.release();
   }
@@ -147,29 +163,39 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           }
 
           case COLLECTING -> {
-            useMessage(String.format("Adding failed jobs : %d", _failed.size()), DEBUG);
             DelayedValue<Consumes> failed;
+            int failedCount = 0;
             while ((failed = _failed.poll()) != null) {
-              _collected.offer(failed.operand);
+              _collected.offer(failed.value);
+              failedCount++;
             }
+            useMessage(String.format("Added failed jobs : %d", failedCount), DEBUG);
 
-            CollectionResult<Consumes> result = collect();
+            Collect<Consumes> result = collect();
             switch (result) {
-              case CollectionResult.Alive(List<Consumes> collection) -> {
-                useMessage(String.format("Adding collected jobs : %d", collection.size()), DEBUG);
+              case Collect.Alive(List<Consumes> collection) -> {
+                useMessage(String.format("Collection shape : Alive"), INFO);
+
                 _collected.addAll(collection);
                 _collectScheduler.reset();
 
-                useState(OPERATING);
+                useMessage(String.format("Added collected jobs : %d", collection.size()), DEBUG);
+
+                useState(DISPATCHING);
               }
 
-              case CollectionResult.Idle() -> {
-                useState(_collected.isEmpty() ? AWAITING : OPERATING);
+              case Collect.Idle() -> {
+                useMessage(String.format("Collection shape : Idle"), INFO);
+                useState(_collected.isEmpty() ? AWAITING : DISPATCHING);
               }
 
-              case CollectionResult.Empty() -> {
-                useState(_collected.isEmpty() ? COMPLETED : OPERATING);
+              case Collect.Empty() -> {
+                useMessage(String.format("Collection shape : Empty"), INFO);
+                useState(_collected.isEmpty() ? COMPLETED : DISPATCHING);
               }
+            }
+            if (_collected.size() > 0) {
+              setup();
             }
           }
 

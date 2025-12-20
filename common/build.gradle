@@ -7,18 +7,19 @@ repositories {
 }
 
 dependencies {
-  implementation platform ("software.amazon.awssdk:bom:2.40.10") 
+  implementation platform ("software.amazon.awssdk:bom:2.40.10")
 
-  implementation ("software.amazon.awssdk:cloudwatch-metric-publisher:2.25.56")
+  implementation ("software.amazon.awssdk:sqs:2.34.0")
+
   implementation ('commons-cli:commons-cli:1.11.0')
   implementation ("com.fasterxml.jackson.core:jackson-databind:2.0.1")
   implementation ("org.slf4j:slf4j-simple:2.0.17")
 
   compileOnly ("org.projectlombok:lombok:1.18.42")
-	annotationProcessor ("org.projectlombok:lombok:1.18.42")
-	
-	testCompileOnly ("org.projectlombok:lombok:1.18.42")
-	testAnnotationProcessor ("org.projectlombok:lombok:1.18.42")
+  annotationProcessor ("org.projectlombok:lombok:1.18.42")
+
+  testCompileOnly ("org.projectlombok:lombok:1.18.42")
+  testAnnotationProcessor ("org.projectlombok:lombok:1.18.42")
 }
 
 test {

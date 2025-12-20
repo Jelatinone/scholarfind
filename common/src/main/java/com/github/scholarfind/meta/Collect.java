@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * 
- * <h1>CollectionResult</h1>
+ * <h1>Collect</h1>
  * 
  * Describes a general collection resulting from a {@link Task#collect()
  * collection} operation occuring, which may be in one of three states:
@@ -12,24 +12,24 @@ import java.util.List;
  * 
  * @author Cody Washington
  */
-public sealed interface CollectionResult<Type> {
+public sealed interface Collect<Type> {
 
     /**
      * Describes a list of data with elements
      */
-    public static record Alive<Type>(List<Type> collection) implements CollectionResult<Type> {
+    public static record Alive<Type>(List<Type> collection) implements Collect<Type> {
     }
 
     /**
      * Describes a list of data without elements, but expecting to receive elements
      */
-    public static record Idle<Type>() implements CollectionResult<Type> {
+    public static record Idle<Type>() implements Collect<Type> {
     }
 
     /**
      * Describes a list of data without elements, and not expecting to receive
      * elements
      */
-    public static record Empty<Type>() implements CollectionResult<Type> {
+    public static record Empty<Type>() implements Collect<Type> {
     }
 }

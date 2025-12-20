@@ -31,7 +31,7 @@ public enum State {
 
   POSTING,
 
-  // Parallel-exlusive States
+  // Parallel-exclusive States
 
   DISPATCHING,
 

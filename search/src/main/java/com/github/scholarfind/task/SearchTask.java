@@ -1,10 +1,11 @@
 package com.github.scholarfind.task;
 
 import static org.slf4j.event.Level.*;
+import static com.github.scholarfind.meta.Post.*;
 import static software.amazon.awssdk.services.sqs.model.QueueAttributeName.*;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.net.MalformedURLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -12,11 +13,12 @@ import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonGenerationException;
-import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.scholarfind.meta.CollectionResult;
+import com.github.scholarfind.meta.Collect;
+import com.github.scholarfind.meta.Post;
 import com.github.scholarfind.meta.SequentialTask;
 import com.github.scholarfind.meta.Task;
 import com.github.scholarfind.models.document.search.SearchDocument;
@@ -25,11 +27,11 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
+
 import software.amazon.awssdk.core.metrics.CoreMetric;
 import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.metrics.publishers.cloudwatch.CloudWatchMetricPublisher;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
-import software.amazon.awssdk.services.cloudwatch.CloudWatchClient;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueAttributesRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
@@ -54,7 +56,10 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     String outQueueName = "queue_annotate";
 
     @Builder.Default
-    String dlqQueueName = "queue_dlq";
+    String retryQueueName = "queue_retry";
+
+    @Builder.Default
+    String errorQueueName = "queue_error";
   }
 
   static Logger _logger = LoggerFactory.getLogger(SearchTask.class);
@@ -63,13 +68,13 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       .detailedMetrics(CoreMetric.API_CALL_DURATION)
       .build();
 
-  SqsClient _queueClient;
-  CloudWatchClient _monitorClient;
-
   ObjectMapper _mapper;
+  SqsClient _queueClient;
 
   String _inQueueUrl;
   String _outQueueUrl;
+  String _retryQueueUrl;
+  String _errorQueueUrl;
 
   Configuration _searchConfig;
 
@@ -78,6 +83,10 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     _searchConfig = searchConfig;
 
     _mapper = new ObjectMapper()
+        .configure(Feature.ALLOW_COMMENTS, true)
+        .configure(Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
+        .configure(Feature.ALLOW_NUMERIC_LEADING_ZEROS, true)
+        .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)
         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     _queueClient = SqsClient.builder()
@@ -85,70 +94,71 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
         .build();
     useMessage("Initialized resources : queue client", INFO);
 
-    _monitorClient = CloudWatchClient.create();
-    useMessage("Initialized resources : monitor client", INFO);
-
     _inQueueUrl = _queueClient.getQueueUrl(
         GetQueueUrlRequest.builder()
             .queueName(searchConfig.inQueueName)
             .build())
         .queueUrl();
+    useMessage("Resolved resource : ingestion queue URL", INFO);
+
     _outQueueUrl = _queueClient.getQueueUrl(
         GetQueueUrlRequest.builder()
             .queueName(searchConfig.outQueueName)
             .build())
         .queueUrl();
+    useMessage("Resolved resource : output queue URL", INFO);
+
+    _retryQueueUrl = _queueClient.getQueueUrl(
+        GetQueueUrlRequest.builder()
+            .queueName(searchConfig.retryQueueName)
+            .build())
+        .queueUrl();
+    useMessage("Resolved resource : retry queue URL", INFO);
+
+    _errorQueueUrl = _queueClient.getQueueUrl(
+        GetQueueUrlRequest.builder()
+            .queueName(searchConfig.errorQueueName)
+            .build())
+        .queueUrl();
+    useMessage("Resolved resource : error queue URL", INFO);
   }
 
-  private void sendQueuePayload(@NonNull String payload, @NonNull String queueUrl,
+  private void send(@NonNull String queueUrl, @NonNull String body,
       @NonNull Map<String, MessageAttributeValue> attributes) {
     SendMessageRequest sendRequest = SendMessageRequest.builder()
         .queueUrl(queueUrl)
         .messageAttributes(attributes)
-        .messageBody(payload)
+        .messageBody(body)
         .build();
     SendMessageResponse sendResponse = _queueClient.sendMessage(sendRequest);
-    useMessage(String.format("Re-queued payload to %s [MessageId=%s]", queueUrl, sendResponse.messageId()), INFO);
+    useMessage(String.format("Queued to %s [MessageId=%s]", queueUrl, sendResponse.messageId()), INFO);
   }
 
-  private SearchDocument parseMessage(@NonNull Message message) {
-    final String payload = message.body();
+  private SearchDocument parse(final @NonNull Message message) {
+    Map<String, MessageAttributeValue> attributes = message.messageAttributes();
+    String body = message.body();
+
+    SearchDocument document = null;
     try {
-      SearchDocument document = _mapper.readValue(payload, SearchDocument.class);
-      Integer attempts = document.trace().attempt();
-
-      if (attempts > _taskConfig.operandRetries) {
-        useMessage(
-            "Document exceeds local maximum retries",
-            ERROR);
-        sendQueuePayload(payload, _searchConfig.dlqQueueName, message.messageAttributes());
-        return null;
-      }
-
+      document = SearchDocument.parse(message);
+      useMessage(String.format("Parse successfully from [MessageId=%s]", message.messageId()), INFO);
       return document;
-    } catch (final JsonParseException exception) {
-      useMessage(
-          "JSON format failure",
-          ERROR);
-      sendQueuePayload(payload, _searchConfig.dlqQueueName, message.messageAttributes());
-      return null;
+    } catch (final MalformedURLException exception) {
+      send(_errorQueueUrl, body, attributes);
     } catch (final IOException exception) {
-      useMessage(
-          "Transfient payload failure",
-          WARN);
-      sendQueuePayload(payload, _searchConfig.inQueueName, message.messageAttributes());
-      return null;
+      send(_retryQueueUrl, body, attributes);
     }
+    useMessage(String.format("Parse failed from [MessageId=%s]", message.messageId()), ERROR);
+    return document;
   }
 
   @Override
-  public void close() throws Exception {
+  public void close() throws IOException {
     _queueClient.close();
-    _monitorClient.close();
   }
 
   @Override
-  protected @NonNull CollectionResult<@NonNull SearchDocument> collect() {
+  protected @NonNull Collect<@NonNull SearchDocument> collect() {
     ReceiveMessageRequest collectionRequest = ReceiveMessageRequest.builder()
         .queueUrl(_inQueueUrl)
         .maxNumberOfMessages(_taskConfig.collectionSize)
@@ -172,76 +182,42 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
         String.format("Collection queue metrics alive : %s", queueAlive),
         INFO);
 
-    CollectionResult<SearchDocument> result;
-    if (collectionMessages.size() > 0) {
-      List<SearchDocument> searchDocuments = collectionMessages.stream()
-          .map(this::parseMessage)
-          .filter(Objects::nonNull)
-          .toList();
-      useMessage(
-          String.format("Valid collection results size : %d", searchDocuments.size()),
-          INFO);
+    List<SearchDocument> searchDocuments = collectionMessages.stream()
+        .map(this::parse)
+        .filter(Objects::nonNull)
+        .toList();
+    useMessage(
+        String.format("Collection valid results size : %d", searchDocuments.size()),
+        INFO);
 
-      result = new CollectionResult.Alive<SearchDocument>(searchDocuments);
-      useMessage(
-          "Collection result shape : ALIVE",
-          INFO);
+    Collect<SearchDocument> result;
+    if (collectionMessages.size() > 0) {
+      result = new Collect.Alive<SearchDocument>(searchDocuments);
     } else {
-      if (queueAlive) {
-        result = new CollectionResult.Idle<>();
-        useMessage(
-            "Collection result shape : IDLE",
-            INFO);
-      } else {
-        result = new CollectionResult.Empty<>();
-        useMessage(
-            "Collection result shape : EMPTY",
-            INFO);
-      }
+      result = queueAlive
+          ? new Collect.Idle<>()
+          : new Collect.Empty<>();
     }
 
     return result;
   }
 
   @Override
-  protected @NonNull SearchDocument operate(@NonNull SearchDocument operand) {
-    throw new UnsupportedOperationException("Unimplemented method 'operate'");
+  protected @NonNull SearchDocument operate(final @NonNull SearchDocument operand) {
+    return null;
   }
 
   @Override
-  protected boolean post(SearchDocument operand) {
-    String body = null;
-
-    // TODO: Repair Instances...?
-    Map<String, MessageAttributeValue> attributes = new HashMap<>();
-    attributes.put("origin", MessageAttributeValue.builder().stringValue(_taskConfig._name).build());
-    attributes.put("depth", MessageAttributeValue.builder().stringValue(operand.trace().depth().toString()).build());
-    attributes.put("attempts",
-        MessageAttributeValue.builder().stringValue(operand.trace().attempt().toString()).build());
-    attributes.put("reason", MessageAttributeValue.builder().stringValue(operand.reason().toString()).build());
-    attributes.put("url",
-        MessageAttributeValue.builder().stringValue(operand.trace().url().toString()).build());
-
+  protected Post post(final SearchDocument operand) {
+    Map<String, MessageAttributeValue> attributes = operand.extract();
     try {
-      body = _mapper.writeValueAsString(operand);
-      SendMessageRequest sendRequest = SendMessageRequest.builder()
-          .queueUrl(_outQueueUrl)
-          .messageBody(body)
-          .messageAttributes(attributes)
-          .build();
-      _queueClient.sendMessage(sendRequest);
-      return true;
-    } catch (final JsonGenerationException exception) {
-      useMessage(
-          String.format("JSON format failure : sent to dead letter queue"),
-          ERROR);
-      sendQueuePayload(body != null ? body : "", _searchConfig.dlqQueueName, attributes);
+      String body = _mapper.writeValueAsString(operand);
+      send(_outQueueUrl, body, attributes);
+      return SUCCESS;
+    } catch (final JsonMappingException exception) {
+      return FAILURE_FATAL;
     } catch (final IOException exception) {
-      useMessage(
-          String.format("Transfient payload failure : sent to retry queue"),
-          WARN);
-      sendQueuePayload(body != null ? body : "", _searchConfig.inQueueName, attributes);
+      return FAILURE_RETRY;
     }
-    return false;
   }
 }

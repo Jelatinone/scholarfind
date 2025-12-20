@@ -1,6 +1,6 @@
 package com.github.scholarfind.models.document;
 
-public record LocationDocument(
+public record Location(
         LocationLevel locationLevel,
         PreferenceLevel preferenceLevel,
 
@@ -10,7 +10,7 @@ public record LocationDocument(
         String city,
         String zip) {
 
-    public LocationDocument {
+    public Location {
         if (!validate()) {
             throw new IllegalArgumentException("Location level does not match the assigned location fields!");
         }

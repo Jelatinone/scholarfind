@@ -1,8 +1,8 @@
 import java.nio.charset.StandardCharsets
 
 plugins {
-    id "base"
-    id ("com.diffplug.spotless") version "8.1.0"
+  id "base"
+  id ("com.diffplug.spotless") version "8.1.0"
 }
 
 spotless {
@@ -15,7 +15,7 @@ spotless {
     removeUnusedImports()
     importOrder('com','org','java', '', '\\#').wildcardsLast()
     setEncoding(StandardCharsets.UTF_8)
-    indentWithSpaces(2)
+    leadingTabsToSpaces(2)
   }
   groovyGradle {
     target fileTree(".") {
@@ -23,7 +23,7 @@ spotless {
       exclude "**/build/**", "**/build-*/**"
     }
     greclipse()
-    indentWithSpaces(2)
+    leadingTabsToSpaces(2)
     trimTrailingWhitespace()
     endWithNewline()
   }
@@ -31,20 +31,20 @@ spotless {
 build.dependsOn(spotlessApply)
 
 allprojects {
-    group = "com.github.jelatinone"
-    version = "1.0.0-ALPHA"
+  group = "com.github.jelatinone"
+  version = "1.0.0-ALPHA"
 
-    repositories {
-        mavenCentral()
-    }
+  repositories {
+    mavenCentral()
+  }
 }
 
 subprojects {
-    apply plugin: "java"
+  apply plugin: "java"
 
-    java {
-        toolchain {
-            languageVersion = JavaLanguageVersion.of(21)
-        }
+  java {
+    toolchain {
+      languageVersion = JavaLanguageVersion.of(21)
     }
+  }
 }

@@ -21,6 +21,7 @@ import org.slf4j.event.Level;
 
 import com.github.scholarfind.backoff.BackoffScheduler;
 import com.github.scholarfind.backoff.ExponentialBackoffScheduler;
+import com.github.scholarfind.utility.DelayedValue;
 
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -133,7 +134,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    * 
    * @return Collection of consumable data
    */
-  protected abstract @NonNull CollectionResult<@NonNull Consumes> collect();
+  protected abstract @NonNull Collect<@NonNull Consumes> collect();
 
   /**
    * Performs an operation on `consumable` data and maps to a `producible` a
@@ -150,7 +151,18 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    * @param operand Data to be checked
    * @return Mapped result
    */
-  protected abstract boolean post(final Produces operand);
+  protected abstract Post post(final Produces operand);
+
+  /**
+   * Converts a given unit of work to a valid string for
+   * {@link #useMessage(String, Level, Object...) messaging} purposes.
+   * 
+   * @param operand Unit of work
+   * @return Mapped result
+   */
+  protected String convert(final Consumes operand) {
+    return operand.toString();
+  }
 
   /**
    * Restarts the current instance, performs necessary clean-up operations on this
@@ -168,7 +180,8 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
 
   /**
    * Sets up the current instance for {@link #run() operation}, performing
-   * necessary operations that need to occur during the creation phase.
+   * necessary operations that need to occur during the creation phase and when a
+   * new collection has been returned with valid work.
    * 
    * @throws IOException When a critical failure has occurred while trying to
    *                     setup

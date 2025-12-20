@@ -1,4 +1,4 @@
-package com.github.scholarfind.meta;
+package com.github.scholarfind.utility;
 
 import java.util.concurrent.Delayed;
 import java.util.concurrent.TimeUnit;
@@ -8,11 +8,11 @@ import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
 public final class DelayedValue<Type> implements Delayed {
-  Type operand;
+  Type value;
   long delayNano;
 
-  DelayedValue(Type operand, long delay, TimeUnit unit) {
-    this.operand = operand;
+  public DelayedValue(Type operand, long delay, TimeUnit unit) {
+    this.value = operand;
     this.delayNano = System.nanoTime() + unit.toNanos(delay);
   }
 

@@ -5,7 +5,9 @@ public enum PreferenceLevel {
 
   CONSIDERED,
 
-  PREFFERED,
+  PREFERRED,
 
-  OPTIONAL
+  OPTIONAL,
+
+  EXCLUDED
 }
