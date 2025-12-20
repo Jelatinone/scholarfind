@@ -227,6 +227,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       SendMessageRequest sendRequest = SendMessageRequest.builder()
           .queueUrl(_outQueueUrl)
           .messageBody(body)
+          .messageAttributes(attributes)
           .build();
       _queueClient.sendMessage(sendRequest);
       return true;
