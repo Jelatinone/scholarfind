@@ -1,6 +1,34 @@
+import java.nio.charset.StandardCharsets
+
 plugins {
     id "base"
+    id ("com.diffplug.spotless") version "8.1.0"
 }
+
+spotless {
+  java {
+    target fileTree('src') {
+      include '**/*.java'
+      exclude '**/external/*.java'
+    }
+    toggleOffOn()
+    removeUnusedImports()
+    importOrder('com','org','java', '', '\\#').wildcardsLast()
+    setEncoding(StandardCharsets.UTF_8)
+    indentWithSpaces(2)
+  }
+  groovyGradle {
+    target fileTree(".") {
+      include "**/*.gradle"
+      exclude "**/build/**", "**/build-*/**"
+    }
+    greclipse()
+    indentWithSpaces(2)
+    trimTrailingWhitespace()
+    endWithNewline()
+  }
+}
+build.dependsOn(spotlessApply)
 
 allprojects {
     group = "com.github.jelatinone"
