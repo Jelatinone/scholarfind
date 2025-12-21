@@ -84,7 +84,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           handleFailure(element, exception);
           return null;
         });
-    useMessage(String.format("Initialized dispatched job : %s", element.toString()), INFO);
+    useMessage(String.format("Initialized dispatched job : %s", element), INFO);
     return product;
   }
 
@@ -96,14 +96,12 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    */
   private void handlePost(final Consumes operand, final Produces result) {
     Post currentStatus = post(result);
-    String operandString = operand.toString();
-
     useMessage(String.format("Posted work : %s", currentStatus), ERROR);
 
     switch (currentStatus) {
       case FAILURE_FATAL, SUCCESS -> {
         _attempts.remove(operand);
-        useMessage(String.format("Completed job : %s", operandString), DEBUG);
+        useMessage(String.format("Completed job : %s", operand), DEBUG);
       }
 
       case FAILURE_RETRY -> {
@@ -115,7 +113,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           _attempts.put(operand, attempt);
           _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
 
-          useMessage(String.format("Queued job : %s", operandString), DEBUG);
+          useMessage(String.format("Queued job : %s", operand), DEBUG);
         } else {
           _attempts.remove(operand);
         }
@@ -131,15 +129,14 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * @param cause   Cause for failure at any point during execution
    */
   private void handleFailure(final Consumes operand, Throwable cause) {
-    String operandString = operand.toString();
     int attempt = _attempts.getOrDefault(operand, 0) + 1;
 
-    useMessage(String.format("Failed dispatched job : %s", operandString), ERROR);
+    useMessage(String.format("Failed dispatched job : %s", operand), ERROR);
     if (attempt < _taskConfig.logicalRetries) {
       long delay = _retryScheduler.compute(attempt);
       _attempts.put(operand, attempt);
       _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
-      useMessage(String.format("Queued dispatched job : %s", operandString), DEBUG);
+      useMessage(String.format("Queued dispatched job : %s", operand), DEBUG);
     }
     _threads.release();
   }

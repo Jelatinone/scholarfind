@@ -107,14 +107,13 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 
           case POSTING -> {
             Post currentStatus = post(result);
-            String operandString = operand.toString();
 
             useMessage(String.format("Posted work : %s", currentStatus), ERROR);
 
             switch (currentStatus) {
               case FAILURE_FATAL, SUCCESS -> {
                 _attempts.remove(operand);
-                useMessage(String.format("Completed work : %s", operandString), DEBUG);
+                useMessage(String.format("Completed work : %s", operand), DEBUG);
               }
 
               case FAILURE_RETRY -> {
@@ -126,7 +125,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
                   _attempts.put(operand, attempt);
                   _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
 
-                  useMessage(String.format("Queued work : %s", operandString), DEBUG);
+                  useMessage(String.format("Queued work : %s", operand), DEBUG);
                 } else {
                   _attempts.remove(operand);
                 }

@@ -212,7 +212,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     return classification;
   }
 
-  private SendMessageResponse send(@NonNull String queueUrl, @NonNull String body,
+  private SendMessageResponse queue(@NonNull String queueUrl, @NonNull String body,
       @NonNull Map<String, MessageAttributeValue> attributes) {
     SendMessageRequest sendMessageRequest = SendMessageRequest.builder()
         .queueUrl(queueUrl)
@@ -220,7 +220,18 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
         .messageBody(body)
         .build();
     SendMessageResponse sendMessageResponse = _queueClient.sendMessage(sendMessageRequest);
-    useMessage(String.format("Queued message to queue %s : %s", queueUrl, sendMessageResponse.messageId()), INFO);
+    SdkHttpResponse requestSdkResponse = sendMessageResponse.sdkHttpResponse();
+
+    String id = attributes.get("id").stringValue();
+    if (requestSdkResponse.isSuccessful()) {
+      useMessage(
+          String.format("Queue message to queue [%s] completed : %s", queueUrl, id),
+          INFO);
+    } else {
+      useMessage(
+          String.format("Queue message to queue [%s] failed : %s", queueUrl, id),
+          ERROR);
+    }
 
     return sendMessageResponse;
   }
@@ -238,12 +249,14 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
         useMessage(String.format("Parse message completed : %s", message.messageId()), INFO);
         return document;
       } catch (final MalformedURLException exception) {
-        send(_errorQueueUrl, body, attributes);
+        queue(_errorQueueUrl, body, attributes);
       } catch (final IOException exception) {
-        send(_retryQueueUrl, body, attributes);
+        queue(_retryQueueUrl, body, attributes);
       }
     }
-    useMessage(String.format("Parse message failed : %s", message.messageId()), ERROR);
+    useMessage(
+        String.format("Parse message failed : %s", message.messageId()),
+        ERROR);
     return document;
   }
 
@@ -256,10 +269,18 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     PutItemResponse putItemResponse = _dynamoClient.putItem(putItemRequest);
     SdkHttpResponse requestSdkResponse = putItemResponse.sdkHttpResponse();
 
-    useMessage(
-        String.format("Put %s item to table [%s] : %s", requestSdkResponse
-            .isSuccessful() ? "completed" : "failed", _searchConfig.searchStoreName, document.header().id().toString()),
-        INFO);
+    if (requestSdkResponse.isSuccessful()) {
+      useMessage(
+          String.format("Put item to table [%s] completed : %s", _searchConfig.searchStoreName, document.header().id()
+              .toString()),
+          INFO);
+    } else {
+      useMessage(
+          String.format("Put item to table [%s] failed : %s", _searchConfig.searchStoreName, document.header().id()
+              .toString()),
+          ERROR);
+    }
+
     return putItemResponse;
   }
 
@@ -272,10 +293,16 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     DeleteItemResponse deleteItemResponse = _dynamoClient.deleteItem(deleteItemRequest);
     SdkHttpResponse requestSdkResponse = deleteItemResponse.sdkHttpResponse();
 
-    useMessage(
-        String.format("Deleted %s item from table [%s] : %s", requestSdkResponse
-            .isSuccessful() ? "completed" : "failed", _searchConfig.searchStoreName, id),
-        INFO);
+    if (requestSdkResponse.isSuccessful()) {
+      useMessage(
+          String.format("Delete item from table [%s] completed : %s", _searchConfig.searchStoreName, id),
+          INFO);
+    } else {
+      useMessage(
+          String.format("Delete item from table [%s] completed : %s", _searchConfig.searchStoreName, id),
+          ERROR);
+    }
+
     return deleteItemResponse;
   }
 
@@ -292,12 +319,15 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     if (requestSdkResponse.isSuccessful()) {
       Map<String, AttributeValue> item = getItemResponse.item();
       document = SearchDocument.parse(item);
+      useMessage(
+          String.format("Retrieve item from table [%s] completed : %s", _searchConfig.searchStoreName, id),
+          INFO);
+      return document;
+    } else {
+      useMessage(
+          String.format("Retrieve item from table [%s] failed : %s", _searchConfig.searchStoreName, id),
+          ERROR);
     }
-
-    useMessage(
-        String.format("Retrieved %s item from table [%s] : %s", requestSdkResponse
-            .isSuccessful() ? "completed" : "failed", _searchConfig.searchStoreName, id),
-        INFO);
     return document;
   }
 
@@ -401,8 +431,14 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
     SearchDocument retrievedDocument = get(header.id());
 
+    if (generatedReviewedAt.plusDays(_searchConfig.apiDataExpirationDays).isBefore(ZonedDateTime.now())) {
+      generatedDecision = NEED_DROP;
+    }
     if (generatedAttempt > _searchConfig.maximumSearchAttempts) {
       generatedDecision = ERROR_MAX_ATTEMPTS;
+      useMessage(
+          String.format("Operand exceeded maximum attempts : %s", operand),
+          INFO);
     } else {
       switch (generatedDecision) {
         case NEED_ANNOTATE -> {
@@ -436,6 +472,12 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
         }
       }
     }
+    useMessage(
+        String.format("Operand should trust received : %s", shouldTrustRetrieved),
+        INFO);
+    useMessage(
+        String.format("Operand should classify : %s", shouldClassify),
+        INFO);
 
     if (shouldTrustRetrieved && retrievedDocument != null) {
 
@@ -468,10 +510,15 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
         String resultString = result.toString();
         DecisionType decision = result.trace().decision();
+
+        useMessage(
+            String.format("Operand has decision : %s",
+                decision),
+            INFO);
         switch (decision) {
           case ERROR_MUST_RETRY, ERROR_MALFORMED, ERROR_MAX_ATTEMPTS -> {
             put(result);
-            send(_errorQueueUrl, body, attributes);
+            queue(_errorQueueUrl, body, attributes);
             useMessage(
                 String.format("Operand sent to error queue : %s",
                     resultString),
@@ -480,7 +527,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
           case ERROR_MUST_DROP -> {
             delete(result.header().id());
-            send(_errorQueueUrl, body, attributes);
+            queue(_errorQueueUrl, body, attributes);
             useMessage(
                 String.format("Operand sent to error queue : %s",
                     resultString),
@@ -489,7 +536,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
           case NEED_ANNOTATE -> {
             put(result);
-            send(_outQueueUrl, body, attributes);
+            queue(_outQueueUrl, body, attributes);
             useMessage(
                 String.format("Operand sent to out queue : %s",
                     resultString),
@@ -497,14 +544,14 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           }
 
           case NEED_SEARCH -> {
-            send(_inQueueUrl, body, attributes);
+            queue(_inQueueUrl, body, attributes);
             useMessage(
                 String.format("Operand sent to in queue : %s",
                     resultString),
                 INFO);
           }
 
-          case NEED_STOP -> {
+          case NEED_DROP -> {
             put(result);
             useMessage(
                 String.format("Operand dropped : %s",
@@ -514,7 +561,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
           case DATA_OUT_OF_DATE, DATA_DUPLICATE_ENTRY -> {
             delete(result.header().id());
-            send(_retryQueueUrl, body, attributes);
+            queue(_retryQueueUrl, body, attributes);
             useMessage(
                 String.format("Operand sent to retry queue : %s", _retryQueueUrl),
                 INFO);
