@@ -1,4 +1,4 @@
-package com.github.scholarfind.models.document.annotate;
+package com.github.scholarfind.models.annotate;
 
 public enum SupplementalType {
 
@@ -12,7 +12,7 @@ public enum SupplementalType {
 
   FUTURE_IMPACT,
 
-  RECCOMENDATION_LETTER,
+  RECOMMENDATION_LETTER,
 
   MEMBERSHIP,
 
@@ -26,5 +26,5 @@ public enum SupplementalType {
 
   FULLTIME_STUDENT,
 
-  PARTTIME_STUDENT,
+  PART_TIME_STUDENT,
 }

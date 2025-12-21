@@ -1,4 +1,4 @@
-package com.github.scholarfind.models.document.annotate;
+package com.github.scholarfind.models.annotate;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -14,10 +14,10 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.scholarfind.models.document.DecisionType;
-import com.github.scholarfind.models.document.Header;
-import com.github.scholarfind.models.document.Location;
-import com.github.scholarfind.models.document.Trace;
+import com.github.scholarfind.models.DecisionType;
+import com.github.scholarfind.models.Header;
+import com.github.scholarfind.models.Location;
+import com.github.scholarfind.models.Trace;
 
 import lombok.NonNull;
 import software.amazon.awssdk.services.sqs.model.Message;
@@ -79,14 +79,14 @@ public record AnnotateDocument(
 
     String reviewer = attributes.get("reviewer").stringValue();
 
-    DecisionType decision = DecisionType.MALFORMED_DATA;
+    DecisionType decision = DecisionType.ERROR_MALFORMED;
 
     Integer depth = Integer.valueOf(attributes.get("depth").stringValue());
     Integer attempt = Integer.valueOf(attributes.get("attempt").stringValue());
 
-    ChronoLocalDate discoveredAt = ChronoLocalDate
+    ZonedDateTime discoveredAt = ZonedDateTime
         .from(ZonedDateTime.parse(attributes.get("discoveredAt").stringValue()));
-    ChronoLocalDate reviewedAt = ChronoLocalDate
+    ZonedDateTime reviewedAt = ZonedDateTime
         .from(ZonedDateTime.parse(attributes.get("reviewedAt").stringValue()));
 
     Trace trace = new Trace(url, parentUrl, reviewer, decision, depth, attempt, discoveredAt, reviewedAt);
@@ -94,5 +94,10 @@ public record AnnotateDocument(
     AnnotateDocument document = new AnnotateDocument(header, trace, null, null, null, null, null, null, null, null,
         null, null);
     return document;
+  }
+
+  @Override
+  public String toString() {
+    return String.format("document [%d] : %s", header().id().toString(), trace().decision().toString());
   }
 }

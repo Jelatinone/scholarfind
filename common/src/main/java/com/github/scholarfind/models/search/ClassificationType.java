@@ -1,4 +1,4 @@
-package com.github.scholarfind.models.document.search;
+package com.github.scholarfind.models.search;
 
 public enum ClassificationType {
 

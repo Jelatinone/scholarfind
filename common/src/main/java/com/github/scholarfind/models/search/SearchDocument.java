@@ -1,11 +1,10 @@
-package com.github.scholarfind.models.document.search;
+package com.github.scholarfind.models.search;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.time.ZonedDateTime;
-import java.time.chrono.ChronoLocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -14,10 +13,12 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.scholarfind.models.document.DecisionType;
-import com.github.scholarfind.models.document.Header;
-import com.github.scholarfind.models.document.Trace;
+import com.github.scholarfind.models.DecisionType;
+import com.github.scholarfind.models.Header;
+import com.github.scholarfind.models.Trace;
 
+import software.amazon.awssdk.annotations.NotNull;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 
@@ -27,6 +28,8 @@ public record SearchDocument(
     Header header,
     Trace trace,
     Classification classification) {
+
+  public static final Long schemaVersion = 1L;
 
   private static ObjectMapper _mapper = new ObjectMapper()
       .configure(Feature.ALLOW_COMMENTS, true)
@@ -52,6 +55,11 @@ public record SearchDocument(
     return document;
   }
 
+  public static SearchDocument parse(final @NotNull Map<String, AttributeValue> item) {
+    // Not yet implemented...
+    return null;
+  }
+
   public static SearchDocument repair(final @NonNull Map<String, MessageAttributeValue> attributes)
       throws MalformedURLException {
     Long schemaVersion = Long.parseLong(attributes.get("schemaVersion").stringValue());
@@ -64,14 +72,14 @@ public record SearchDocument(
 
     String reviewer = attributes.get("reviewer").stringValue();
 
-    DecisionType decision = DecisionType.MALFORMED_DATA;
+    DecisionType decision = DecisionType.ERROR_MALFORMED;
 
     Integer depth = Integer.valueOf(attributes.get("depth").stringValue());
     Integer attempt = Integer.valueOf(attributes.get("attempt").stringValue());
 
-    ChronoLocalDate discoveredAt = ChronoLocalDate
+    ZonedDateTime discoveredAt = ZonedDateTime
         .from(ZonedDateTime.parse(attributes.get("discoveredAt").stringValue()));
-    ChronoLocalDate reviewedAt = ChronoLocalDate
+    ZonedDateTime reviewedAt = ZonedDateTime
         .from(ZonedDateTime.parse(attributes.get("reviewedAt").stringValue()));
 
     Trace trace = new Trace(url, parentUrl, reviewer, decision, depth, attempt, discoveredAt, reviewedAt);
@@ -111,8 +119,13 @@ public record SearchDocument(
     return attributes;
   }
 
+  public Map<String, AttributeValue> item() {
+    // Not yet implemented...
+    return null;
+  }
+
   @Override
   public String toString() {
-    return header().id().toString();
+    return String.format("document [%d] : %s", header().id().toString(), trace().decision().toString());
   }
 }

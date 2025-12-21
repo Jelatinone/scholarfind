@@ -80,6 +80,15 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
 
     @Builder.Default
     Long awaitFactor = 3 / 2L;
+
+    @Builder.Default
+    Long baseRetryTimeout = 100L;
+
+    @Builder.Default
+    Long maximumRetryTimeout = 3500L;
+
+    @Builder.Default
+    Long retryFactor = 3 / 2L;
   }
 
   static Logger _logger = LoggerFactory.getLogger(Task.class);
@@ -113,9 +122,9 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
         _taskConfig.maximumAwaitTimeout,
         _taskConfig.awaitFactor);
     _retryScheduler = new ExponentialBackoffScheduler(
-        _taskConfig.baseAwaitTimeout,
-        _taskConfig.maximumAwaitTimeout,
-        _taskConfig.awaitFactor);
+        _taskConfig.baseRetryTimeout,
+        _taskConfig.maximumRetryTimeout,
+        _taskConfig.retryFactor);
 
     _attempts = new ConcurrentHashMap<>();
     _failed = new DelayQueue<>();

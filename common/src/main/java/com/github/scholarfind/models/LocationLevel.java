@@ -1,4 +1,4 @@
-package com.github.scholarfind.models.document;
+package com.github.scholarfind.models;
 
 public enum LocationLevel {
 

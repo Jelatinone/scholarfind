@@ -1,4 +1,4 @@
-package com.github.scholarfind.models.document.annotate;
+package com.github.scholarfind.models.annotate;
 
 public enum EducationLevel {
 
