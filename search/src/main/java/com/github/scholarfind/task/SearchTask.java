@@ -4,6 +4,7 @@ import static org.slf4j.event.Level.*;
 import static software.amazon.awssdk.services.sqs.model.QueueAttributeName.*;
 import static com.github.scholarfind.meta.Post.*;
 import static com.github.scholarfind.models.DecisionType.*;
+import static com.github.scholarfind.models.search.ClassificationType.*;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -34,6 +35,7 @@ import com.github.scholarfind.models.DecisionType;
 import com.github.scholarfind.models.Header;
 import com.github.scholarfind.models.Trace;
 import com.github.scholarfind.models.search.Classification;
+import com.github.scholarfind.models.search.ClassificationType;
 import com.github.scholarfind.models.search.SearchDocument;
 
 import lombok.AccessLevel;
@@ -187,7 +189,8 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
   }
 
   private Classification classify(@NonNull Trace trace) {
-    Classification classification;
+    ClassificationType classificationType = OTHER;
+    Double confidence = 0D;
     // 1. URL inspection
 
     // 2. Domain inspection
@@ -204,12 +207,10 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       // 4. Content inspection
 
       connection.disconnect();
-
-      classification = new Classification(null, null);
     } catch (final IOException exception) {
-      classification = null;
+
     }
-    return classification;
+    return new Classification(classificationType, confidence);
   }
 
   private SendMessageResponse queue(@NonNull String queueUrl, @NonNull String body,
