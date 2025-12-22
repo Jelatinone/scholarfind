@@ -189,7 +189,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
   }
 
   private Classification classify(@NonNull Trace trace) {
-    ClassificationType classificationType = OTHER;
+    ClassificationType classificationType = UNCLASSIFIED;
     Double confidence = 0D;
     // 1. URL inspection
 
@@ -432,47 +432,62 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
     SearchDocument retrievedDocument = get(header.id());
 
-    if (generatedReviewedAt.plusDays(_searchConfig.apiDataExpirationDays).isBefore(ZonedDateTime.now())) {
-      generatedDecision = NEED_DROP;
+    if (generatedDiscoveredAt.plusDays(_searchConfig.apiDataExpirationDays).isAfter(ZonedDateTime.now())) {
+      generatedDecision = DATA_OUT_OF_DATE;
     }
+
     if (generatedAttempt > _searchConfig.maximumSearchAttempts) {
       generatedDecision = ERROR_MAX_ATTEMPTS;
-      useMessage(
-          String.format("Operand exceeded maximum attempts : %s", operand),
-          INFO);
-    } else {
-      switch (generatedDecision) {
-        case NEED_ANNOTATE -> {
-          shouldTrustRetrieved = true;
-        }
+    }
 
-        case NEED_SEARCH -> {
-          generatedDecision = NEED_ANNOTATE;
+    switch (generatedDecision) {
+      case NEED_ANNOTATE -> {
+        shouldTrustRetrieved = true;
+        useMessage(
+            String.format("Operand misplaced : %s", operand),
+            ERROR);
+      }
 
-          shouldClassify = true;
-          shouldTrustRetrieved = true;
-        }
+      case NEED_SEARCH -> {
+        generatedDecision = NEED_ANNOTATE;
 
-        case DATA_DUPLICATE_ENTRY, DATA_OUT_OF_DATE -> {
-          generatedId = UUID.fromString(generatedUrl.toString());
-          generatedDecision = NEED_ANNOTATE;
-          shouldClassify = true;
-        }
+        shouldClassify = true;
+        shouldTrustRetrieved = true;
+      }
 
-        case ERROR_MAX_ATTEMPTS -> {
-          shouldTrustRetrieved = true;
-        }
+      case DATA_DUPLICATE_ENTRY, DATA_OUT_OF_DATE -> {
+        generatedId = UUID.fromString(generatedUrl.toString());
+        generatedDecision = NEED_ANNOTATE;
+        shouldClassify = true;
+        useMessage(
+            String.format("Operand contained poor data : %s", operand),
+            INFO);
+      }
 
-        case ERROR_MALFORMED, ERROR_MUST_RETRY -> {
-          generatedDecision = NEED_SEARCH;
-          shouldClassify = true;
-        }
+      case ERROR_MAX_ATTEMPTS -> {
+        useMessage(
+            String.format("Operand exceeded maximum attempts : %s", operand),
+            INFO);
+      }
 
-        default -> {
-          generatedDecision = ERROR_MUST_DROP;
-        }
+      case ERROR_MALFORMED, ERROR_MUST_RETRY -> {
+        generatedDecision = NEED_SEARCH;
+        shouldClassify = true;
+
+        useMessage(
+            String.format("Operand contained malformed data : %s", operand),
+            INFO);
+      }
+
+      default -> {
+        generatedDecision = ERROR_MUST_DROP;
+
+        useMessage(
+            String.format("Operand contained unknown state : %s", operand),
+            ERROR);
       }
     }
+
     useMessage(
         String.format("Operand should trust received : %s", shouldTrustRetrieved),
         INFO);
@@ -489,6 +504,8 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       // Compare classification
 
     }
+
+    generatedReviewer = _taskConfig.name;
 
     Header generatedHeader = new Header(schemaVersion, generatedId);
     Trace generatedTrace = new Trace(generatedUrl, generatedParentUrl, generatedReviewer, generatedDecision,
@@ -509,38 +526,14 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
         Map<String, MessageAttributeValue> attributes = result.extract();
         String body = _mapper.writeValueAsString(result);
 
-        String resultString = result.toString();
         DecisionType decision = result.trace().decision();
-
-        useMessage(
-            String.format("Operand has decision : %s",
-                decision),
-            INFO);
         switch (decision) {
-          case ERROR_MUST_RETRY, ERROR_MALFORMED, ERROR_MAX_ATTEMPTS -> {
-            put(result);
-            queue(_errorQueueUrl, body, attributes);
-            useMessage(
-                String.format("Operand sent to error queue : %s",
-                    resultString),
-                INFO);
-          }
-
-          case ERROR_MUST_DROP -> {
-            delete(result.header().id());
-            queue(_errorQueueUrl, body, attributes);
-            useMessage(
-                String.format("Operand sent to error queue : %s",
-                    resultString),
-                INFO);
-          }
-
           case NEED_ANNOTATE -> {
             put(result);
             queue(_outQueueUrl, body, attributes);
             useMessage(
                 String.format("Operand sent to out queue : %s",
-                    resultString),
+                    result),
                 INFO);
           }
 
@@ -548,15 +541,15 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
             queue(_inQueueUrl, body, attributes);
             useMessage(
                 String.format("Operand sent to in queue : %s",
-                    resultString),
+                    result),
                 INFO);
           }
 
-          case NEED_DROP -> {
+          case NEED_STORE -> {
             put(result);
             useMessage(
-                String.format("Operand dropped : %s",
-                    resultString),
+                String.format("Operand stored : %s",
+                    result),
                 INFO);
           }
 
@@ -564,9 +557,37 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
             delete(result.header().id());
             queue(_retryQueueUrl, body, attributes);
             useMessage(
-                String.format("Operand sent to retry queue : %s", _retryQueueUrl),
+                String.format("Operand sent to retry queue : %s",
+                    result),
                 INFO);
           }
+
+          case ERROR_MALFORMED, ERROR_MAX_ATTEMPTS -> {
+            put(result);
+            queue(_errorQueueUrl, body, attributes);
+            useMessage(
+                String.format("Operand sent to error queue : %s",
+                    result),
+                INFO);
+          }
+
+          case ERROR_MUST_DROP -> {
+            delete(result.header().id());
+            queue(_errorQueueUrl, body, attributes);
+            useMessage(
+                String.format("Operand deleted and sent to error queue : %s",
+                    result),
+                INFO);
+          }
+
+          case ERROR_MUST_RETRY -> {
+            queue(_retryQueueUrl, body, attributes);
+            useMessage(
+                String.format("Operand sent to retry queue : %s",
+                    result),
+                INFO);
+          }
+
         }
         operationResult = SUCCESS;
       } catch (final JsonMappingException | JsonGenerationException exception) {

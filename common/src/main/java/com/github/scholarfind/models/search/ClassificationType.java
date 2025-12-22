@@ -12,6 +12,8 @@ public enum ClassificationType {
 
   LANDING,
 
+  UNCLASSIFIED,
+
   OTHER,
 
 }

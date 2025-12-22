@@ -6,7 +6,7 @@ public enum DecisionType {
 
   NEED_SEARCH,
 
-  NEED_DROP,
+  NEED_STORE,
 
   DATA_DUPLICATE_ENTRY,
 

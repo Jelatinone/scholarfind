@@ -23,6 +23,7 @@ import com.github.scholarfind.backoff.BackoffScheduler;
 import com.github.scholarfind.backoff.ExponentialBackoffScheduler;
 import com.github.scholarfind.utility.DelayedValue;
 
+import io.netty.util.internal.ThreadLocalRandom;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NonNull;
@@ -55,7 +56,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration {
     @Builder.Default
-    String _name = "task";
+    String name = String.format("Task-[%d]", ThreadLocalRandom.current().nextLong());
 
     @Builder.Default
     Level logLevel = INFO;
@@ -160,18 +161,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    * @param operand Data to be checked
    * @return Mapped result
    */
-  protected abstract Post post(final Produces operand);
-
-  /**
-   * Converts a given unit of work to a valid string for
-   * {@link #useMessage(String, Level, Object...) messaging} purposes.
-   * 
-   * @param operand Unit of work
-   * @return Mapped result
-   */
-  protected String convert(final Consumes operand) {
-    return operand.toString();
-  }
+  protected abstract @NonNull Post post(final Produces operand);
 
   /**
    * Restarts the current instance, performs necessary clean-up operations on this
@@ -217,7 +207,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    *                              awaiting
    * 
    * @apiNote Called only during {@link #run() operation} of this Task when a
-   *          dead collection has been recieved.
+   *          dead collection has been received.
    * 
    */
   protected synchronized void await() throws InterruptedException {
@@ -282,23 +272,5 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
     }
     useMessage(String.format("State update : %s -> %s", _state, state), INFO);
     this._state.set(state);
-  }
-
-  /**
-   * Provides the name of this instance.
-   * 
-   * @return Name of this task
-   */
-  public Configuration getConfig() {
-    return _taskConfig;
-  }
-
-  /**
-   * Provides the state of this instance.
-   * 
-   * @return Current state of this task
-   */
-  public State getState() {
-    return _state.get();
   }
 }

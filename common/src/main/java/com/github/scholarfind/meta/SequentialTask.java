@@ -41,11 +41,11 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 
   @Override
   public void run() {
-    useMessage(String.format("Operation started : %s", _taskConfig._name), DEBUG);
+    useMessage(String.format("Operation started : %s", _taskConfig.name), DEBUG);
     while (!_completable.isDone()) {
       try {
         State state = _state.get();
-        useMessage(String.format("Operation %s : %s", state, _taskConfig._name), INFO);
+        useMessage(String.format("Operation %s : %s", state, _taskConfig.name), INFO);
         switch (state) {
 
           case CREATED -> {
@@ -157,7 +157,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
         _completable.completeExceptionally(throwable);
       }
     }
-    useMessage(String.format("Operation ended : %s", _taskConfig._name), DEBUG);
+    useMessage(String.format("Operation ended : %s", _taskConfig.name), DEBUG);
   }
 
   /**
