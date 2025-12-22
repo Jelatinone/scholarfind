@@ -246,7 +246,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           if (redirectedUrl != connection.getURL()) {
             redirectAttempts++;
             classificationWeights.compute(REDIRECT,
-                (classification, weight) -> weight * _searchConfig.classificationFactors.getOrDefault(REDIRECT, 0D));
+                (classification, weight) -> weight * _searchConfig.classificationFactors.getOrDefault(REDIRECT, 1D));
             continue;
           }
         }
