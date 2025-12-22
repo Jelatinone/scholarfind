@@ -190,7 +190,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
   private Classification classify(@NonNull Trace trace) {
     ClassificationType classificationType = UNCLASSIFIED;
-    Double confidence = 0D;
+    Double confidence = 1D;
     // 1. URL inspection
 
     // 2. Domain inspection
@@ -428,9 +428,6 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     ZonedDateTime generatedReviewedAt = ZonedDateTime.now();
 
     boolean shouldClassify = false;
-    boolean shouldTrustRetrieved = false;
-
-    SearchDocument retrievedDocument = get(header.id());
 
     if (generatedDiscoveredAt.plusDays(_searchConfig.apiDataExpirationDays).isAfter(ZonedDateTime.now())) {
       generatedDecision = DATA_OUT_OF_DATE;
@@ -440,9 +437,12 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       generatedDecision = ERROR_MAX_ATTEMPTS;
     }
 
+    if (schemaVersion != SearchDocument.schemaVersion) {
+      generatedDecision = ERROR_MUST_DROP;
+    }
+
     switch (generatedDecision) {
       case NEED_ANNOTATE -> {
-        shouldTrustRetrieved = true;
         useMessage(
             String.format("Operand misplaced : %s", operand),
             ERROR);
@@ -450,9 +450,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
       case NEED_SEARCH -> {
         generatedDecision = NEED_ANNOTATE;
-
         shouldClassify = true;
-        shouldTrustRetrieved = true;
       }
 
       case DATA_DUPLICATE_ENTRY, DATA_OUT_OF_DATE -> {
@@ -473,7 +471,6 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       case ERROR_MALFORMED, ERROR_MUST_RETRY -> {
         generatedDecision = NEED_SEARCH;
         shouldClassify = true;
-
         useMessage(
             String.format("Operand contained malformed data : %s", operand),
             INFO);
@@ -481,31 +478,28 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
       default -> {
         generatedDecision = ERROR_MUST_DROP;
-
         useMessage(
             String.format("Operand contained unknown state : %s", operand),
             ERROR);
       }
     }
 
-    useMessage(
-        String.format("Operand should trust received : %s", shouldTrustRetrieved),
-        INFO);
+    SearchDocument retrievedSearchDocument = get(header.id());
+    if (retrievedSearchDocument != null) {
+
+      Header retrievedSearchHeader = retrievedSearchDocument.header();
+
+      if (retrievedSearchHeader.schemaVersion() != schemaVersion) {
+        delete(retrievedSearchHeader.id());
+      }
+    }
+
     useMessage(
         String.format("Operand should classify : %s", shouldClassify),
         INFO);
 
-    if (shouldTrustRetrieved && retrievedDocument != null) {
-
-      // Compare schema
-
-      // Compare date
-
-      // Compare classification
-
-    }
-
     generatedReviewer = _taskConfig.name;
+    generatedReviewedAt = ZonedDateTime.now();
 
     Header generatedHeader = new Header(schemaVersion, generatedId);
     Trace generatedTrace = new Trace(generatedUrl, generatedParentUrl, generatedReviewer, generatedDecision,
