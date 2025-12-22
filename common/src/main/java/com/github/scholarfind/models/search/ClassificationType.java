@@ -2,18 +2,13 @@ package com.github.scholarfind.models.search;
 
 public enum ClassificationType {
 
-  SEED,
-
-  AGGREGATOR,
+  UNCLASSIFIED,
 
   SCHOLARSHIP,
 
-  REDIRECT,
+  AGGREGATOR,
 
   LANDING,
 
-  UNCLASSIFIED,
-
-  OTHER,
-
+  REDIRECT,
 }

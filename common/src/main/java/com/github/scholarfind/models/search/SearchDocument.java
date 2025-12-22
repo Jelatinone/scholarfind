@@ -84,7 +84,7 @@ public record SearchDocument(
 
     Trace trace = new Trace(url, parentUrl, reviewer, decision, depth, attempt, discoveredAt, reviewedAt);
 
-    Classification classification = new Classification(ClassificationType.OTHER, 1D);
+    Classification classification = new Classification(ClassificationType.UNCLASSIFIED, 0D);
 
     SearchDocument document = new SearchDocument(header, trace, classification);
     return document;

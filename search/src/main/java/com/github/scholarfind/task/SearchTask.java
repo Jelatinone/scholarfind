@@ -9,9 +9,12 @@ import static com.github.scholarfind.models.search.ClassificationType.*;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
+import java.net.URI;
 import java.net.URL;
 import java.time.Duration;
 import java.time.ZonedDateTime;
+import java.util.Collection;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -93,10 +96,13 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     Long apiDataExpirationDays = 90L;
 
     @Builder.Default
-    Long apiCallTimeoutSeconds = 5000L;
+    Long apiCallTimeoutSeconds = 5_000L;
 
     @Builder.Default
-    Long maximumNetworkTimeoutSeconds = 3500L;
+    Long networkTimeoutMilliseconds = 3_000L;
+
+    @Builder.Default
+    Long maximumNetworkTimeoutSeconds = 3_500L;
 
     @Builder.Default
     Long baseNetworkTimeoutSeconds = 100L;
@@ -109,6 +115,21 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
     @Builder.Default
     Integer maximumSearchAttempts = 5;
+
+    @Builder.Default
+    Collection<WeightedCueValue> classifyUrlCues = List.of();
+
+    @Builder.Default
+    Collection<WeightedCueValue> classifyDomainCues = List.of();
+
+    @Builder.Default
+    Collection<WeightedCueValue> classifyContentCues = List.of();
+
+    @Builder.Default
+    Map<Classification, Double> classificationFactors = Map.of();
+
+    @Builder.Default
+    Map<Classification, Double> classificationConstants = Map.of();
   }
 
   static Logger _logger = LoggerFactory.getLogger(SearchTask.class);
@@ -123,10 +144,10 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
   SqsClient _queueClient;
   DynamoDbClient _dynamoClient;
 
-  String _inQueueUrl;
-  String _outQueueUrl;
-  String _retryQueueUrl;
-  String _errorQueueUrl;
+  String _inQueueUrl,
+      _outQueueUrl,
+      _retryQueueUrl,
+      _errorQueueUrl;
 
   Configuration _searchConfig;
 
@@ -148,14 +169,14 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     _queueClient = SqsClient.builder()
         .overrideConfiguration(config -> config
             .addMetricPublisher(_metrics)
-            .apiCallAttemptTimeout(Duration.ofMillis(_searchConfig.apiCallTimeoutSeconds)))
+            .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.apiCallTimeoutSeconds)))
         .build();
     useMessage("Initialized resources : queue client", INFO);
 
     _dynamoClient = DynamoDbClient.builder()
         .overrideConfiguration(config -> config
             .addMetricPublisher(_metrics)
-            .apiCallAttemptTimeout(Duration.ofMillis(_searchConfig.apiCallTimeoutSeconds)))
+            .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.apiCallTimeoutSeconds)))
         .build();
     useMessage("Initialized resources : store client", INFO);
 
@@ -189,28 +210,83 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
   }
 
   private Classification classify(@NonNull Trace trace) {
-    ClassificationType classificationType = UNCLASSIFIED;
-    Double confidence = 1D;
-    // 1. URL inspection
+    EnumMap<ClassificationType, Double> classificationWeights = new EnumMap<>(ClassificationType.class);
+    classificationWeights.replaceAll((classification, weight) -> 0D);
 
-    // 2. Domain inspection
+    URL url = trace.url();
 
-    // HTTP-connected site inspection
+    String urlPath = url.getPath();
+    _searchConfig.classifyUrlCues.stream()
+        .filter((cue) -> urlPath.contains(cue.string()))
+        .forEach((cue) -> {
+          classificationWeights.merge(cue.classification(), cue.weight(), Double::sum);
+        });
+
+    String urlDomain = url.getHost();
+    _searchConfig.classifyDomainCues.stream()
+        .filter((cue) -> urlDomain.contains(cue.string()))
+        .forEach((cue) -> {
+          classificationWeights.merge(cue.classification(), cue.weight(), Double::sum);
+        });
     try {
-      HttpURLConnection connection = (HttpURLConnection) trace.url().openConnection();
-      connection.setRequestMethod("HEAD");
-      connection.setInstanceFollowRedirects(false);
-      connection.connect();
+      URL redirectedUrl = url;
+      int redirectAttempts = 0;
+      while (redirectAttempts < _searchConfig.maximumNetworkRedirects) {
+        HttpURLConnection connection = (HttpURLConnection) redirectedUrl.openConnection();
+        connection.setRequestMethod("HEAD");
+        connection.setInstanceFollowRedirects(false);
+        connection.setConnectTimeout(_searchConfig.networkTimeoutMilliseconds.intValue());
+        connection.setReadTimeout(_searchConfig.networkTimeoutMilliseconds.intValue());
+        connection.connect();
 
-      // 3. Header inspection
+        String location = connection.getHeaderField("location");
 
-      // 4. Content inspection
+        if (location != null) {
+          redirectedUrl = URI.create(location).toURL();
+          if (redirectedUrl != connection.getURL()) {
+            redirectAttempts++;
+            classificationWeights.compute(REDIRECT,
+                (classification, weight) -> weight * _searchConfig.classificationFactors.getOrDefault(REDIRECT, 0D));
+            continue;
+          }
+        }
 
-      connection.disconnect();
+        long contentLength = connection.getContentLengthLong();
+        String contentType = connection.getContentType();
+
+        if (contentLength != -1L) {
+          classificationWeights.compute(AGGREGATOR,
+              (classification, weight) -> weight + contentLength / _searchConfig.classificationFactors
+                  .getOrDefault(AGGREGATOR, 0D));
+        }
+        if (contentType != null && contentType.equalsIgnoreCase("application/pdf")) {
+          classificationWeights.compute(SCHOLARSHIP,
+              (classification, weight) -> weight + contentLength / _searchConfig.classificationFactors
+                  .getOrDefault(SCHOLARSHIP, 0D));
+        }
+
+        // TODO: Shallow-content inspection, download 50-100KB and check
+
+        connection.disconnect();
+      }
     } catch (final IOException exception) {
 
     }
-    return new Classification(classificationType, confidence);
+    Classification classification = classificationWeights.entrySet().stream()
+        .map((entry) -> new Classification(entry.getKey(),
+            entry.getValue()
+                * _searchConfig.classificationFactors.getOrDefault(entry.getKey(), 1D)
+                + _searchConfig.classificationConstants.getOrDefault(entry.getKey(), 0D)))
+        .reduce((first, second) -> {
+          int comparedAs = Double.compare(first.confidence(), second.confidence());
+          if (comparedAs > 0)
+            return first;
+          if (comparedAs < 0)
+            return second;
+          return new Classification(UNCLASSIFIED, first.confidence());
+        })
+        .orElse(new Classification(UNCLASSIFIED, 0D));
+    return classification;
   }
 
   private SendMessageResponse queue(@NonNull String queueUrl, @NonNull String body,
@@ -424,12 +500,13 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       default -> trace.attempt() + 1;
     };
 
-    ZonedDateTime generatedDiscoveredAt = ZonedDateTime.now();
-    ZonedDateTime generatedReviewedAt = ZonedDateTime.now();
+    ZonedDateTime generatedDiscoveredAt = trace.discoveredAt();
+    ZonedDateTime generatedReviewedAt = trace.reviewedAt();
 
     boolean shouldClassify = false;
+    ZonedDateTime reviewedTime = ZonedDateTime.now();
 
-    if (generatedDiscoveredAt.plusDays(_searchConfig.apiDataExpirationDays).isAfter(ZonedDateTime.now())) {
+    if (generatedDiscoveredAt.plusDays(_searchConfig.apiDataExpirationDays).isAfter(reviewedTime)) {
       generatedDecision = DATA_OUT_OF_DATE;
     }
 
@@ -488,8 +565,14 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     if (retrievedSearchDocument != null) {
 
       Header retrievedSearchHeader = retrievedSearchDocument.header();
+      Trace retrievedSearchTrace = retrievedSearchDocument.trace();
 
       if (retrievedSearchHeader.schemaVersion() != schemaVersion) {
+        delete(retrievedSearchHeader.id());
+      }
+
+      if (retrievedSearchTrace.discoveredAt().plusDays(_searchConfig.apiDataExpirationDays)
+          .isAfter(reviewedTime)) {
         delete(retrievedSearchHeader.id());
       }
     }
@@ -499,7 +582,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
         INFO);
 
     generatedReviewer = _taskConfig.name;
-    generatedReviewedAt = ZonedDateTime.now();
+    generatedReviewedAt = reviewedTime;
 
     Header generatedHeader = new Header(schemaVersion, generatedId);
     Trace generatedTrace = new Trace(generatedUrl, generatedParentUrl, generatedReviewer, generatedDecision,
