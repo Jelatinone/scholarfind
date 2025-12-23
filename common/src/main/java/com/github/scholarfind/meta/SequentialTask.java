@@ -67,9 +67,9 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
             }
             useMessage(String.format("Adding failed work : %d", failedCount), DEBUG);
 
-            Collect<Consumes> result = collect();
+            CollectResult<Consumes> result = collect();
             switch (result) {
-              case Collect.Alive(List<Consumes> collection) -> {
+              case CollectResult.Alive(List<Consumes> collection) -> {
                 useMessage(String.format("Collection shape : Alive"), INFO);
 
                 _collected.addAll(collection);
@@ -80,12 +80,12 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
                 useState(OPERATING);
               }
 
-              case Collect.Idle() -> {
+              case CollectResult.Idle() -> {
                 useMessage(String.format("Collection shape : Idle"), INFO);
                 useState(_collected.isEmpty() ? AWAITING : OPERATING);
               }
 
-              case Collect.Empty() -> {
+              case CollectResult.Empty() -> {
                 useMessage(String.format("Collection shape : Empty"), INFO);
                 useState(_collected.isEmpty() ? COMPLETED : OPERATING);
               }

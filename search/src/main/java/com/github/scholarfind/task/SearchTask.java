@@ -2,11 +2,11 @@ package com.github.scholarfind.task;
 
 import static org.slf4j.event.Level.*;
 import static software.amazon.awssdk.services.sqs.model.QueueAttributeName.*;
-import static com.github.scholarfind.meta.Post.*;
 import static com.github.scholarfind.models.DecisionType.*;
 import static com.github.scholarfind.models.search.ClassificationType.*;
 import static com.github.scholarfind.api.QueueHelpers.*;
 import static com.github.scholarfind.api.StoreHelpers.*;
+import static com.github.scholarfind.meta.Post.*;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -25,20 +25,17 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.scholarfind.backoff.BackoffScheduler;
 import com.github.scholarfind.backoff.ExponentialBackoffScheduler;
-import com.github.scholarfind.meta.Collect;
+import com.github.scholarfind.meta.CollectResult;
 import com.github.scholarfind.meta.Post;
 import com.github.scholarfind.meta.SequentialTask;
 import com.github.scholarfind.meta.Task;
 import com.github.scholarfind.models.DecisionType;
 import com.github.scholarfind.models.Header;
-import com.github.scholarfind.models.Lifecycle;
 import com.github.scholarfind.models.Trace;
 import com.github.scholarfind.models.context.ContextDocument;
 import com.github.scholarfind.models.search.Classification;
@@ -67,7 +64,7 @@ import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse;
 
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
-public final class SearchTask extends SequentialTask<SearchDocument, SearchDocument> {
+public final class SearchTask extends SequentialTask<SearchDocument, OperationResult<SearchDocument>> {
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
@@ -94,6 +91,9 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     Long apiDataExpirationDays = 90L;
 
     @Builder.Default
+    Long classificationExpirationDays = 45L;
+
+    @Builder.Default
     Long apiCallTimeoutSeconds = 5_000L;
 
     @Builder.Default
@@ -113,6 +113,9 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
     @Builder.Default
     Integer maximumSearchAttempts = 5;
+
+    @Builder.Default
+    Double classifyConfidenceThreshold = 0.7D;
 
     @Builder.Default
     Collection<WeightedCueValue> classifyUrlCues = List.of();
@@ -327,7 +330,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
   }
 
   @Override
-  protected @NonNull Collect<@NonNull SearchDocument> collect() {
+  protected @NonNull CollectResult<@NonNull SearchDocument> collect() {
     ReceiveMessageRequest collectionRequest = ReceiveMessageRequest.builder()
         .queueUrl(_inQueueUrl)
         .maxNumberOfMessages(_taskConfig.collectionSize)
@@ -381,218 +384,137 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
         String.format("Collection valid results size : %d", searchDocuments.size()),
         INFO);
 
-    Collect<SearchDocument> result;
+    CollectResult<SearchDocument> result;
     if (collectionMessages.size() > 0) {
-      result = new Collect.Alive<SearchDocument>(searchDocuments);
+      result = new CollectResult.Alive<SearchDocument>(searchDocuments);
     } else {
       result = queueAlive
-          ? new Collect.Idle<>()
-          : new Collect.Empty<>();
+          ? new CollectResult.Idle<>()
+          : new CollectResult.Empty<>();
     }
     return result;
   }
 
   @Override
-  protected @NonNull SearchDocument operate(final @NonNull SearchDocument operand) {
+  protected @NonNull OperationResult<SearchDocument> operate(final @NonNull SearchDocument operand) {
     Header header = operand.header();
     Trace trace = operand.trace();
 
-    Long schemaVersion = header.schemaVersion();
-    UUID generatedId = header.id();
-    Lifecycle generatedState = header.state();
+    UUID id = header.id();
+    long schemaVersion = header.schemaVersion();
 
-    URL generatedUrl = trace.url();
-    URL generatedParentUrl = trace.parentUrl();
+    int attempts = trace.attempt();
 
-    String generatedReviewer = trace.reviewer();
-    DecisionType generatedDecision = trace.decision();
+    ZonedDateTime discoveredAt = trace.discoveredAt();
+    ZonedDateTime reviewedAt = ZonedDateTime.now();
 
-    Integer generatedDepth = trace.depth();
-    Integer generatedAttempt = switch (generatedDecision) {
-      case NEED_ANNOTATE, ERROR_MUST_DROP, ERROR_MAX_ATTEMPTS -> trace.attempt();
-      default -> trace.attempt() + 1;
-    };
-
-    ZonedDateTime generatedDiscoveredAt = trace.discoveredAt();
-    ZonedDateTime generatedReviewedAt = trace.reviewedAt();
-
-    boolean shouldRetrieveContext = false;
-    boolean shouldClassify = false;
-    ZonedDateTime reviewedTime = ZonedDateTime.now();
-
-    if (generatedDiscoveredAt.plusDays(_searchConfig.apiDataExpirationDays).isAfter(reviewedTime)) {
-      generatedDecision = DATA_OUT_OF_DATE;
-    }
-
-    if (generatedAttempt > _searchConfig.maximumSearchAttempts) {
-      generatedDecision = ERROR_MAX_ATTEMPTS;
-    }
-
-    if (schemaVersion != SearchDocument.schemaVersion) {
-      generatedDecision = ERROR_MUST_DROP;
-    }
-
-    switch (generatedDecision) {
-      case NEED_ANNOTATE -> {
-        useMessage(
-            String.format("Operand misplaced : %s", operand),
-            ERROR);
-      }
-
-      case NEED_SEARCH -> {
-        generatedDecision = NEED_ANNOTATE;
-        shouldClassify = true;
-        shouldRetrieveContext = true;
-      }
-
-      case DATA_DUPLICATE_ENTRY, DATA_OUT_OF_DATE -> {
-        generatedId = UUID.fromString(generatedUrl.toString());
-        generatedDecision = NEED_ANNOTATE;
-        shouldClassify = true;
-        useMessage(
-            String.format("Operand contained poor data : %s", operand),
-            INFO);
-      }
-
-      case ERROR_MAX_ATTEMPTS -> {
-        useMessage(
-            String.format("Operand exceeded maximum attempts : %s", operand),
-            INFO);
-      }
-
-      case ERROR_MALFORMED, ERROR_MUST_RETRY -> {
-        generatedDecision = NEED_SEARCH;
-        shouldClassify = true;
-        useMessage(
-            String.format("Operand contained malformed data : %s", operand),
-            INFO);
-      }
-
-      default -> {
-        generatedDecision = ERROR_MUST_DROP;
-        useMessage(
-            String.format("Operand contained unknown state : %s", operand),
-            ERROR);
-      }
-    }
-
-    SearchDocument retrievedSearch = getItem(_dynamoClient, generatedId, _searchConfig.searchStoreName,
+    SearchDocument retrievedSearch = getItem(_dynamoClient, id, _searchConfig.searchStoreName,
         SearchDocument::parse, this::useMessage);
-    ContextDocument retrievedContext = shouldRetrieveContext
-        ? getItem(_dynamoClient, generatedId, _searchConfig.contextStoreName, ContextDocument::parse, this::useMessage)
-        : null;
+    ContextDocument retrievedContext = getItem(_dynamoClient, id, _searchConfig.contextStoreName,
+        ContextDocument::parse, this::useMessage);
 
-    if (retrievedSearch != null) {
+    boolean errorExpired = discoveredAt.plusDays(_searchConfig.apiDataExpirationDays).isBefore(reviewedAt);
+    boolean errorAttempts = attempts >= _searchConfig.maximumSearchAttempts;
+    boolean errorSchema = schemaVersion != SearchDocument.schemaVersion;
 
-      Header retrievedSearchHeader = retrievedSearch.header();
-      Trace retrievedSearchTrace = retrievedSearch.trace();
+    DecisionType decision = IGNORE;
+    if (errorSchema) {
+      // In the future we'll setup some sort of migration chain...?
+      decision = TOMBSTONE;
+    } else if (errorAttempts) {
+      decision = TOMBSTONE;
+    } else if (errorExpired) {
+      decision = RETRY;
+    } else {
+      decision = PROCEED;
+    }
 
-      if (retrievedSearchHeader.schemaVersion() != schemaVersion) {
-        deleteItem(_dynamoClient, generatedId, _searchConfig.searchStoreName, this::useMessage);
+    boolean shouldClassify = false;
+    if (retrievedSearch == null) {
+      shouldClassify = true;
+    } else {
+      ZonedDateTime retrievedReviewedAt = retrievedSearch.trace().reviewedAt();
+      if (retrievedReviewedAt == null
+          || retrievedReviewedAt.isBefore(reviewedAt.minusDays(_searchConfig.classificationExpirationDays))) {
+        shouldClassify = true;
       }
-
-      if (retrievedSearchTrace.discoveredAt().plusDays(_searchConfig.apiDataExpirationDays)
-          .isAfter(reviewedTime)) {
-        deleteItem(_dynamoClient, generatedId, _searchConfig.searchStoreName, this::useMessage);
+      if (retrievedSearch.classification() == null) {
+        shouldClassify = true;
+      } else {
+        double retrievedConfidence = retrievedSearch.classification().confidence();
+        if (retrievedConfidence < _searchConfig.classifyConfidenceThreshold) {
+          shouldClassify = true;
+        }
       }
     }
 
-    useMessage(
-        String.format("Operand should classify : %s", shouldClassify),
-        INFO);
+    Classification classification = shouldClassify ? classify(trace, retrievedContext) : operand.classification();
 
-    generatedReviewer = _taskConfig.name;
-    generatedReviewedAt = reviewedTime;
+    Trace generatedTrace = new Trace(trace.url(), trace.parentUrl(), _taskConfig.name,
+        trace.depth(), attempts + 1, discoveredAt, reviewedAt);
+    Header generatedHeader = new Header(header.schemaVersion(), id, header.state());
+    SearchDocument generatedDocument = new SearchDocument(generatedHeader, generatedTrace, classification);
 
-    Header generatedHeader = new Header(schemaVersion, generatedId, generatedState);
-    Trace generatedTrace = new Trace(generatedUrl, generatedParentUrl, generatedReviewer, generatedDecision,
-        generatedDepth, generatedAttempt, generatedReviewedAt, generatedDiscoveredAt);
-    Classification generatedClassification = shouldClassify
-        ? classify(trace, retrievedContext)
-        : operand.classification();
-
-    SearchDocument generatedDocument = new SearchDocument(generatedHeader, generatedTrace, generatedClassification);
-    return generatedDocument;
+    return new OperationResult<SearchDocument>(generatedDocument, decision);
   }
 
   @Override
-  protected Post post(final SearchDocument result) {
-    Post operationResult = FAILURE_FATAL;
-    if (result != null) {
-      try {
-        Map<String, MessageAttributeValue> attributes = result.attributes();
-        String body = _mapper.writeValueAsString(result);
+  protected Post post(final OperationResult<SearchDocument> result) {
+    if (result == null) {
+      return FAILURE_FATAL;
+    }
 
-        DecisionType decision = result.trace().decision();
-        switch (decision) {
-          case NEED_ANNOTATE -> {
-            putItem(_dynamoClient, result, _searchConfig.searchStoreName, SearchDocument::item, this::useMessage);
-            queueMessage(_queueClient, _outQueueUrl, body, attributes, this::useMessage);
-            useMessage(
-                String.format("Operand sent to out queue : %s",
-                    result),
-                INFO);
-          }
+    SearchDocument document = Objects.requireNonNull(result.document());
+    DecisionType decision = result.decision();
 
-          case NEED_SEARCH -> {
-            queueMessage(_queueClient, _inQueueUrl, body, attributes, this::useMessage);
-            useMessage(
-                String.format("Operand sent to in queue : %s",
-                    result),
-                INFO);
-          }
+    try {
+      String body = _mapper.writeValueAsString(document);
+      Map<String, MessageAttributeValue> attributes = document.attributes();
 
-          case NEED_STORE -> {
-            putItem(_dynamoClient, result, _searchConfig.searchStoreName, SearchDocument::item, this::useMessage);
-            useMessage(
-                String.format("Operand stored : %s",
-                    result),
-                INFO);
-          }
+      switch (decision) {
+        case CONTINUE -> {
 
-          case DATA_OUT_OF_DATE, DATA_DUPLICATE_ENTRY -> {
-            deleteItem(_dynamoClient, result.header().id(), _searchConfig.searchStoreName, this::useMessage);
-            queueMessage(_queueClient, _retryQueueUrl, body, attributes, this::useMessage);
-            useMessage(
-                String.format("Operand sent to retry queue : %s",
-                    result),
-                INFO);
-          }
+          queueMessage(_queueClient, _inQueueUrl, body, attributes, this::useMessage);
+        }
 
-          case ERROR_MALFORMED, ERROR_MAX_ATTEMPTS -> {
-            putItem(_dynamoClient, result, _searchConfig.searchStoreName, SearchDocument::item, this::useMessage);
-            queueMessage(_queueClient, _errorQueueUrl, body, attributes, this::useMessage);
-            useMessage(
-                String.format("Operand sent to error queue : %s",
-                    result),
-                INFO);
-          }
+        case PROCEED -> {
 
-          case ERROR_MUST_DROP -> {
-            deleteItem(_dynamoClient, result.header().id(), _searchConfig.searchStoreName, this::useMessage);
-            queueMessage(_queueClient, _errorQueueUrl, body, attributes, this::useMessage);
-            useMessage(
-                String.format("Operand deleted and sent to error queue : %s",
-                    result),
-                INFO);
-          }
+          queueMessage(_queueClient, _outQueueUrl, body, attributes, this::useMessage);
+        }
 
-          case ERROR_MUST_RETRY -> {
-            queueMessage(_queueClient, _retryQueueUrl, body, attributes, this::useMessage);
-            useMessage(
-                String.format("Operand sent to retry queue : %s",
-                    result),
-                INFO);
-          }
+        case RETRY -> {
+
+          queueMessage(_queueClient, _retryQueueUrl, body, attributes, this::useMessage);
+        }
+
+        case TOMBSTONE -> {
+
+          queueMessage(_queueClient, _errorQueueUrl, body, attributes, this::useMessage);
+        }
+
+        case SUPERSEDE -> {
 
         }
-        operationResult = SUCCESS;
-      } catch (final JsonMappingException | JsonGenerationException exception) {
-        operationResult = FAILURE_FATAL;
-      } catch (final IOException exception) {
-        operationResult = FAILURE_RETRY;
+
+        case IGNORE -> {
+
+        }
+
+        default -> {
+          useMessage(
+              String.format("raised fatal unknown state value : %s", decision),
+              ERROR);
+          return FAILURE_FATAL;
+        }
+
       }
+      return SUCCESS;
+    } catch (final IOException exception) {
+      useMessage(
+          String.format("raised fatal IO-layer exception : %s", exception.getMessage()),
+          ERROR,
+          exception);
+      return FAILURE_RETRY;
     }
-    return operationResult;
   }
 }

@@ -14,7 +14,6 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.scholarfind.models.DecisionType;
 import com.github.scholarfind.models.Header;
 import com.github.scholarfind.models.Lifecycle;
 import com.github.scholarfind.models.Location;
@@ -81,8 +80,6 @@ public record AnnotateDocument(
 
     String reviewer = attributes.get("reviewer").stringValue();
 
-    DecisionType decision = DecisionType.ERROR_MALFORMED;
-
     Integer depth = Integer.valueOf(attributes.get("depth").stringValue());
     Integer attempt = Integer.valueOf(attributes.get("attempt").stringValue());
 
@@ -91,7 +88,7 @@ public record AnnotateDocument(
     ZonedDateTime reviewedAt = ZonedDateTime
         .from(ZonedDateTime.parse(attributes.get("reviewedAt").stringValue()));
 
-    Trace trace = new Trace(url, parentUrl, reviewer, decision, depth, attempt, discoveredAt, reviewedAt);
+    Trace trace = new Trace(url, parentUrl, reviewer, depth, attempt, discoveredAt, reviewedAt);
 
     AnnotateDocument document = new AnnotateDocument(header, trace, null, null, null, null, null, null, null, null,
         null, null);
@@ -100,6 +97,6 @@ public record AnnotateDocument(
 
   @Override
   public String toString() {
-    return String.format("document [%d] : %s", header().id().toString(), trace().decision().toString());
+    return String.format("annotate-document [%d]", header().id().toString().toString());
   }
 }

@@ -13,7 +13,6 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.scholarfind.models.DecisionType;
 import com.github.scholarfind.models.Header;
 import com.github.scholarfind.models.Lifecycle;
 import com.github.scholarfind.models.Trace;
@@ -74,8 +73,6 @@ public record SearchDocument(
 
     String reviewer = attributes.get("reviewer").stringValue();
 
-    DecisionType decision = DecisionType.ERROR_MALFORMED;
-
     Integer depth = Integer.valueOf(attributes.get("depth").stringValue());
     Integer attempt = Integer.valueOf(attributes.get("attempt").stringValue());
 
@@ -84,7 +81,7 @@ public record SearchDocument(
     ZonedDateTime reviewedAt = ZonedDateTime
         .from(ZonedDateTime.parse(attributes.get("reviewedAt").stringValue()));
 
-    Trace trace = new Trace(url, parentUrl, reviewer, decision, depth, attempt, discoveredAt, reviewedAt);
+    Trace trace = new Trace(url, parentUrl, reviewer, depth, attempt, discoveredAt, reviewedAt);
 
     Classification classification = new Classification(ClassificationType.UNCLASSIFIED, 0D);
 
@@ -128,6 +125,6 @@ public record SearchDocument(
 
   @Override
   public String toString() {
-    return String.format("document [%d] : %s", header().id().toString(), trace().decision().toString());
+    return String.format("search-document [%d]", header().id().toString().toString());
   }
 }

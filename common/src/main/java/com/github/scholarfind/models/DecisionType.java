@@ -1,22 +1,15 @@
 package com.github.scholarfind.models;
 
 public enum DecisionType {
+  CONTINUE,
 
-  NEED_ANNOTATE,
+  PROCEED,
 
-  NEED_SEARCH,
+  RETRY,
 
-  NEED_STORE,
+  SUPERSEDE,
 
-  DATA_DUPLICATE_ENTRY,
+  TOMBSTONE,
 
-  DATA_OUT_OF_DATE,
-
-  ERROR_MALFORMED,
-
-  ERROR_MUST_RETRY,
-
-  ERROR_MUST_DROP,
-
-  ERROR_MAX_ATTEMPTS,
+  IGNORE,
 }

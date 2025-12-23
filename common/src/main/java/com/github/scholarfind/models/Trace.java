@@ -4,17 +4,15 @@ import java.net.URL;
 import java.time.ZonedDateTime;
 
 public record Trace(
-        URL url,
-        URL parentUrl,
+    URL url,
+    URL parentUrl,
 
-        String reviewer,
+    String reviewer,
 
-        DecisionType decision,
+    Integer depth,
+    Integer attempt,
 
-        Integer depth,
-        Integer attempt,
-
-        ZonedDateTime discoveredAt,
-        ZonedDateTime reviewedAt) {
+    ZonedDateTime discoveredAt,
+    ZonedDateTime reviewedAt) {
 
 }

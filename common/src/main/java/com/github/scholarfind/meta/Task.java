@@ -144,7 +144,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    * 
    * @return Collection of consumable data
    */
-  protected abstract @NonNull Collect<@NonNull Consumes> collect();
+  protected abstract @NonNull CollectResult<@NonNull Consumes> collect();
 
   /**
    * Performs an operation on `consumable` data and maps to a `producible` a
