@@ -5,6 +5,8 @@ import static software.amazon.awssdk.services.sqs.model.QueueAttributeName.*;
 import static com.github.scholarfind.meta.Post.*;
 import static com.github.scholarfind.models.DecisionType.*;
 import static com.github.scholarfind.models.search.ClassificationType.*;
+import static com.github.scholarfind.api.QueueHelpers.*;
+import static com.github.scholarfind.api.StoreHelpers.*;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -19,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,7 @@ import com.github.scholarfind.meta.SequentialTask;
 import com.github.scholarfind.meta.Task;
 import com.github.scholarfind.models.DecisionType;
 import com.github.scholarfind.models.Header;
+import com.github.scholarfind.models.Lifecycle;
 import com.github.scholarfind.models.Trace;
 import com.github.scholarfind.models.context.ContextDocument;
 import com.github.scholarfind.models.search.Classification;
@@ -54,13 +56,6 @@ import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.metrics.publishers.cloudwatch.CloudWatchMetricPublisher;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
-import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
-import software.amazon.awssdk.services.dynamodb.model.DeleteItemResponse;
-import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
-import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
-import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
-import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueAttributesRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueAttributesResponse;
@@ -70,8 +65,6 @@ import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.QueueAttributeName;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse;
-import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
-import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public final class SearchTask extends SequentialTask<SearchDocument, SearchDocument> {
@@ -303,30 +296,6 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     return classification;
   }
 
-  private SendMessageResponse queue(@NonNull String queueUrl, @NonNull String body,
-      @NonNull Map<String, MessageAttributeValue> attributes) {
-    SendMessageRequest sendMessageRequest = SendMessageRequest.builder()
-        .queueUrl(queueUrl)
-        .messageAttributes(attributes)
-        .messageBody(body)
-        .build();
-    SendMessageResponse sendMessageResponse = _queueClient.sendMessage(sendMessageRequest);
-    SdkHttpResponse requestSdkResponse = sendMessageResponse.sdkHttpResponse();
-
-    String id = attributes.get("id").stringValue();
-    if (requestSdkResponse.isSuccessful()) {
-      useMessage(
-          String.format("Queue message to queue [%s] completed : %s", queueUrl, id),
-          INFO);
-    } else {
-      useMessage(
-          String.format("Queue message to queue [%s] failed : %s", queueUrl, id),
-          ERROR);
-    }
-
-    return sendMessageResponse;
-  }
-
   private SearchDocument parse(final @NonNull Message message) {
     Map<String, MessageAttributeValue> attributes = message.messageAttributes();
     String body = message.body();
@@ -340,87 +309,14 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
         useMessage(String.format("Parse message completed : %s", message.messageId()), INFO);
         return document;
       } catch (final MalformedURLException exception) {
-        queue(_errorQueueUrl, body, attributes);
+        queueMessage(_queueClient, _errorQueueUrl, body, attributes, this::useMessage);
       } catch (final IOException exception) {
-        queue(_retryQueueUrl, body, attributes);
+        queueMessage(_queueClient, _retryQueueUrl, body, attributes, this::useMessage);
       }
     }
     useMessage(
         String.format("Parse message failed : %s", message.messageId()),
         ERROR);
-    return document;
-  }
-
-  public <T> PutItemResponse put(final @NonNull T document, final @NonNull String storeLocation,
-      final @NonNull Function<T, Map<String, AttributeValue>> mapper) {
-    Map<String, AttributeValue> item = mapper.apply(document);
-    PutItemRequest putItemRequest = PutItemRequest.builder()
-        .item(item)
-        .tableName(_searchConfig.searchStoreName)
-        .build();
-    PutItemResponse putItemResponse = _dynamoClient.putItem(putItemRequest);
-    SdkHttpResponse requestSdkResponse = putItemResponse.sdkHttpResponse();
-
-    if (requestSdkResponse.isSuccessful()) {
-      useMessage(
-          String.format("Put item to table [%s] completed : %s", storeLocation, document
-              .toString()),
-          INFO);
-    } else {
-      useMessage(
-          String.format("Put item to table [%s] failed : %s", storeLocation, document
-              .toString()),
-          ERROR);
-    }
-
-    return putItemResponse;
-  }
-
-  public DeleteItemResponse delete(final @NonNull UUID id, final String storeLocation) {
-    DeleteItemRequest deleteItemRequest = DeleteItemRequest.builder()
-        .tableName(storeLocation)
-        .key(Map.of(
-            "id", AttributeValue.fromS(id.toString())))
-        .build();
-    DeleteItemResponse deleteItemResponse = _dynamoClient.deleteItem(deleteItemRequest);
-    SdkHttpResponse requestSdkResponse = deleteItemResponse.sdkHttpResponse();
-
-    if (requestSdkResponse.isSuccessful()) {
-      useMessage(
-          String.format("Delete item from table [%s] completed : %s", storeLocation, id),
-          INFO);
-    } else {
-      useMessage(
-          String.format("Delete item from table [%s] completed : %s", storeLocation, id),
-          ERROR);
-    }
-
-    return deleteItemResponse;
-  }
-
-  public <T> T get(final @NonNull UUID id, final @NonNull String storeLocation,
-      Function<Map<String, AttributeValue>, T> mapper) {
-    GetItemRequest getItemRequest = GetItemRequest.builder()
-        .tableName(storeLocation)
-        .key(Map.of(
-            "id", AttributeValue.fromS(id.toString())))
-        .build();
-    GetItemResponse getItemResponse = _dynamoClient.getItem(getItemRequest);
-    SdkHttpResponse requestSdkResponse = getItemResponse.sdkHttpResponse();
-
-    T document = null;
-    if (requestSdkResponse.isSuccessful()) {
-      Map<String, AttributeValue> item = getItemResponse.item();
-      document = mapper.apply(item);
-      useMessage(
-          String.format("Retrieve item from table [%s] completed : %s", _searchConfig.searchStoreName, id),
-          INFO);
-      return document;
-    } else {
-      useMessage(
-          String.format("Retrieve item from table [%s] failed : %s", _searchConfig.searchStoreName, id),
-          ERROR);
-    }
     return document;
   }
 
@@ -501,8 +397,9 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     Header header = operand.header();
     Trace trace = operand.trace();
 
-    UUID generatedId = header.id();
     Long schemaVersion = header.schemaVersion();
+    UUID generatedId = header.id();
+    Lifecycle generatedState = header.state();
 
     URL generatedUrl = trace.url();
     URL generatedParentUrl = trace.parentUrl();
@@ -579,9 +476,10 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       }
     }
 
-    SearchDocument retrievedSearch = get(header.id(), _searchConfig.searchStoreName, SearchDocument::parse);
+    SearchDocument retrievedSearch = getItem(_dynamoClient, generatedId, _searchConfig.searchStoreName,
+        SearchDocument::parse, this::useMessage);
     ContextDocument retrievedContext = shouldRetrieveContext
-        ? get(header.id(), _searchConfig.contextStoreName, ContextDocument::parse)
+        ? getItem(_dynamoClient, generatedId, _searchConfig.contextStoreName, ContextDocument::parse, this::useMessage)
         : null;
 
     if (retrievedSearch != null) {
@@ -590,12 +488,12 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       Trace retrievedSearchTrace = retrievedSearch.trace();
 
       if (retrievedSearchHeader.schemaVersion() != schemaVersion) {
-        delete(retrievedSearchHeader.id(), _searchConfig.searchStoreName);
+        deleteItem(_dynamoClient, generatedId, _searchConfig.searchStoreName, this::useMessage);
       }
 
       if (retrievedSearchTrace.discoveredAt().plusDays(_searchConfig.apiDataExpirationDays)
           .isAfter(reviewedTime)) {
-        delete(retrievedSearchHeader.id(), _searchConfig.searchStoreName);
+        deleteItem(_dynamoClient, generatedId, _searchConfig.searchStoreName, this::useMessage);
       }
     }
 
@@ -606,7 +504,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     generatedReviewer = _taskConfig.name;
     generatedReviewedAt = reviewedTime;
 
-    Header generatedHeader = new Header(schemaVersion, generatedId);
+    Header generatedHeader = new Header(schemaVersion, generatedId, generatedState);
     Trace generatedTrace = new Trace(generatedUrl, generatedParentUrl, generatedReviewer, generatedDecision,
         generatedDepth, generatedAttempt, generatedReviewedAt, generatedDiscoveredAt);
     Classification generatedClassification = shouldClassify
@@ -628,8 +526,8 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
         DecisionType decision = result.trace().decision();
         switch (decision) {
           case NEED_ANNOTATE -> {
-            put(result, _searchConfig.searchStoreName, SearchDocument::item);
-            queue(_outQueueUrl, body, attributes);
+            putItem(_dynamoClient, result, _searchConfig.searchStoreName, SearchDocument::item, this::useMessage);
+            queueMessage(_queueClient, _outQueueUrl, body, attributes, this::useMessage);
             useMessage(
                 String.format("Operand sent to out queue : %s",
                     result),
@@ -637,7 +535,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           }
 
           case NEED_SEARCH -> {
-            queue(_inQueueUrl, body, attributes);
+            queueMessage(_queueClient, _inQueueUrl, body, attributes, this::useMessage);
             useMessage(
                 String.format("Operand sent to in queue : %s",
                     result),
@@ -645,7 +543,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           }
 
           case NEED_STORE -> {
-            put(result, _searchConfig.searchStoreName, SearchDocument::item);
+            putItem(_dynamoClient, result, _searchConfig.searchStoreName, SearchDocument::item, this::useMessage);
             useMessage(
                 String.format("Operand stored : %s",
                     result),
@@ -653,8 +551,8 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           }
 
           case DATA_OUT_OF_DATE, DATA_DUPLICATE_ENTRY -> {
-            delete(result.header().id(), _searchConfig.searchStoreName);
-            queue(_retryQueueUrl, body, attributes);
+            deleteItem(_dynamoClient, result.header().id(), _searchConfig.searchStoreName, this::useMessage);
+            queueMessage(_queueClient, _retryQueueUrl, body, attributes, this::useMessage);
             useMessage(
                 String.format("Operand sent to retry queue : %s",
                     result),
@@ -662,8 +560,8 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           }
 
           case ERROR_MALFORMED, ERROR_MAX_ATTEMPTS -> {
-            put(result, _searchConfig.searchStoreName, SearchDocument::item);
-            queue(_errorQueueUrl, body, attributes);
+            putItem(_dynamoClient, result, _searchConfig.searchStoreName, SearchDocument::item, this::useMessage);
+            queueMessage(_queueClient, _errorQueueUrl, body, attributes, this::useMessage);
             useMessage(
                 String.format("Operand sent to error queue : %s",
                     result),
@@ -671,8 +569,8 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           }
 
           case ERROR_MUST_DROP -> {
-            delete(result.header().id(), _searchConfig.searchStoreName);
-            queue(_errorQueueUrl, body, attributes);
+            deleteItem(_dynamoClient, result.header().id(), _searchConfig.searchStoreName, this::useMessage);
+            queueMessage(_queueClient, _errorQueueUrl, body, attributes, this::useMessage);
             useMessage(
                 String.format("Operand deleted and sent to error queue : %s",
                     result),
@@ -680,7 +578,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           }
 
           case ERROR_MUST_RETRY -> {
-            queue(_retryQueueUrl, body, attributes);
+            queueMessage(_queueClient, _retryQueueUrl, body, attributes, this::useMessage);
             useMessage(
                 String.format("Operand sent to retry queue : %s",
                     result),

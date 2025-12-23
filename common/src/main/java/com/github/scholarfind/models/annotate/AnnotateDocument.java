@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.scholarfind.models.DecisionType;
 import com.github.scholarfind.models.Header;
+import com.github.scholarfind.models.Lifecycle;
 import com.github.scholarfind.models.Location;
 import com.github.scholarfind.models.Trace;
 
@@ -71,8 +72,9 @@ public record AnnotateDocument(
       throws MalformedURLException {
     Long schemaVersion = Long.parseLong(attributes.get("schemaVersion").stringValue());
     UUID id = UUID.fromString(attributes.get("id").stringValue());
+    Lifecycle state = Lifecycle.valueOf(attributes.get("state").stringValue());
 
-    Header header = new Header(schemaVersion, id);
+    Header header = new Header(schemaVersion, id, state);
 
     URL url = URI.create(attributes.get("url").stringValue()).toURL();
     URL parentUrl = URI.create(attributes.get("parentUrl").stringValue()).toURL();
