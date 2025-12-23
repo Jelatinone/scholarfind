@@ -10,5 +10,5 @@ public enum ClassificationType {
 
   LANDING,
 
-  REDIRECT,
+  NOT_APPLICABLE,
 }

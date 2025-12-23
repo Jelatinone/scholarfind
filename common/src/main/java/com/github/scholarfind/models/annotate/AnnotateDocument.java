@@ -14,7 +14,6 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.scholarfind.models.Content;
 import com.github.scholarfind.models.DecisionType;
 import com.github.scholarfind.models.Header;
 import com.github.scholarfind.models.Location;
@@ -27,7 +26,6 @@ import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 public record AnnotateDocument(
     Header header,
     Trace trace,
-    Content content,
 
     String organizationName,
     String scholarshipName,
@@ -94,7 +92,6 @@ public record AnnotateDocument(
     Trace trace = new Trace(url, parentUrl, reviewer, decision, depth, attempt, discoveredAt, reviewedAt);
 
     AnnotateDocument document = new AnnotateDocument(header, trace, null, null, null, null, null, null, null, null,
-        null,
         null, null);
     return document;
   }

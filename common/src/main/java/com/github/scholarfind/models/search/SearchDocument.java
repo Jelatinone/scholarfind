@@ -90,7 +90,7 @@ public record SearchDocument(
     return document;
   }
 
-  public Map<String, MessageAttributeValue> extract() {
+  public Map<String, MessageAttributeValue> attributes() {
     Map<String, MessageAttributeValue> attributes = new HashMap<>();
 
     attributes.put("schemaVersion",

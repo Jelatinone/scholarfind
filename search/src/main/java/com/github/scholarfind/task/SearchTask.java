@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,7 @@ import com.github.scholarfind.meta.Task;
 import com.github.scholarfind.models.DecisionType;
 import com.github.scholarfind.models.Header;
 import com.github.scholarfind.models.Trace;
+import com.github.scholarfind.models.context.ContextDocument;
 import com.github.scholarfind.models.search.Classification;
 import com.github.scholarfind.models.search.ClassificationType;
 import com.github.scholarfind.models.search.SearchDocument;
@@ -93,13 +95,16 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     String searchStoreName = "store_search";
 
     @Builder.Default
+    String contextStoreName = "store_context";
+
+    @Builder.Default
     Long apiDataExpirationDays = 90L;
 
     @Builder.Default
     Long apiCallTimeoutSeconds = 5_000L;
 
     @Builder.Default
-    Long networkTimeoutMilliseconds = 3_000L;
+    Long networkTimeoutMilliseconds = 3000L;
 
     @Builder.Default
     Long maximumNetworkTimeoutSeconds = 3_500L;
@@ -209,7 +214,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     useMessage("Resolved resource location : error queue URL", INFO);
   }
 
-  private Classification classify(@NonNull Trace trace) {
+  private Classification classify(@NonNull Trace trace, ContextDocument context) {
     EnumMap<ClassificationType, Double> classificationWeights = new EnumMap<>(ClassificationType.class);
     classificationWeights.replaceAll((classification, weight) -> 0D);
 
@@ -228,6 +233,16 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
         .forEach((cue) -> {
           classificationWeights.merge(cue.classification(), cue.weight(), Double::sum);
         });
+
+    if (context != null) {
+      String rawContext = context.rawContext();
+      _searchConfig.classifyContentCues.stream()
+          .filter((cue) -> rawContext.contains(cue.string()))
+          .forEach((cue) -> {
+            classificationWeights.merge(cue.classification(), cue.weight(), Double::sum);
+          });
+    }
+
     try {
       URL redirectedUrl = url;
       int redirectAttempts = 0;
@@ -245,8 +260,10 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           redirectedUrl = URI.create(location).toURL();
           if (redirectedUrl != connection.getURL()) {
             redirectAttempts++;
-            classificationWeights.compute(REDIRECT,
-                (classification, weight) -> weight * _searchConfig.classificationFactors.getOrDefault(REDIRECT, 1D));
+            classificationWeights.compute(NOT_APPLICABLE,
+                (classification, weight) -> weight
+                    * _searchConfig.classificationFactors.getOrDefault(NOT_APPLICABLE, 1D));
+            connection.disconnect();
             continue;
           }
         }
@@ -264,9 +281,6 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
               (classification, weight) -> weight + contentLength / _searchConfig.classificationFactors
                   .getOrDefault(SCHOLARSHIP, 0D));
         }
-
-        // TODO: Shallow-content inspection, download 50-100KB and check
-
         connection.disconnect();
       }
     } catch (final IOException exception) {
@@ -337,8 +351,9 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     return document;
   }
 
-  public PutItemResponse put(final @NonNull SearchDocument document) {
-    Map<String, AttributeValue> item = document.item();
+  public <T> PutItemResponse put(final @NonNull T document, final @NonNull String storeLocation,
+      final @NonNull Function<T, Map<String, AttributeValue>> mapper) {
+    Map<String, AttributeValue> item = mapper.apply(document);
     PutItemRequest putItemRequest = PutItemRequest.builder()
         .item(item)
         .tableName(_searchConfig.searchStoreName)
@@ -348,12 +363,12 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
     if (requestSdkResponse.isSuccessful()) {
       useMessage(
-          String.format("Put item to table [%s] completed : %s", _searchConfig.searchStoreName, document.header().id()
+          String.format("Put item to table [%s] completed : %s", storeLocation, document
               .toString()),
           INFO);
     } else {
       useMessage(
-          String.format("Put item to table [%s] failed : %s", _searchConfig.searchStoreName, document.header().id()
+          String.format("Put item to table [%s] failed : %s", storeLocation, document
               .toString()),
           ERROR);
     }
@@ -361,9 +376,9 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     return putItemResponse;
   }
 
-  public DeleteItemResponse delete(final @NonNull UUID id) {
+  public DeleteItemResponse delete(final @NonNull UUID id, final String storeLocation) {
     DeleteItemRequest deleteItemRequest = DeleteItemRequest.builder()
-        .tableName(_searchConfig.searchStoreName)
+        .tableName(storeLocation)
         .key(Map.of(
             "id", AttributeValue.fromS(id.toString())))
         .build();
@@ -372,30 +387,31 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
 
     if (requestSdkResponse.isSuccessful()) {
       useMessage(
-          String.format("Delete item from table [%s] completed : %s", _searchConfig.searchStoreName, id),
+          String.format("Delete item from table [%s] completed : %s", storeLocation, id),
           INFO);
     } else {
       useMessage(
-          String.format("Delete item from table [%s] completed : %s", _searchConfig.searchStoreName, id),
+          String.format("Delete item from table [%s] completed : %s", storeLocation, id),
           ERROR);
     }
 
     return deleteItemResponse;
   }
 
-  public SearchDocument get(final @NonNull UUID id) {
+  public <T> T get(final @NonNull UUID id, final @NonNull String storeLocation,
+      Function<Map<String, AttributeValue>, T> mapper) {
     GetItemRequest getItemRequest = GetItemRequest.builder()
-        .tableName(_searchConfig.searchStoreName)
+        .tableName(storeLocation)
         .key(Map.of(
             "id", AttributeValue.fromS(id.toString())))
         .build();
     GetItemResponse getItemResponse = _dynamoClient.getItem(getItemRequest);
     SdkHttpResponse requestSdkResponse = getItemResponse.sdkHttpResponse();
 
-    SearchDocument document = null;
+    T document = null;
     if (requestSdkResponse.isSuccessful()) {
       Map<String, AttributeValue> item = getItemResponse.item();
-      document = SearchDocument.parse(item);
+      document = mapper.apply(item);
       useMessage(
           String.format("Retrieve item from table [%s] completed : %s", _searchConfig.searchStoreName, id),
           INFO);
@@ -503,6 +519,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     ZonedDateTime generatedDiscoveredAt = trace.discoveredAt();
     ZonedDateTime generatedReviewedAt = trace.reviewedAt();
 
+    boolean shouldRetrieveContext = false;
     boolean shouldClassify = false;
     ZonedDateTime reviewedTime = ZonedDateTime.now();
 
@@ -528,6 +545,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       case NEED_SEARCH -> {
         generatedDecision = NEED_ANNOTATE;
         shouldClassify = true;
+        shouldRetrieveContext = true;
       }
 
       case DATA_DUPLICATE_ENTRY, DATA_OUT_OF_DATE -> {
@@ -561,19 +579,23 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
       }
     }
 
-    SearchDocument retrievedSearchDocument = get(header.id());
-    if (retrievedSearchDocument != null) {
+    SearchDocument retrievedSearch = get(header.id(), _searchConfig.searchStoreName, SearchDocument::parse);
+    ContextDocument retrievedContext = shouldRetrieveContext
+        ? get(header.id(), _searchConfig.contextStoreName, ContextDocument::parse)
+        : null;
 
-      Header retrievedSearchHeader = retrievedSearchDocument.header();
-      Trace retrievedSearchTrace = retrievedSearchDocument.trace();
+    if (retrievedSearch != null) {
+
+      Header retrievedSearchHeader = retrievedSearch.header();
+      Trace retrievedSearchTrace = retrievedSearch.trace();
 
       if (retrievedSearchHeader.schemaVersion() != schemaVersion) {
-        delete(retrievedSearchHeader.id());
+        delete(retrievedSearchHeader.id(), _searchConfig.searchStoreName);
       }
 
       if (retrievedSearchTrace.discoveredAt().plusDays(_searchConfig.apiDataExpirationDays)
           .isAfter(reviewedTime)) {
-        delete(retrievedSearchHeader.id());
+        delete(retrievedSearchHeader.id(), _searchConfig.searchStoreName);
       }
     }
 
@@ -588,7 +610,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     Trace generatedTrace = new Trace(generatedUrl, generatedParentUrl, generatedReviewer, generatedDecision,
         generatedDepth, generatedAttempt, generatedReviewedAt, generatedDiscoveredAt);
     Classification generatedClassification = shouldClassify
-        ? classify(trace)
+        ? classify(trace, retrievedContext)
         : operand.classification();
 
     SearchDocument generatedDocument = new SearchDocument(generatedHeader, generatedTrace, generatedClassification);
@@ -600,13 +622,13 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
     Post operationResult = FAILURE_FATAL;
     if (result != null) {
       try {
-        Map<String, MessageAttributeValue> attributes = result.extract();
+        Map<String, MessageAttributeValue> attributes = result.attributes();
         String body = _mapper.writeValueAsString(result);
 
         DecisionType decision = result.trace().decision();
         switch (decision) {
           case NEED_ANNOTATE -> {
-            put(result);
+            put(result, _searchConfig.searchStoreName, SearchDocument::item);
             queue(_outQueueUrl, body, attributes);
             useMessage(
                 String.format("Operand sent to out queue : %s",
@@ -623,7 +645,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           }
 
           case NEED_STORE -> {
-            put(result);
+            put(result, _searchConfig.searchStoreName, SearchDocument::item);
             useMessage(
                 String.format("Operand stored : %s",
                     result),
@@ -631,7 +653,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           }
 
           case DATA_OUT_OF_DATE, DATA_DUPLICATE_ENTRY -> {
-            delete(result.header().id());
+            delete(result.header().id(), _searchConfig.searchStoreName);
             queue(_retryQueueUrl, body, attributes);
             useMessage(
                 String.format("Operand sent to retry queue : %s",
@@ -640,7 +662,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           }
 
           case ERROR_MALFORMED, ERROR_MAX_ATTEMPTS -> {
-            put(result);
+            put(result, _searchConfig.searchStoreName, SearchDocument::item);
             queue(_errorQueueUrl, body, attributes);
             useMessage(
                 String.format("Operand sent to error queue : %s",
@@ -649,7 +671,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, SearchDocum
           }
 
           case ERROR_MUST_DROP -> {
-            delete(result.header().id());
+            delete(result.header().id(), _searchConfig.searchStoreName);
             queue(_errorQueueUrl, body, attributes);
             useMessage(
                 String.format("Operand deleted and sent to error queue : %s",
