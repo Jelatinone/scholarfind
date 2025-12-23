@@ -70,67 +70,42 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration {
     @Builder.Default
-    String inQueueName = "queue_search";
+    String inQueueName = "queue_search",
+        outQueueName = "queue_annotate",
+        retryQueueName = "queue_retry",
+        errorQueueName = "queue_error";
 
     @Builder.Default
-    String outQueueName = "queue_annotate";
+    String searchStoreName = "store_search",
+        contextStoreName = "store_context";
 
     @Builder.Default
-    String retryQueueName = "queue_retry";
+    Long apiDataExpirationDays = 90L,
+        apiCallTimeoutSeconds = 5_000L;
 
     @Builder.Default
-    String errorQueueName = "queue_error";
-
-    @Builder.Default
-    String searchStoreName = "store_search";
-
-    @Builder.Default
-    String contextStoreName = "store_context";
-
-    @Builder.Default
-    Long apiDataExpirationDays = 90L;
-
-    @Builder.Default
-    Long classificationExpirationDays = 45L;
-
-    @Builder.Default
-    Long apiCallTimeoutSeconds = 5_000L;
+    Integer apiMaximumSearchAttempts = 5;
 
     @Builder.Default
     Long networkTimeoutMilliseconds = 3000L;
 
     @Builder.Default
-    Long maximumNetworkTimeoutSeconds = 3_500L;
+    Integer networkMaximumRedirects = 5;
 
     @Builder.Default
-    Long baseNetworkTimeoutSeconds = 100L;
+    Long networkMaximumTimeoutSeconds = 3_500L,
+        baseNetworkTimeoutSeconds = 100L,
+        networkBackoffFactor = 10001 / 100L;
 
     @Builder.Default
-    Integer maximumNetworkRedirects = 5;
+    Collection<WeightedCueValue> classifyUrlCues = List.of(),
+        classifyDomainCues = List.of(),
+        classifyContentCues = List.of();
 
     @Builder.Default
-    Long networkFactor = 10001 / 100L;
-
-    @Builder.Default
-    Integer maximumSearchAttempts = 5;
-
-    @Builder.Default
-    Double classifyConfidenceThreshold = 0.7D;
-
-    @Builder.Default
-    Collection<WeightedCueValue> classifyUrlCues = List.of();
-
-    @Builder.Default
-    Collection<WeightedCueValue> classifyDomainCues = List.of();
-
-    @Builder.Default
-    Collection<WeightedCueValue> classifyContentCues = List.of();
-
-    @Builder.Default
-    Map<Classification, Double> classificationFactors = Map.of();
-
-    @Builder.Default
-    Map<Classification, Double> classificationConstants = Map.of();
+    Map<Classification, Double> classificationFactors = Map.of(),
+        classificationConstants = Map.of(),
+        classificationThresholds = Map.of();
   }
 
   static Logger _logger = LoggerFactory.getLogger(SearchTask.class);
@@ -164,8 +139,8 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     _networkScheduler = new ExponentialBackoffScheduler(
         _searchConfig.baseNetworkTimeoutSeconds,
-        _searchConfig.maximumNetworkTimeoutSeconds,
-        _searchConfig.networkFactor);
+        _searchConfig.networkMaximumTimeoutSeconds,
+        _searchConfig.networkBackoffFactor);
 
     _queueClient = SqsClient.builder()
         .overrideConfiguration(config -> config
@@ -239,10 +214,10 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
           });
     }
 
+    URL redirectedUrl = url;
+    int redirectAttempts = 0;
     try {
-      URL redirectedUrl = url;
-      int redirectAttempts = 0;
-      while (redirectAttempts < _searchConfig.maximumNetworkRedirects) {
+      while (redirectAttempts < _searchConfig.networkMaximumRedirects) {
         HttpURLConnection connection = (HttpURLConnection) redirectedUrl.openConnection();
         connection.setRequestMethod("HEAD");
         connection.setInstanceFollowRedirects(false);
@@ -252,6 +227,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
 
         String location = connection.getHeaderField("location");
 
+        // Consider sending back final URL, might be different later...?
         if (location != null) {
           redirectedUrl = URI.create(location).toURL();
           if (redirectedUrl != connection.getURL()) {
@@ -263,19 +239,21 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
             continue;
           }
         }
+        int responseCode = connection.getResponseCode();
+        if (responseCode >= 200 && responseCode <= 299) {
+          long contentLength = connection.getContentLengthLong();
+          String contentType = connection.getContentType();
 
-        long contentLength = connection.getContentLengthLong();
-        String contentType = connection.getContentType();
-
-        if (contentLength != -1L) {
-          classificationWeights.compute(AGGREGATOR,
-              (classification, weight) -> weight + contentLength / _searchConfig.classificationFactors
-                  .getOrDefault(AGGREGATOR, 0D));
-        }
-        if (contentType != null && contentType.equalsIgnoreCase("application/pdf")) {
-          classificationWeights.compute(SCHOLARSHIP,
-              (classification, weight) -> weight + contentLength / _searchConfig.classificationFactors
-                  .getOrDefault(SCHOLARSHIP, 0D));
+          if (contentLength != -1L) {
+            classificationWeights.compute(AGGREGATOR,
+                (classification, weight) -> weight + contentLength / _searchConfig.classificationFactors
+                    .getOrDefault(AGGREGATOR, 0D));
+          }
+          if (contentType != null && contentType.equalsIgnoreCase("application/pdf")) {
+            classificationWeights.compute(SCHOLARSHIP,
+                (classification, weight) -> weight + contentLength / _searchConfig.classificationFactors
+                    .getOrDefault(SCHOLARSHIP, 0D));
+          }
         }
         connection.disconnect();
       }
@@ -414,10 +392,10 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
         ContextDocument::parse, this::useMessage);
 
     boolean errorExpired = discoveredAt.plusDays(_searchConfig.apiDataExpirationDays).isBefore(reviewedAt);
-    boolean errorAttempts = attempts >= _searchConfig.maximumSearchAttempts;
+    boolean errorAttempts = attempts >= _searchConfig.apiMaximumSearchAttempts;
     boolean errorSchema = schemaVersion != SearchDocument.schemaVersion;
 
-    DecisionType decision = IGNORE;
+    DecisionType decision = CONTINUE;
     if (errorSchema) {
       // In the future we'll setup some sort of migration chain...?
       decision = TOMBSTONE;
@@ -425,8 +403,6 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
       decision = TOMBSTONE;
     } else if (errorExpired) {
       decision = RETRY;
-    } else {
-      decision = PROCEED;
     }
 
     boolean shouldClassify = false;
@@ -434,21 +410,31 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
       shouldClassify = true;
     } else {
       ZonedDateTime retrievedReviewedAt = retrievedSearch.trace().reviewedAt();
+      Classification retrievedClassification = retrievedSearch.classification();
       if (retrievedReviewedAt == null
-          || retrievedReviewedAt.isBefore(reviewedAt.minusDays(_searchConfig.classificationExpirationDays))) {
+          || retrievedReviewedAt.isBefore(reviewedAt.minusDays(_searchConfig.apiDataExpirationDays))) {
         shouldClassify = true;
       }
-      if (retrievedSearch.classification() == null) {
+      if (retrievedClassification == null) {
         shouldClassify = true;
       } else {
-        double retrievedConfidence = retrievedSearch.classification().confidence();
-        if (retrievedConfidence < _searchConfig.classifyConfidenceThreshold) {
+        if (retrievedClassification.confidence() < _searchConfig.classificationThresholds
+            .getOrDefault(retrievedClassification.type(), 0D)) {
           shouldClassify = true;
         }
       }
     }
 
     Classification classification = shouldClassify ? classify(trace, retrievedContext) : operand.classification();
+    if (classification.confidence() < _searchConfig.classificationThresholds.getOrDefault(classification.type(), 0D)) {
+      decision = IGNORE;
+    } else {
+      switch (classification.type()) {
+        case LANDING -> decision = SUPERSEDE;
+        case NOT_APPLICABLE -> decision = IGNORE;
+        default -> decision = PROCEED;
+      }
+    }
 
     Trace generatedTrace = new Trace(trace.url(), trace.parentUrl(), _taskConfig.name,
         trace.depth(), attempts + 1, discoveredAt, reviewedAt);
@@ -459,18 +445,23 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
   }
 
   @Override
-  protected Post post(final OperationResult<SearchDocument> result) {
+  protected @NonNull Post post(final OperationResult<SearchDocument> result) {
     if (result == null) {
+      useMessage(
+          "operation result document was null",
+          DEBUG);
       return FAILURE_FATAL;
     }
 
     SearchDocument document = Objects.requireNonNull(result.document());
     DecisionType decision = result.decision();
 
+    useMessage(
+        String.format("document decision : %s", decision),
+        DEBUG);
     try {
       String body = _mapper.writeValueAsString(document);
       Map<String, MessageAttributeValue> attributes = document.attributes();
-
       switch (decision) {
         case CONTINUE -> {
 
@@ -506,7 +497,6 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
               ERROR);
           return FAILURE_FATAL;
         }
-
       }
       return SUCCESS;
     } catch (final IOException exception) {

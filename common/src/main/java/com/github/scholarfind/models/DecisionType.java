@@ -7,9 +7,9 @@ public enum DecisionType {
 
   RETRY,
 
-  SUPERSEDE,
-
   TOMBSTONE,
 
   IGNORE,
+
+  SUPERSEDE,
 }

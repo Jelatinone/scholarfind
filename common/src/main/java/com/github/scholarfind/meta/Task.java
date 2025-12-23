@@ -62,39 +62,40 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
     Level logLevel = INFO;
 
     @Builder.Default
-    Integer operandRetries = 10;
-
-    @Builder.Default
     Integer logicalRetries = 5;
-
-    @Builder.Default
-    Integer collectionSize = 10;
 
     @Builder.Default
     Integer threadParallelism = 5;
 
     @Builder.Default
-    Long baseAwaitTimeout = 100L;
+    Integer collectionSize = 10;
 
     @Builder.Default
-    Long maximumAwaitTimeout = 3500L;
+    Long awaitBaseTimeout = 100L,
+        awaitMaximumTimeout = 3500L,
+        awaitBaseFactor = 3 / 2L;
 
     @Builder.Default
-    Long awaitFactor = 3 / 2L;
+    Long retryBaseTimeout = 100L,
+        retryMaximumTimeout = 3500L,
+        retryBackoffFactor = 3 / 2L;
+  }
 
-    @Builder.Default
-    Long baseRetryTimeout = 100L;
+  @FieldDefaults(level = AccessLevel.PUBLIC)
+  public static final class Statistics {
+    Integer failFatalCount = 0;
 
-    @Builder.Default
-    Long maximumRetryTimeout = 3500L;
+    Integer failRetryCount = 0;
 
-    @Builder.Default
-    Long retryFactor = 3 / 2L;
+    Integer successCount = 0;
+
+    Integer retryCount = 0;
   }
 
   static Logger _logger = LoggerFactory.getLogger(Task.class);
 
   Configuration _taskConfig;
+  Statistics _taskStats;
 
   AtomicReference<State> _state;
   BackoffScheduler _collectScheduler;
@@ -116,16 +117,17 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    */
   protected Task(final @NonNull Configuration config) {
     _taskConfig = config;
+    _taskStats = new Statistics();
 
     _state = new AtomicReference<State>();
     _collectScheduler = new ExponentialBackoffScheduler(
-        _taskConfig.baseAwaitTimeout,
-        _taskConfig.maximumAwaitTimeout,
-        _taskConfig.awaitFactor);
+        _taskConfig.awaitBaseTimeout,
+        _taskConfig.awaitMaximumTimeout,
+        _taskConfig.awaitBaseFactor);
     _retryScheduler = new ExponentialBackoffScheduler(
-        _taskConfig.baseRetryTimeout,
-        _taskConfig.maximumRetryTimeout,
-        _taskConfig.retryFactor);
+        _taskConfig.retryBaseTimeout,
+        _taskConfig.retryMaximumTimeout,
+        _taskConfig.retryBackoffFactor);
 
     _attempts = new ConcurrentHashMap<>();
     _failed = new DelayQueue<>();
@@ -238,7 +240,6 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    */
   public synchronized void useListener(final @NonNull Runnable listener) {
     _listeners.add(listener);
-
     useMessage(String.format("Registered listener : %s", listener.getClass().getName()), DEBUG);
   }
 
@@ -265,7 +266,11 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   protected synchronized void useState(final @NonNull State state) {
     final State currentState = _state.get();
     if (currentState == FAILED || currentState == COMPLETED) {
-      _completable = new CompletableFuture<>();
+      switch (state) {
+        case FAILED, COMPLETED -> {
+        }
+        default -> _completable = new CompletableFuture<>();
+      }
     }
     if (state == COMPLETED || state == FAILED) {
       _completable.complete(null);
