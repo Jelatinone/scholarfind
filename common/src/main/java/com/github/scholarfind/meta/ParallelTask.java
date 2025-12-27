@@ -168,9 +168,9 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
             }
             useMessage(String.format("Added failed jobs : %d", failedCount), DEBUG);
 
-            CollectResult<Consumes> result = collect();
+            CollectionResult<Consumes> result = collect();
             switch (result) {
-              case CollectResult.Alive(List<Consumes> collection) -> {
+              case CollectionResult.Alive(List<Consumes> collection) -> {
                 useMessage(String.format("Collection shape : Alive"), INFO);
 
                 _collected.addAll(collection);
@@ -181,12 +181,12 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
                 useState(DISPATCHING);
               }
 
-              case CollectResult.Idle() -> {
+              case CollectionResult.Idle() -> {
                 useMessage(String.format("Collection shape : Idle"), INFO);
                 useState(_collected.isEmpty() ? AWAITING : DISPATCHING);
               }
 
-              case CollectResult.Empty() -> {
+              case CollectionResult.Empty() -> {
                 useMessage(String.format("Collection shape : Empty"), INFO);
                 useState(_collected.isEmpty() ? COMPLETED : DISPATCHING);
               }

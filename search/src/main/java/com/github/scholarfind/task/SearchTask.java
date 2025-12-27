@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -27,7 +28,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.scholarfind.backoff.BackoffScheduler;
 import com.github.scholarfind.backoff.ExponentialBackoffScheduler;
-import com.github.scholarfind.meta.CollectResult;
+import com.github.scholarfind.meta.CollectionResult;
+import com.github.scholarfind.meta.OperationResult;
 import com.github.scholarfind.meta.Post;
 import com.github.scholarfind.meta.SequentialTask;
 import com.github.scholarfind.meta.Task;
@@ -103,13 +105,18 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
         baseNetworkTimeoutSeconds = 100L,
         networkBackoffFactor = 10001 / 100L;
 
-    SignalExtractorRegistry extractorRegistry;
-    SignalCostConfiguration costConfiguration;
+    @Builder.Default
+    SignalExtractorRegistry extractorRegistry = new SignalExtractorRegistry(Set.of());
+    @Builder.Default
+    SignalCostConfiguration costConfiguration = new SignalCostConfiguration(Map.of(), SignalCost.FREE);
 
-    EvidenceIdentifierConfiguration evidenceConfiguration;
-    ScoreRuleConfiguration scoreConfiguration;
+    @Builder.Default
+    EvidenceIdentifierConfiguration evidenceConfiguration = new EvidenceIdentifierConfiguration(List.of());
+    @Builder.Default
+    ScoreRuleConfiguration scoreConfiguration = new ScoreRuleConfiguration(Map.of());
 
-    DecisionPolicy decisionPolicy;
+    @Builder.Default
+    DecisionPolicy decisionPolicy = new DecisionPolicy(0D, 0D);
 
   }
 
@@ -266,7 +273,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
   }
 
   @Override
-  protected @NonNull CollectResult<@NonNull SearchDocument> collect() {
+  protected @NonNull CollectionResult<@NonNull SearchDocument> collect() {
     ReceiveMessageRequest collectionRequest = ReceiveMessageRequest.builder()
         .queueUrl(_inQueueUrl)
         .maxNumberOfMessages(_taskConfig.collectionSize)
@@ -320,13 +327,13 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
         String.format("Collection valid results size : %d", searchDocuments.size()),
         INFO);
 
-    CollectResult<SearchDocument> result;
+    CollectionResult<SearchDocument> result;
     if (collectionMessages.size() > 0) {
-      result = new CollectResult.Alive<SearchDocument>(searchDocuments);
+      result = new CollectionResult.Alive<SearchDocument>(searchDocuments);
     } else {
       result = queueAlive
-          ? new CollectResult.Idle<>()
-          : new CollectResult.Empty<>();
+          ? new CollectionResult.Idle<>()
+          : new CollectionResult.Empty<>();
     }
     return result;
   }
