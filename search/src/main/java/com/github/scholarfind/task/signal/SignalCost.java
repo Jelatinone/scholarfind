@@ -4,5 +4,12 @@ public enum SignalCost {
 	FREE,
 	HEAD,
 	SHALLOW,
-	FULL
+	FULL;
+
+	public static SignalCost max(SignalCost first, SignalCost second) {
+		if (first.ordinal() > second.ordinal()) {
+			return first;
+		}
+		return second;
+	}
 }

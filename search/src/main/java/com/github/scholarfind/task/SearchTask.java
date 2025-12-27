@@ -3,28 +3,21 @@ package com.github.scholarfind.task;
 import static org.slf4j.event.Level.*;
 import static software.amazon.awssdk.services.sqs.model.QueueAttributeName.*;
 import static com.github.scholarfind.models.DecisionType.*;
-import static com.github.scholarfind.models.search.ClassificationType.*;
 import static com.github.scholarfind.api.QueueHelpers.*;
 import static com.github.scholarfind.api.StoreHelpers.*;
 import static com.github.scholarfind.meta.Post.*;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URL;
 import java.time.Duration;
 import java.time.ZonedDateTime;
-import java.util.Collection;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collector;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,7 +41,9 @@ import com.github.scholarfind.models.search.SearchDocument;
 import com.github.scholarfind.task.evidence.EvidenceIdentifierConfiguration;
 import com.github.scholarfind.task.evidence.EvidenceRule;
 import com.github.scholarfind.task.score.ScoreRuleConfiguration;
+import com.github.scholarfind.task.signal.SignalCost;
 import com.github.scholarfind.task.signal.SignalCostConfiguration;
+import com.github.scholarfind.task.signal.SignalExtractionResult;
 import com.github.scholarfind.task.signal.SignalExtractor;
 import com.github.scholarfind.task.signal.SignalExtractorRegistry;
 import com.github.scholarfind.task.signal.SignalValue;
@@ -195,23 +190,49 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
     useMessage("Resolved resource location : error queue URL", INFO);
   }
 
-  private Classification classify(@NonNull Trace trace, ContextDocument context) {
+  private Map<ClassificationType, Double> classify(@NonNull Trace trace, ContextDocument context) {
     Map<ClassificationType, Double> scores = new HashMap<>();
-    _searchConfig.costConfiguration.costs().forEach((identifier, cost) -> {
-      SignalExtractor extractor = _searchConfig.extractorRegistry.extractor(identifier);
-      Optional<SignalValue> value = extractor.extract(trace, context);
+    AtomicReference<SignalCost> cost = new AtomicReference<>(_searchConfig.costConfiguration.initial());
 
-      List<EvidenceRule> evidence = _searchConfig.evidenceConfiguration.rulesFor(identifier);
-      evidence.forEach(rule -> {
-        scores.merge(
-            rule.classification(),
-            _searchConfig.scoreConfiguration.policyFor(rule.classification())
-                .apply(rule.weight().apply(value)),
-            Double::sum);
-      });
+    _searchConfig.costConfiguration.costs().forEach((identifier, signalCost) -> {
+      SignalCost costBoundary = cost.get();
+      if (SignalCost.max(signalCost, costBoundary) != costBoundary) {
+        return;
+      }
+
+      SignalExtractor extractor = _searchConfig.extractorRegistry.extractor(identifier);
+      SignalExtractionResult result = extractor.extract(trace, context);
+
+      final Optional<SignalValue> value;
+      switch (result) {
+        case SignalExtractionResult.Both(SignalCost resultCost, Optional<SignalValue> resultValue) -> {
+          value = resultValue;
+          cost.set(SignalCost.max(resultCost, cost.get()));
+        }
+
+        case SignalExtractionResult.Value(Optional<SignalValue> resultValue) -> {
+          value = resultValue;
+        }
+
+        case SignalExtractionResult.State(SignalCost resultCost) -> {
+          value = null;
+          cost.set(SignalCost.max(resultCost, cost.get()));
+        }
+      }
+      if (result != null) {
+        List<EvidenceRule> evidence = _searchConfig.evidenceConfiguration.rulesFor(identifier);
+        evidence.forEach(rule -> {
+          double weight = _searchConfig.scoreConfiguration.policyFor(rule.classification())
+              .apply(rule.weight().apply(
+                  value));
+          scores.merge(
+              rule.classification(),
+              weight,
+              Double::sum);
+        });
+      }
     });
-    Classification classification = new Classification(scores);
-    return classification;
+    return scores;
   }
 
   private SearchDocument parse(final @NonNull Message message) {
@@ -342,49 +363,68 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
       decision = RETRY;
     }
 
-    // boolean shouldClassify = false;
-    // if (retrievedSearch == null) {
-    // shouldClassify = true;
-    // } else {
-    // ZonedDateTime retrievedReviewedAt = retrievedSearch.trace().reviewedAt();
-    // Classification retrievedClassification = retrievedSearch.classification();
-    // if (retrievedReviewedAt == null
-    // ||
-    // retrievedReviewedAt.isBefore(reviewedAt.minusDays(_searchConfig.apiDataExpirationDays)))
-    // {
-    // shouldClassify = true;
-    // }
-    // if (retrievedClassification == null) {
-    // shouldClassify = true;
-    // } else {
-    // if (retrievedClassification.confidence() <
-    // _searchConfig.classificationThresholds
-    // .getOrDefault(retrievedClassification.type(), 0D)) {
-    // shouldClassify = true;
-    // }
-    // }
-    // }
+    boolean shouldClassify = false;
+    if (retrievedSearch == null) {
+      shouldClassify = true;
+    } else {
+      ZonedDateTime retrievedReviewedAt = retrievedSearch.trace().reviewedAt();
+      Classification retrievedClassification = retrievedSearch.classification();
+      if (retrievedReviewedAt == null
+          ||
+          retrievedReviewedAt.isBefore(reviewedAt.minusDays(_searchConfig.apiDataExpirationDays))) {
+        shouldClassify = true;
+      }
+      if (retrievedClassification == null) {
+        shouldClassify = true;
+      } else {
+        boolean meetsConfidence = retrievedClassification.classifications()
+            .values()
+            .stream()
+            .allMatch((value) -> value > _searchConfig.decisionPolicy.minimumConfidence());
+        if (!meetsConfidence) {
+          shouldClassify = true;
+        }
+      }
+    }
 
-    // Classification classification = shouldClassify ? classify(trace,
-    // retrievedContext) : operand.classification();
-    // if (classification.confidence() <
-    // _searchConfig.classificationThresholds.getOrDefault(classification.type(),
-    // 0D)) {
-    // decision = IGNORE;
-    // } else {
-    // switch (classification.type()) {
-    // case LANDING -> decision = SUPERSEDE;
-    // case NOT_APPLICABLE -> decision = IGNORE;
-    // default -> decision = PROCEED;
-    // }
-    // }
+    Map<ClassificationType, Double> contributions = shouldClassify
+        ? classify(trace, retrievedContext)
+        : operand.classification().classifications();
+    double maximumWeight = contributions.values()
+        .stream()
+        .mapToDouble(Double::doubleValue)
+        .max()
+        .orElse(0D);
+    List<ClassificationType> contenders = contributions.entrySet()
+        .stream()
+        .filter(entry -> maximumWeight - entry.getValue() <= _searchConfig.decisionPolicy.dominanceEpsilon())
+        .map(Map.Entry::getKey)
+        .toList();
+
+    boolean meetsConfidence = contenders.stream()
+        .anyMatch(
+            Classification -> contributions.get(Classification) >= _searchConfig.decisionPolicy.minimumConfidence());
+    if (!meetsConfidence) {
+      decision = IGNORE;
+    } else {
+      if (contenders.contains(ClassificationType.LANDING)) {
+        decision = SUPERSEDE;
+      } else if (contenders.contains(ClassificationType.NOT_APPLICABLE)) {
+        decision = IGNORE;
+      } else {
+        decision = PROCEED;
+      }
+    }
 
     Trace generatedTrace = new Trace(trace.url(), trace.parentUrl(), _taskConfig.name,
         trace.depth(), attempts + 1, discoveredAt, reviewedAt);
     Header generatedHeader = new Header(header.schemaVersion(), id, header.state());
-    SearchDocument generatedDocument = new SearchDocument(generatedHeader, generatedTrace, null);
+    Classification generatedClassification = new Classification(contributions);
 
-    return new OperationResult<SearchDocument>(generatedDocument, decision);
+    SearchDocument generatedDocument = new SearchDocument(generatedHeader, generatedTrace, generatedClassification);
+
+    OperationResult<SearchDocument> result = new OperationResult<>(generatedDocument, decision);
+    return result;
   }
 
   @Override
