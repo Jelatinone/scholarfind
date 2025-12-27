@@ -23,7 +23,7 @@ import com.github.scholarfind.backoff.BackoffScheduler;
 import com.github.scholarfind.backoff.ExponentialBackoffScheduler;
 import com.github.scholarfind.utility.DelayedValue;
 
-import io.netty.util.internal.ThreadLocalRandom;
+import java.util.concurrent.ThreadLocalRandom;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NonNull;
