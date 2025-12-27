@@ -83,7 +83,6 @@ public record SearchDocument(
 
     Trace trace = new Trace(url, parentUrl, reviewer, depth, attempt, discoveredAt, reviewedAt);
 
-    // TODO: Fix
     Classification classification = new Classification(new HashMap<>());
 
     SearchDocument document = new SearchDocument(header, trace, classification);

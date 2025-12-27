@@ -7,7 +7,7 @@ import java.util.List;
  * <h1>CollectResult</h1>
  * 
  * Describes a general collection resulting from a {@link Task#collect()
- * collection} operation occuring, which may be in one of three states:
+ * collection} operation occurring, which may be in one of three states:
  * {@link Alive alive}, {@link Idle idle}, and {@link Empty empty}.
  * 
  * @author Cody Washington

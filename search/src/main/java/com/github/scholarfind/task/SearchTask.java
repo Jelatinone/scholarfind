@@ -377,11 +377,11 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
       if (retrievedClassification == null) {
         shouldClassify = true;
       } else {
-        boolean meetsConfidence = retrievedClassification.classifications()
+        boolean confidenceBoundary = retrievedClassification.classifications()
             .values()
             .stream()
             .allMatch((value) -> value > _searchConfig.decisionPolicy.minimumConfidence());
-        if (!meetsConfidence) {
+        if (!confidenceBoundary) {
           shouldClassify = true;
         }
       }
@@ -401,10 +401,10 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
         .map(Map.Entry::getKey)
         .toList();
 
-    boolean meetsConfidence = contenders.stream()
+    boolean confidenceBoundary = contenders.stream()
         .anyMatch(
             Classification -> contributions.get(Classification) >= _searchConfig.decisionPolicy.minimumConfidence());
-    if (!meetsConfidence) {
+    if (!confidenceBoundary) {
       decision = IGNORE;
     } else {
       if (contenders.contains(ClassificationType.LANDING)) {
