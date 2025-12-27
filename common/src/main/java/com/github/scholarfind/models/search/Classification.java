@@ -1,6 +1,7 @@
 package com.github.scholarfind.models.search;
 
+import java.util.Map;
+
 public record Classification(
-    ClassificationType type,
-    Double confidence) {
+        Map<ClassificationType, Double> classifications) {
 }

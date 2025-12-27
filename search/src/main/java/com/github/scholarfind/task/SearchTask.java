@@ -17,10 +17,14 @@ import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +45,13 @@ import com.github.scholarfind.models.context.ContextDocument;
 import com.github.scholarfind.models.search.Classification;
 import com.github.scholarfind.models.search.ClassificationType;
 import com.github.scholarfind.models.search.SearchDocument;
+import com.github.scholarfind.task.evidence.EvidenceIdentifierConfiguration;
+import com.github.scholarfind.task.evidence.EvidenceRule;
+import com.github.scholarfind.task.score.ScoreRuleConfiguration;
+import com.github.scholarfind.task.signal.SignalCostConfiguration;
+import com.github.scholarfind.task.signal.SignalExtractor;
+import com.github.scholarfind.task.signal.SignalExtractorRegistry;
+import com.github.scholarfind.task.signal.SignalValue;
 
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -97,15 +108,14 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
         baseNetworkTimeoutSeconds = 100L,
         networkBackoffFactor = 10001 / 100L;
 
-    @Builder.Default
-    Collection<WeightedCueValue> classifyUrlCues = List.of(),
-        classifyDomainCues = List.of(),
-        classifyContentCues = List.of();
+    SignalExtractorRegistry extractorRegistry;
+    SignalCostConfiguration costConfiguration;
 
-    @Builder.Default
-    Map<Classification, Double> classificationFactors = Map.of(),
-        classificationConstants = Map.of(),
-        classificationThresholds = Map.of();
+    EvidenceIdentifierConfiguration evidenceConfiguration;
+    ScoreRuleConfiguration scoreConfiguration;
+
+    DecisionPolicy decisionPolicy;
+
   }
 
   static Logger _logger = LoggerFactory.getLogger(SearchTask.class);
@@ -186,94 +196,21 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
   }
 
   private Classification classify(@NonNull Trace trace, ContextDocument context) {
-    EnumMap<ClassificationType, Double> classificationWeights = new EnumMap<>(ClassificationType.class);
-    classificationWeights.replaceAll((classification, weight) -> 0D);
+    Map<ClassificationType, Double> scores = new HashMap<>();
+    _searchConfig.costConfiguration.costs().forEach((identifier, cost) -> {
+      SignalExtractor extractor = _searchConfig.extractorRegistry.extractor(identifier);
+      Optional<SignalValue> value = extractor.extract(trace, context);
 
-    URL url = trace.url();
-
-    String urlPath = url.getPath();
-    _searchConfig.classifyUrlCues.stream()
-        .filter((cue) -> urlPath.contains(cue.string()))
-        .forEach((cue) -> {
-          classificationWeights.merge(cue.classification(), cue.weight(), Double::sum);
-        });
-
-    String urlDomain = url.getHost();
-    _searchConfig.classifyDomainCues.stream()
-        .filter((cue) -> urlDomain.contains(cue.string()))
-        .forEach((cue) -> {
-          classificationWeights.merge(cue.classification(), cue.weight(), Double::sum);
-        });
-
-    if (context != null) {
-      String rawContext = context.rawContext();
-      _searchConfig.classifyContentCues.stream()
-          .filter((cue) -> rawContext.contains(cue.string()))
-          .forEach((cue) -> {
-            classificationWeights.merge(cue.classification(), cue.weight(), Double::sum);
-          });
-    }
-
-    URL redirectedUrl = url;
-    int redirectAttempts = 0;
-    try {
-      while (redirectAttempts < _searchConfig.networkMaximumRedirects) {
-        HttpURLConnection connection = (HttpURLConnection) redirectedUrl.openConnection();
-        connection.setRequestMethod("HEAD");
-        connection.setInstanceFollowRedirects(false);
-        connection.setConnectTimeout(_searchConfig.networkTimeoutMilliseconds.intValue());
-        connection.setReadTimeout(_searchConfig.networkTimeoutMilliseconds.intValue());
-        connection.connect();
-
-        String location = connection.getHeaderField("location");
-
-        // Consider sending back final URL, might be different later...?
-        if (location != null) {
-          redirectedUrl = URI.create(location).toURL();
-          if (redirectedUrl != connection.getURL()) {
-            redirectAttempts++;
-            classificationWeights.compute(NOT_APPLICABLE,
-                (classification, weight) -> weight
-                    * _searchConfig.classificationFactors.getOrDefault(NOT_APPLICABLE, 1D));
-            connection.disconnect();
-            continue;
-          }
-        }
-        int responseCode = connection.getResponseCode();
-        if (responseCode >= 200 && responseCode <= 299) {
-          long contentLength = connection.getContentLengthLong();
-          String contentType = connection.getContentType();
-
-          if (contentLength != -1L) {
-            classificationWeights.compute(AGGREGATOR,
-                (classification, weight) -> weight + contentLength / _searchConfig.classificationFactors
-                    .getOrDefault(AGGREGATOR, 0D));
-          }
-          if (contentType != null && contentType.equalsIgnoreCase("application/pdf")) {
-            classificationWeights.compute(SCHOLARSHIP,
-                (classification, weight) -> weight + contentLength / _searchConfig.classificationFactors
-                    .getOrDefault(SCHOLARSHIP, 0D));
-          }
-        }
-        connection.disconnect();
-      }
-    } catch (final IOException exception) {
-
-    }
-    Classification classification = classificationWeights.entrySet().stream()
-        .map((entry) -> new Classification(entry.getKey(),
-            entry.getValue()
-                * _searchConfig.classificationFactors.getOrDefault(entry.getKey(), 1D)
-                + _searchConfig.classificationConstants.getOrDefault(entry.getKey(), 0D)))
-        .reduce((first, second) -> {
-          int comparedAs = Double.compare(first.confidence(), second.confidence());
-          if (comparedAs > 0)
-            return first;
-          if (comparedAs < 0)
-            return second;
-          return new Classification(UNCLASSIFIED, first.confidence());
-        })
-        .orElse(new Classification(UNCLASSIFIED, 0D));
+      List<EvidenceRule> evidence = _searchConfig.evidenceConfiguration.rulesFor(identifier);
+      evidence.forEach(rule -> {
+        scores.merge(
+            rule.classification(),
+            _searchConfig.scoreConfiguration.policyFor(rule.classification())
+                .apply(rule.weight().apply(value)),
+            Double::sum);
+      });
+    });
+    Classification classification = new Classification(scores);
     return classification;
   }
 
@@ -405,41 +342,47 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
       decision = RETRY;
     }
 
-    boolean shouldClassify = false;
-    if (retrievedSearch == null) {
-      shouldClassify = true;
-    } else {
-      ZonedDateTime retrievedReviewedAt = retrievedSearch.trace().reviewedAt();
-      Classification retrievedClassification = retrievedSearch.classification();
-      if (retrievedReviewedAt == null
-          || retrievedReviewedAt.isBefore(reviewedAt.minusDays(_searchConfig.apiDataExpirationDays))) {
-        shouldClassify = true;
-      }
-      if (retrievedClassification == null) {
-        shouldClassify = true;
-      } else {
-        if (retrievedClassification.confidence() < _searchConfig.classificationThresholds
-            .getOrDefault(retrievedClassification.type(), 0D)) {
-          shouldClassify = true;
-        }
-      }
-    }
+    // boolean shouldClassify = false;
+    // if (retrievedSearch == null) {
+    // shouldClassify = true;
+    // } else {
+    // ZonedDateTime retrievedReviewedAt = retrievedSearch.trace().reviewedAt();
+    // Classification retrievedClassification = retrievedSearch.classification();
+    // if (retrievedReviewedAt == null
+    // ||
+    // retrievedReviewedAt.isBefore(reviewedAt.minusDays(_searchConfig.apiDataExpirationDays)))
+    // {
+    // shouldClassify = true;
+    // }
+    // if (retrievedClassification == null) {
+    // shouldClassify = true;
+    // } else {
+    // if (retrievedClassification.confidence() <
+    // _searchConfig.classificationThresholds
+    // .getOrDefault(retrievedClassification.type(), 0D)) {
+    // shouldClassify = true;
+    // }
+    // }
+    // }
 
-    Classification classification = shouldClassify ? classify(trace, retrievedContext) : operand.classification();
-    if (classification.confidence() < _searchConfig.classificationThresholds.getOrDefault(classification.type(), 0D)) {
-      decision = IGNORE;
-    } else {
-      switch (classification.type()) {
-        case LANDING -> decision = SUPERSEDE;
-        case NOT_APPLICABLE -> decision = IGNORE;
-        default -> decision = PROCEED;
-      }
-    }
+    // Classification classification = shouldClassify ? classify(trace,
+    // retrievedContext) : operand.classification();
+    // if (classification.confidence() <
+    // _searchConfig.classificationThresholds.getOrDefault(classification.type(),
+    // 0D)) {
+    // decision = IGNORE;
+    // } else {
+    // switch (classification.type()) {
+    // case LANDING -> decision = SUPERSEDE;
+    // case NOT_APPLICABLE -> decision = IGNORE;
+    // default -> decision = PROCEED;
+    // }
+    // }
 
     Trace generatedTrace = new Trace(trace.url(), trace.parentUrl(), _taskConfig.name,
         trace.depth(), attempts + 1, discoveredAt, reviewedAt);
     Header generatedHeader = new Header(header.schemaVersion(), id, header.state());
-    SearchDocument generatedDocument = new SearchDocument(generatedHeader, generatedTrace, classification);
+    SearchDocument generatedDocument = new SearchDocument(generatedHeader, generatedTrace, null);
 
     return new OperationResult<SearchDocument>(generatedDocument, decision);
   }
