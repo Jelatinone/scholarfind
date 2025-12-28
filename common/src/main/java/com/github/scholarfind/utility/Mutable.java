@@ -1,9 +1,9 @@
 package com.github.scholarfind.utility;
 
-public class MutableValue<T> {
+public class Mutable<T> {
 	public T value;
 
-	public MutableValue(T value) {
+	public Mutable(T value) {
 		this.value = value;
 	}
 }

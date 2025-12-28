@@ -7,11 +7,11 @@ import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
-public final class DelayedValue<Type> implements Delayed {
+public final class Locked<Type> implements Delayed {
   Type value;
   long delayNano;
 
-  public DelayedValue(Type operand, long delay, TimeUnit unit) {
+  public Locked(Type operand, long delay, TimeUnit unit) {
     this.value = operand;
     this.delayNano = System.nanoTime() + unit.toNanos(delay);
   }

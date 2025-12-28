@@ -6,7 +6,7 @@ import static java.util.concurrent.TimeUnit.*;
 
 import java.util.List;
 
-import com.github.scholarfind.utility.DelayedValue;
+import com.github.scholarfind.utility.Locked;
 
 import lombok.AccessLevel;
 import lombok.NonNull;
@@ -59,7 +59,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           }
 
           case COLLECTING -> {
-            DelayedValue<Consumes> failed;
+            Locked<Consumes> failed;
             int failedCount = 0;
             while ((failed = _failed.poll()) != null) {
               _collected.offer(failed.value);
@@ -134,7 +134,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
                   long delay = _retryScheduler.compute(attempt);
 
                   _attempts.put(operand, attempt);
-                  _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
+                  _failed.add(new Locked<Consumes>(operand, delay, NANOSECONDS));
 
                   useMessage(String.format("Queued failed work : %s", operand), ERROR);
                 } else {

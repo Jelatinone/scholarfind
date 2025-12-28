@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 
-import com.github.scholarfind.utility.DelayedValue;
+import com.github.scholarfind.utility.Locked;
 
 import lombok.AccessLevel;
 import lombok.NonNull;
@@ -120,7 +120,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           long delay = _retryScheduler.compute(attempt);
 
           _attempts.put(operand, attempt);
-          _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
+          _failed.add(new Locked<Consumes>(operand, delay, NANOSECONDS));
 
           useMessage(String.format("Queued job : %s", operand), DEBUG);
         } else {
@@ -144,7 +144,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
     if (attempt < _taskConfig.logicalRetries) {
       long delay = _retryScheduler.compute(attempt);
       _attempts.put(operand, attempt);
-      _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
+      _failed.add(new Locked<Consumes>(operand, delay, NANOSECONDS));
       useMessage(String.format("Queued dispatched job : %s", operand), DEBUG);
     }
     _threads.release();
@@ -169,7 +169,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           }
 
           case COLLECTING -> {
-            DelayedValue<Consumes> failed;
+            Locked<Consumes> failed;
             int failedCount = 0;
             while ((failed = _failed.poll()) != null) {
               _collected.offer(failed.value);

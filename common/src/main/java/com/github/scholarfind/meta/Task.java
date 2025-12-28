@@ -21,7 +21,7 @@ import org.slf4j.event.Level;
 
 import com.github.scholarfind.backoff.BackoffScheduler;
 import com.github.scholarfind.backoff.ExponentialBackoffScheduler;
-import com.github.scholarfind.utility.DelayedValue;
+import com.github.scholarfind.utility.Locked;
 
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.AccessLevel;
@@ -105,7 +105,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   BackoffScheduler _retryScheduler;
 
   Map<Consumes, Integer> _attempts;
-  Queue<DelayedValue<Consumes>> _failed;
+  Queue<Locked<Consumes>> _failed;
   Queue<Consumes> _collected;
 
   @NonFinal

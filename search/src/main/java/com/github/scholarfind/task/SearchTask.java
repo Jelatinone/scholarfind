@@ -1,14 +1,10 @@
 package com.github.scholarfind.task;
 
 import static org.slf4j.event.Level.*;
-import static software.amazon.awssdk.services.sqs.model.QueueAttributeName.*;
 import static com.github.scholarfind.models.DecisionType.*;
-import static com.github.scholarfind.api.QueueHelpers.*;
-import static com.github.scholarfind.api.StoreHelpers.*;
 import static com.github.scholarfind.meta.Post.*;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
@@ -22,8 +18,9 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.scholarfind.api.QueueHelpers;
-import com.github.scholarfind.api.StoreHelpers;
+import com.github.scholarfind.api.queue.QueueResult;
+import com.github.scholarfind.aws.DynamoStore;
+import com.github.scholarfind.aws.SqsQueue;
 import com.github.scholarfind.backoff.BackoffScheduler;
 import com.github.scholarfind.backoff.ExponentialBackoffScheduler;
 import com.github.scholarfind.meta.CollectionResult;
@@ -47,8 +44,8 @@ import com.github.scholarfind.task.signal.SignalExtractionResult;
 import com.github.scholarfind.task.signal.SignalExtractor;
 import com.github.scholarfind.task.signal.SignalExtractorRegistry;
 import com.github.scholarfind.task.signal.SignalValue;
-import com.github.scholarfind.utility.MutableValue;
-import com.github.scholarfind.utility.Received;
+import com.github.scholarfind.utility.Mutable;
+import com.github.scholarfind.utility.Envelope;
 
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -56,24 +53,17 @@ import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 
 import software.amazon.awssdk.core.metrics.CoreMetric;
-import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.metrics.publishers.cloudwatch.CloudWatchMetricPublisher;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.sqs.SqsClient;
-import software.amazon.awssdk.services.sqs.model.GetQueueAttributesRequest;
-import software.amazon.awssdk.services.sqs.model.GetQueueAttributesResponse;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
-import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
-import software.amazon.awssdk.services.sqs.model.QueueAttributeName;
-import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
-import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse;
 
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public final class SearchTask
-    extends SequentialTask<Received<SearchDocument>, OperationResult<Received<SearchDocument>>> {
+    extends SequentialTask<Envelope<SearchDocument>, OperationResult<Envelope<SearchDocument>>> {
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
@@ -123,10 +113,11 @@ public final class SearchTask
 
   static Logger _logger = LoggerFactory.getLogger(SearchTask.class);
 
-  BackoffScheduler _networkScheduler;
-
+  SqsQueue _queueManager;
   SqsClient _queueClient;
-  DynamoDbClient _dynamoClient;
+
+  DynamoStore _storeManager;
+  DynamoDbClient _storeClient;
   MetricPublisher _metrics;
 
   String _inQueueUrl,
@@ -134,14 +125,12 @@ public final class SearchTask
       _retryQueueUrl,
       _errorQueueUrl;
 
+  BackoffScheduler _networkScheduler;
   Configuration _searchConfig;
 
   public SearchTask(Task.Configuration taskConfig, SearchTask.Configuration searchConfig) {
     super(taskConfig);
     _searchConfig = searchConfig;
-
-    QueueHelpers._logger = this::useMessage;
-    StoreHelpers._logger = this::useMessage;
 
     _metrics = CloudWatchMetricPublisher.builder()
         .cloudWatchClient(CloudWatchAsyncClient.create())
@@ -159,7 +148,7 @@ public final class SearchTask
         .build();
     useMessage("Initialized resources : queue client", INFO);
 
-    _dynamoClient = DynamoDbClient.builder()
+    _storeClient = DynamoDbClient.builder()
         .overrideConfiguration(config -> config
             .addMetricPublisher(_metrics)
             .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.apiCallTimeoutSeconds)))
@@ -193,11 +182,14 @@ public final class SearchTask
             .build())
         .queueUrl();
     useMessage("Resolved resource location : error queue URL", INFO);
+
+    _queueManager = new SqsQueue(_queueClient, this::useMessage, _inQueueUrl, _retryQueueUrl, _errorQueueUrl);
+    _storeManager = new DynamoStore(_storeClient, _searchConfig.searchStoreName, this::useMessage);
   }
 
   private Map<ClassificationType, Double> classify(@NonNull Trace trace, ContextDocument context) {
     Map<ClassificationType, Double> contributions = new HashMap<>();
-    MutableValue<SignalCost> cost = new MutableValue<SignalCost>(_searchConfig.costConfiguration.initial());
+    Mutable<SignalCost> cost = new Mutable<SignalCost>(_searchConfig.costConfiguration.initial());
 
     _searchConfig.costConfiguration.costs().forEach((identifier, signalCost) -> {
       if (SignalCost.max(signalCost, cost.value) != cost.value) {
@@ -234,14 +226,15 @@ public final class SearchTask
           DEBUG);
 
       evidence.forEach(rule -> {
-        double weight = _searchConfig.scoreConfiguration.policyFor(rule.classification())
+        Double weight = _searchConfig.scoreConfiguration.policyFor(rule.classification())
             .apply(rule.weight()
                 .apply(
                     value));
+
         ClassificationType classification = rule.classification();
         contributions.merge(
             classification,
-            weight,
+            weight.isInfinite() || weight.isNaN() ? 0D : weight,
             Double::sum);
 
         useMessage(
@@ -252,108 +245,32 @@ public final class SearchTask
     return contributions;
   }
 
-  private SearchDocument receive(final @NonNull Message message) {
-    Map<String, MessageAttributeValue> attributes = message.messageAttributes();
-    String body = message.body();
-
-    SearchDocument document = null;
-    try {
-      document = SearchDocument.parse(message);
-      useMessage(String.format("Receive message completed : %s", message.messageId()), INFO);
-      return document;
-    } catch (final MalformedURLException exception) {
-      queueMessage(_queueClient, _retryQueueUrl, body, "unknown", attributes);
-    } catch (final IOException exception) {
-      queueMessage(_queueClient, _retryQueueUrl, body, "unknown", attributes);
-    }
-
-    useMessage(
-        String.format("Receive message failed : %s", message.messageId()),
-        ERROR);
-    return document;
-  }
-
   @Override
   public void close() throws IOException {
     _metrics.close();
     _queueClient.close();
-    _dynamoClient.close();
+    _storeClient.close();
   }
 
   @Override
-  protected @NonNull CollectionResult<Received<SearchDocument>> collect() {
-    ReceiveMessageRequest collectionRequest = ReceiveMessageRequest.builder()
-        .queueUrl(_inQueueUrl)
-        .maxNumberOfMessages(_taskConfig.collectionSize)
-        .build();
-    ReceiveMessageResponse collectionResponse = _queueClient.receiveMessage(collectionRequest);
-    SdkHttpResponse collectionSdkResponse = collectionResponse.sdkHttpResponse();
-
-    List<Message> collectionMessages;
-    if (collectionSdkResponse.isSuccessful()) {
-      collectionMessages = collectionResponse.messages();
-    } else {
-      collectionMessages = List.of();
-    }
-    useMessage(
-        String.format("Collection results size : %d", collectionMessages.size()),
-        INFO);
-    useMessage(
-        String.format("Collection results status : %d", collectionSdkResponse.statusCode()),
-        INFO);
-
-    GetQueueAttributesRequest attributesRequest = GetQueueAttributesRequest
-        .builder()
-        .queueUrl(_inQueueUrl)
-        .attributeNames(APPROXIMATE_NUMBER_OF_MESSAGES_DELAYED, APPROXIMATE_NUMBER_OF_MESSAGES_NOT_VISIBLE,
-            APPROXIMATE_NUMBER_OF_MESSAGES)
-        .build();
-    GetQueueAttributesResponse attributesResponse = _queueClient.getQueueAttributes(attributesRequest);
-    SdkHttpResponse attributesSdkResponse = attributesResponse.sdkHttpResponse();
-
-    boolean queueAlive;
-    if (attributesSdkResponse.isSuccessful()) {
-      Map<QueueAttributeName, String> queueAttributes = attributesResponse.attributes();
-      queueAlive = queueAttributes.values()
-          .stream()
-          .anyMatch((value) -> Integer.valueOf(value) > 0);
-    } else {
-      queueAlive = false;
-    }
-    useMessage(
-        String.format("Collection queue metrics results : %s", queueAlive),
-        INFO);
-    useMessage(
-        String.format("Collection queue metrics status : %d", attributesSdkResponse.statusCode()),
-        INFO);
-
-    List<Received<SearchDocument>> searchDocuments = collectionMessages.stream()
-        .map(message -> {
-          SearchDocument doc = receive(message);
-          if (doc == null)
-            return null;
-          return new Received<>(doc, message.receiptHandle());
-        })
+  protected @NonNull CollectionResult<Envelope<SearchDocument>> collect() {
+    QueueResult receivedMessages = _queueManager.poll(_taskConfig.collectionSize);
+    List<Envelope<SearchDocument>> documentEnvelopes = receivedMessages.messages().stream()
+        .map((message) -> message.deserialize(SearchDocument::deserialize))
         .filter(Objects::nonNull)
         .toList();
-    useMessage(
-        String.format("Collection valid results size : %d", searchDocuments.size()),
-        INFO);
-
-    CollectionResult<Received<SearchDocument>> result;
-    if (collectionMessages.size() > 0) {
-      result = new CollectionResult.Alive<Received<SearchDocument>>(searchDocuments);
-    } else {
-      result = queueAlive
-          ? new CollectionResult.Idle<>()
-          : new CollectionResult.Empty<>();
+    if (!documentEnvelopes.isEmpty()) {
+      return new CollectionResult.Alive<>(documentEnvelopes);
     }
-    return result;
+    return switch (receivedMessages.state()) {
+      case ACTIVE, IDLE -> new CollectionResult.Idle<>();
+      case EMPTY -> new CollectionResult.Empty<>();
+    };
   }
 
   @Override
-  protected @NonNull OperationResult<Received<SearchDocument>> operate(
-      final @NonNull Received<SearchDocument> operand) {
+  protected @NonNull OperationResult<Envelope<SearchDocument>> operate(
+      final @NonNull Envelope<SearchDocument> operand) {
 
     SearchDocument document = operand.document();
 
@@ -368,9 +285,11 @@ public final class SearchTask
     ZonedDateTime discoveredAt = trace.discoveredAt();
     ZonedDateTime reviewedAt = ZonedDateTime.now();
 
-    SearchDocument retrievedSearch = getItem(_dynamoClient, id, _searchConfig.searchStoreName, SearchDocument::parse);
-    ContextDocument retrievedContext = getItem(_dynamoClient, id, _searchConfig.contextStoreName,
-        ContextDocument::parse);
+    SearchDocument retrievedSearch = _storeManager.get(_searchConfig.searchStoreName, id)
+        .deserialize((item) -> SearchDocument.deserialize(item));
+
+    ContextDocument retrievedContext = _storeManager.get(_searchConfig.contextStoreName, id)
+        .deserialize((item) -> ContextDocument.deserialize(item));
 
     DecisionType decision = ORIGIN;
 
@@ -403,7 +322,7 @@ public final class SearchTask
         boolean confidenceBoundary = retrievedClassification.contributions()
             .values()
             .stream()
-            .anyMatch((value) -> value > _searchConfig.decisionPolicy.minimumConfidence());
+            .anyMatch((value) -> value >= _searchConfig.decisionPolicy.minimumConfidence());
         if (!confidenceBoundary) {
           shouldClassify = true;
         }
@@ -450,60 +369,53 @@ public final class SearchTask
 
     SearchDocument generatedDocument = new SearchDocument(generatedHeader, generatedTrace, generatedClassification);
 
-    OperationResult<Received<SearchDocument>> result = new OperationResult<Received<SearchDocument>>(
-        new Received<SearchDocument>(generatedDocument, operand.receiptHandle()), decision);
+    OperationResult<Envelope<SearchDocument>> result = new OperationResult<Envelope<SearchDocument>>(
+        new Envelope<SearchDocument>(generatedDocument, operand.acknowledgement()), decision);
     return result;
   }
 
   @Override
-  protected @NonNull Post post(final OperationResult<Received<SearchDocument>> result) {
+  protected @NonNull Post post(final OperationResult<Envelope<SearchDocument>> result) {
     if (result == null || result.value() == null) {
       useMessage(
-          String.format("Operation result document was null : %s", operand),
+          String.format("Operation result document was null : %s", result),
           DEBUG);
       return FAILURE_FATAL;
     }
 
-    String receiptHandle = result.value().receiptHandle();
-
-    SearchDocument document = Objects.requireNonNull(result.value().document());
+    Envelope<SearchDocument> envelope = result.value();
+    SearchDocument document = envelope.document();
     DecisionType decision = result.decision();
 
     useMessage(
         String.format("document decision : %s", decision),
         DEBUG);
     try {
-      String body = SearchDocument._mapper.writeValueAsString(document);
+      String body = document.json();
       Map<String, MessageAttributeValue> attributes = document.attribute();
       switch (decision) {
         case PROCEED -> {
-          deleteMessage(_queueClient, _inQueueUrl, receiptHandle);
-
-          putItem(_dynamoClient, document.itemize(), _searchConfig.searchStoreName);
-          queueMessage(_queueClient, _outQueueUrl, body, receiptHandle, attributes);
+          _storeManager.put(_searchConfig.searchStoreName, document.itemize());
+          _queueManager.send(_outQueueUrl, body, attributes);
+          envelope.acknowledgement().success();
         }
 
         case RETRY -> {
-          deleteMessage(_queueClient, _inQueueUrl, receiptHandle);
-
-          queueMessage(_queueClient, _retryQueueUrl, body, receiptHandle, attributes);
+          envelope.acknowledgement().retry();
         }
 
         case TOMBSTONE -> {
-          deleteMessage(_queueClient, _inQueueUrl, receiptHandle);
-
-          putItem(_dynamoClient, document.itemize(), _searchConfig.searchStoreName);
-          queueMessage(_queueClient, _errorQueueUrl, body, receiptHandle, attributes);
+          _storeManager.put(_searchConfig.searchStoreName, document.itemize());
+          envelope.acknowledgement().error();
         }
 
         case SUPERSEDE -> {
-          deleteMessage(_queueClient, _inQueueUrl, receiptHandle);
-
-          putItem(_dynamoClient, document.itemize(), _searchConfig.searchStoreName);
+          _storeManager.put(_searchConfig.searchStoreName, document.itemize());
+          envelope.acknowledgement().success();
         }
 
         case IGNORE -> {
-          deleteMessage(_queueClient, _inQueueUrl, receiptHandle);
+          envelope.acknowledgement().success();
         }
 
         default -> {
@@ -514,9 +426,9 @@ public final class SearchTask
         }
       }
       return SUCCESS;
-    } catch (final IOException exception) {
+    } catch (final Exception exception) {
       useMessage(
-          String.format("raised fatal IO-layer exception : %s", exception.getMessage()),
+          String.format("Raised fatal exception during post : %s", exception.getMessage()),
           ERROR,
           exception);
       return FAILURE_RETRY;
