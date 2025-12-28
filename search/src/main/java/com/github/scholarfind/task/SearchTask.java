@@ -18,14 +18,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonParser.Feature;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.scholarfind.api.QueueHelpers;
+import com.github.scholarfind.api.StoreHelpers;
 import com.github.scholarfind.backoff.BackoffScheduler;
 import com.github.scholarfind.backoff.ExponentialBackoffScheduler;
 import com.github.scholarfind.meta.CollectionResult;
@@ -49,6 +47,8 @@ import com.github.scholarfind.task.signal.SignalExtractionResult;
 import com.github.scholarfind.task.signal.SignalExtractor;
 import com.github.scholarfind.task.signal.SignalExtractorRegistry;
 import com.github.scholarfind.task.signal.SignalValue;
+import com.github.scholarfind.utility.MutableValue;
+import com.github.scholarfind.utility.Received;
 
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -72,7 +72,8 @@ import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse;
 
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
-public final class SearchTask extends SequentialTask<SearchDocument, OperationResult<SearchDocument>> {
+public final class SearchTask
+    extends SequentialTask<Received<SearchDocument>, OperationResult<Received<SearchDocument>>> {
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
@@ -89,7 +90,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
 
     @Builder.Default
     Long apiDataExpirationDays = 90L,
-        apiCallTimeoutSeconds = 5_000L;
+        apiCallTimeoutSeconds = 30L;
 
     @Builder.Default
     Integer apiMaximumSearchAttempts = 5;
@@ -103,7 +104,7 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
     @Builder.Default
     Long networkMaximumTimeoutSeconds = 3_500L,
         baseNetworkTimeoutSeconds = 100L,
-        networkBackoffFactor = 10001 / 100L;
+        networkBackoffFactor = 1_01L;
 
     @Builder.Default
     SignalExtractorRegistry extractorRegistry = new SignalExtractorRegistry(Set.of());
@@ -121,16 +122,12 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
   }
 
   static Logger _logger = LoggerFactory.getLogger(SearchTask.class);
-  static MetricPublisher _metrics = CloudWatchMetricPublisher.builder()
-      .cloudWatchClient(CloudWatchAsyncClient.create())
-      .detailedMetrics(CoreMetric.API_CALL_DURATION)
-      .build();
 
-  ObjectMapper _mapper;
   BackoffScheduler _networkScheduler;
 
   SqsClient _queueClient;
   DynamoDbClient _dynamoClient;
+  MetricPublisher _metrics;
 
   String _inQueueUrl,
       _outQueueUrl,
@@ -143,12 +140,13 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
     super(taskConfig);
     _searchConfig = searchConfig;
 
-    _mapper = new ObjectMapper()
-        .configure(Feature.ALLOW_COMMENTS, true)
-        .configure(Feature.ALLOW_UNQUOTED_FIELD_NAMES, true)
-        .configure(Feature.ALLOW_NUMERIC_LEADING_ZEROS, true)
-        .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)
-        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    QueueHelpers._logger = this::useMessage;
+    StoreHelpers._logger = this::useMessage;
+
+    _metrics = CloudWatchMetricPublisher.builder()
+        .cloudWatchClient(CloudWatchAsyncClient.create())
+        .detailedMetrics(CoreMetric.API_CALL_DURATION)
+        .build();
     _networkScheduler = new ExponentialBackoffScheduler(
         _searchConfig.baseNetworkTimeoutSeconds,
         _searchConfig.networkMaximumTimeoutSeconds,
@@ -198,12 +196,12 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
   }
 
   private Map<ClassificationType, Double> classify(@NonNull Trace trace, ContextDocument context) {
-    Map<ClassificationType, Double> scores = new HashMap<>();
-    AtomicReference<SignalCost> cost = new AtomicReference<>(_searchConfig.costConfiguration.initial());
+    Map<ClassificationType, Double> contributions = new HashMap<>();
+    MutableValue<SignalCost> cost = new MutableValue<SignalCost>(_searchConfig.costConfiguration.initial());
 
     _searchConfig.costConfiguration.costs().forEach((identifier, signalCost) -> {
-      SignalCost costBoundary = cost.get();
-      if (SignalCost.max(signalCost, costBoundary) != costBoundary) {
+      if (SignalCost.max(signalCost, cost.value) != cost.value) {
+        useMessage(String.format("Identifier %s cost bounds exceeded : %s", identifier, signalCost), DEBUG);
         return;
       }
 
@@ -214,66 +212,76 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
       switch (result) {
         case SignalExtractionResult.Both(SignalCost resultCost, Optional<SignalValue> resultValue) -> {
           value = resultValue;
-          cost.set(SignalCost.max(resultCost, cost.get()));
+          cost.value = (SignalCost.max(resultCost, cost.value));
+          useMessage("Extractor returned : BOTH", DEBUG);
         }
 
         case SignalExtractionResult.Value(Optional<SignalValue> resultValue) -> {
           value = resultValue;
+          useMessage("Extractor returned : VALUE", DEBUG);
         }
 
-        case SignalExtractionResult.State(SignalCost resultCost) -> {
-          value = null;
-          cost.set(SignalCost.max(resultCost, cost.get()));
+        case SignalExtractionResult.Cost(SignalCost resultCost) -> {
+          value = Optional.empty();
+          cost.value = (SignalCost.max(resultCost, cost.value));
+          useMessage("Extractor returned : COST", DEBUG);
         }
       }
-      if (result != null) {
-        List<EvidenceRule> evidence = _searchConfig.evidenceConfiguration.rulesFor(identifier);
-        evidence.forEach(rule -> {
-          double weight = _searchConfig.scoreConfiguration.policyFor(rule.classification())
-              .apply(rule.weight().apply(
-                  value));
-          scores.merge(
-              rule.classification(),
-              weight,
-              Double::sum);
-        });
-      }
+      List<EvidenceRule> evidence = _searchConfig.evidenceConfiguration.rulesFor(identifier);
+
+      useMessage(
+          String.format("Retrieved evidence rules : %d", evidence.size()),
+          DEBUG);
+
+      evidence.forEach(rule -> {
+        double weight = _searchConfig.scoreConfiguration.policyFor(rule.classification())
+            .apply(rule.weight()
+                .apply(
+                    value));
+        ClassificationType classification = rule.classification();
+        contributions.merge(
+            classification,
+            weight,
+            Double::sum);
+
+        useMessage(
+            String.format("Rule %s applied weight : %d", classification, weight),
+            DEBUG);
+      });
     });
-    return scores;
+    return contributions;
   }
 
-  private SearchDocument parse(final @NonNull Message message) {
+  private SearchDocument receive(final @NonNull Message message) {
     Map<String, MessageAttributeValue> attributes = message.messageAttributes();
     String body = message.body();
 
-    Long schemaVersion = Long.parseLong(attributes.get("schemaVersion").stringValue());
-
     SearchDocument document = null;
-    if (schemaVersion == SearchDocument.schemaVersion) {
-      try {
-        document = SearchDocument.parse(message);
-        useMessage(String.format("Parse message completed : %s", message.messageId()), INFO);
-        return document;
-      } catch (final MalformedURLException exception) {
-        queueMessage(_queueClient, _errorQueueUrl, body, attributes, this::useMessage);
-      } catch (final IOException exception) {
-        queueMessage(_queueClient, _retryQueueUrl, body, attributes, this::useMessage);
-      }
+    try {
+      document = SearchDocument.parse(message);
+      useMessage(String.format("Receive message completed : %s", message.messageId()), INFO);
+      return document;
+    } catch (final MalformedURLException exception) {
+      queueMessage(_queueClient, _retryQueueUrl, body, "unknown", attributes);
+    } catch (final IOException exception) {
+      queueMessage(_queueClient, _retryQueueUrl, body, "unknown", attributes);
     }
+
     useMessage(
-        String.format("Parse message failed : %s", message.messageId()),
+        String.format("Receive message failed : %s", message.messageId()),
         ERROR);
     return document;
   }
 
   @Override
   public void close() throws IOException {
+    _metrics.close();
     _queueClient.close();
     _dynamoClient.close();
   }
 
   @Override
-  protected @NonNull CollectionResult<@NonNull SearchDocument> collect() {
+  protected @NonNull CollectionResult<Received<SearchDocument>> collect() {
     ReceiveMessageRequest collectionRequest = ReceiveMessageRequest.builder()
         .queueUrl(_inQueueUrl)
         .maxNumberOfMessages(_taskConfig.collectionSize)
@@ -308,28 +316,33 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
       Map<QueueAttributeName, String> queueAttributes = attributesResponse.attributes();
       queueAlive = queueAttributes.values()
           .stream()
-          .allMatch((value) -> Integer.valueOf(value) != 0);
+          .anyMatch((value) -> Integer.valueOf(value) > 0);
     } else {
       queueAlive = false;
     }
     useMessage(
-        String.format("Collection queue metrics results : %d", queueAlive),
+        String.format("Collection queue metrics results : %s", queueAlive),
         INFO);
     useMessage(
         String.format("Collection queue metrics status : %d", attributesSdkResponse.statusCode()),
         INFO);
 
-    List<SearchDocument> searchDocuments = collectionMessages.stream()
-        .map(this::parse)
+    List<Received<SearchDocument>> searchDocuments = collectionMessages.stream()
+        .map(message -> {
+          SearchDocument doc = receive(message);
+          if (doc == null)
+            return null;
+          return new Received<>(doc, message.receiptHandle());
+        })
         .filter(Objects::nonNull)
         .toList();
     useMessage(
         String.format("Collection valid results size : %d", searchDocuments.size()),
         INFO);
 
-    CollectionResult<SearchDocument> result;
+    CollectionResult<Received<SearchDocument>> result;
     if (collectionMessages.size() > 0) {
-      result = new CollectionResult.Alive<SearchDocument>(searchDocuments);
+      result = new CollectionResult.Alive<Received<SearchDocument>>(searchDocuments);
     } else {
       result = queueAlive
           ? new CollectionResult.Idle<>()
@@ -339,9 +352,13 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
   }
 
   @Override
-  protected @NonNull OperationResult<SearchDocument> operate(final @NonNull SearchDocument operand) {
-    Header header = operand.header();
-    Trace trace = operand.trace();
+  protected @NonNull OperationResult<Received<SearchDocument>> operate(
+      final @NonNull Received<SearchDocument> operand) {
+
+    SearchDocument document = operand.document();
+
+    Header header = document.header();
+    Trace trace = document.trace();
 
     UUID id = header.id();
     long schemaVersion = header.schemaVersion();
@@ -351,23 +368,22 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
     ZonedDateTime discoveredAt = trace.discoveredAt();
     ZonedDateTime reviewedAt = ZonedDateTime.now();
 
-    SearchDocument retrievedSearch = getItem(_dynamoClient, id, _searchConfig.searchStoreName,
-        SearchDocument::parse, this::useMessage);
+    SearchDocument retrievedSearch = getItem(_dynamoClient, id, _searchConfig.searchStoreName, SearchDocument::parse);
     ContextDocument retrievedContext = getItem(_dynamoClient, id, _searchConfig.contextStoreName,
-        ContextDocument::parse, this::useMessage);
+        ContextDocument::parse);
+
+    DecisionType decision = ORIGIN;
 
     boolean errorExpired = discoveredAt.plusDays(_searchConfig.apiDataExpirationDays).isBefore(reviewedAt);
     boolean errorAttempts = attempts >= _searchConfig.apiMaximumSearchAttempts;
     boolean errorSchema = schemaVersion != SearchDocument.schemaVersion;
 
-    DecisionType decision = CONTINUE;
     if (errorSchema) {
       // In the future we'll setup some sort of migration chain...?
       decision = TOMBSTONE;
-    } else if (errorAttempts) {
+    }
+    if (errorAttempts || errorExpired) {
       decision = TOMBSTONE;
-    } else if (errorExpired) {
-      decision = RETRY;
     }
 
     boolean shouldClassify = false;
@@ -384,10 +400,10 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
       if (retrievedClassification == null) {
         shouldClassify = true;
       } else {
-        boolean confidenceBoundary = retrievedClassification.classifications()
+        boolean confidenceBoundary = retrievedClassification.contributions()
             .values()
             .stream()
-            .allMatch((value) -> value > _searchConfig.decisionPolicy.minimumConfidence());
+            .anyMatch((value) -> value > _searchConfig.decisionPolicy.minimumConfidence());
         if (!confidenceBoundary) {
           shouldClassify = true;
         }
@@ -396,7 +412,12 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
 
     Map<ClassificationType, Double> contributions = shouldClassify
         ? classify(trace, retrievedContext)
-        : operand.classification().classifications();
+        : document.classification().contributions();
+
+    if (contributions.isEmpty()) {
+      useMessage(String.format("Classification returned empty contributions : %s", operand), DEBUG);
+    }
+
     double maximumWeight = contributions.values()
         .stream()
         .mapToDouble(Double::doubleValue)
@@ -407,7 +428,6 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
         .filter(entry -> maximumWeight - entry.getValue() <= _searchConfig.decisionPolicy.dominanceEpsilon())
         .map(Map.Entry::getKey)
         .toList();
-
     boolean confidenceBoundary = contenders.stream()
         .anyMatch(
             Classification -> contributions.get(Classification) >= _searchConfig.decisionPolicy.minimumConfidence());
@@ -430,55 +450,60 @@ public final class SearchTask extends SequentialTask<SearchDocument, OperationRe
 
     SearchDocument generatedDocument = new SearchDocument(generatedHeader, generatedTrace, generatedClassification);
 
-    OperationResult<SearchDocument> result = new OperationResult<>(generatedDocument, decision);
+    OperationResult<Received<SearchDocument>> result = new OperationResult<Received<SearchDocument>>(
+        new Received<SearchDocument>(generatedDocument, operand.receiptHandle()), decision);
     return result;
   }
 
   @Override
-  protected @NonNull Post post(final OperationResult<SearchDocument> result) {
-    if (result == null) {
+  protected @NonNull Post post(final OperationResult<Received<SearchDocument>> result) {
+    if (result == null || result.value() == null) {
       useMessage(
-          "operation result document was null",
+          String.format("Operation result document was null : %s", operand),
           DEBUG);
       return FAILURE_FATAL;
     }
 
-    SearchDocument document = Objects.requireNonNull(result.document());
+    String receiptHandle = result.value().receiptHandle();
+
+    SearchDocument document = Objects.requireNonNull(result.value().document());
     DecisionType decision = result.decision();
 
     useMessage(
         String.format("document decision : %s", decision),
         DEBUG);
     try {
-      String body = _mapper.writeValueAsString(document);
-      Map<String, MessageAttributeValue> attributes = document.attributes();
+      String body = SearchDocument._mapper.writeValueAsString(document);
+      Map<String, MessageAttributeValue> attributes = document.attribute();
       switch (decision) {
-        case CONTINUE -> {
-
-          queueMessage(_queueClient, _inQueueUrl, body, attributes, this::useMessage);
-        }
-
         case PROCEED -> {
+          deleteMessage(_queueClient, _inQueueUrl, receiptHandle);
 
-          queueMessage(_queueClient, _outQueueUrl, body, attributes, this::useMessage);
+          putItem(_dynamoClient, document.itemize(), _searchConfig.searchStoreName);
+          queueMessage(_queueClient, _outQueueUrl, body, receiptHandle, attributes);
         }
 
         case RETRY -> {
+          deleteMessage(_queueClient, _inQueueUrl, receiptHandle);
 
-          queueMessage(_queueClient, _retryQueueUrl, body, attributes, this::useMessage);
+          queueMessage(_queueClient, _retryQueueUrl, body, receiptHandle, attributes);
         }
 
         case TOMBSTONE -> {
+          deleteMessage(_queueClient, _inQueueUrl, receiptHandle);
 
-          queueMessage(_queueClient, _errorQueueUrl, body, attributes, this::useMessage);
+          putItem(_dynamoClient, document.itemize(), _searchConfig.searchStoreName);
+          queueMessage(_queueClient, _errorQueueUrl, body, receiptHandle, attributes);
         }
 
         case SUPERSEDE -> {
+          deleteMessage(_queueClient, _inQueueUrl, receiptHandle);
 
+          putItem(_dynamoClient, document.itemize(), _searchConfig.searchStoreName);
         }
 
         case IGNORE -> {
-
+          deleteMessage(_queueClient, _inQueueUrl, receiptHandle);
         }
 
         default -> {

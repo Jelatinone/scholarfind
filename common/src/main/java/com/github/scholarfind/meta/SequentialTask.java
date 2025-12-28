@@ -45,7 +45,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
     while (!_completable.isDone()) {
       try {
         State state = _state.get();
-        useMessage(String.format("Operation %s : %s", state, _taskConfig.name), INFO);
+        useMessage(String.format("Operation %s : %s", _taskConfig.name, state), INFO);
         switch (state) {
 
           case CREATED -> {
@@ -98,6 +98,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           case OPERATING -> {
             operand = _collected.poll();
             if (operand == null) {
+              _taskStats.logicalCycleOccurrences++;
               useState(COLLECTING);
               break;
             }
@@ -111,21 +112,31 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
             useMessage(String.format("Posted work : %s", currentStatus), ERROR);
 
             switch (currentStatus) {
-              case FAILURE_FATAL, SUCCESS -> {
+              case SUCCESS -> {
+                _taskStats.successOccurrences++;
+
                 _attempts.remove(operand);
-                useMessage(String.format("Completed work : %s", operand), DEBUG);
+                useMessage(String.format("Completed work : %s", operand), INFO);
+              }
+
+              case FAILURE_FATAL -> {
+                _taskStats.failureFatalOccurrences++;
+
+                _attempts.remove(operand);
+                useMessage(String.format("Failed work : %s", operand), ERROR);
               }
 
               case FAILURE_RETRY -> {
-                int attempt = _attempts.getOrDefault(operand, 0) + 1;
+                _taskStats.failureRetryOccurrences++;
 
+                int attempt = _attempts.getOrDefault(operand, 0) + 1;
                 if (attempt < _taskConfig.logicalRetries) {
                   long delay = _retryScheduler.compute(attempt);
 
                   _attempts.put(operand, attempt);
                   _failed.add(new DelayedValue<Consumes>(operand, delay, NANOSECONDS));
 
-                  useMessage(String.format("Queued work : %s", operand), DEBUG);
+                  useMessage(String.format("Queued failed work : %s", operand), ERROR);
                 } else {
                   _attempts.remove(operand);
                 }
@@ -148,7 +159,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 
           default -> {
             _completable.complete(null);
-            throw new IllegalStateException("Accessed invalid state during SequentialTask execution.");
+            throw new IllegalStateException(String.format("Accessed invalid SequentialTask state : %s", state));
           }
         }
       } catch (final Throwable throwable) {
@@ -156,6 +167,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
         useMessage(String.format("Operation interrupted : %s", throwable.getCause()), ERROR, throwable);
         _completable.completeExceptionally(throwable);
       }
+      _taskStats.executiveCycleOccurrences++;
     }
     useMessage(String.format("Operation ended : %s", _taskConfig.name), DEBUG);
   }

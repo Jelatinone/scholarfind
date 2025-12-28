@@ -2,9 +2,7 @@ package com.github.scholarfind.meta;
 
 import static com.github.scholarfind.meta.State.*;
 import static java.util.concurrent.TimeUnit.*;
-import static org.slf4j.event.Level.DEBUG;
-import static org.slf4j.event.Level.ERROR;
-import static org.slf4j.event.Level.INFO;
+import static org.slf4j.event.Level.*;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -96,15 +94,26 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    */
   private void handlePost(final Consumes operand, final Produces result) {
     Post currentStatus = post(result);
-    useMessage(String.format("Posted work : %s", currentStatus), ERROR);
+    useMessage(String.format("Posted job : %s", currentStatus), ERROR);
 
     switch (currentStatus) {
-      case FAILURE_FATAL, SUCCESS -> {
+      case SUCCESS -> {
+        _taskStats.successOccurrences++;
+
         _attempts.remove(operand);
-        useMessage(String.format("Completed job : %s", operand), DEBUG);
+        useMessage(String.format("Completed job : %s", operand), INFO);
+      }
+
+      case FAILURE_FATAL -> {
+        _taskStats.failureFatalOccurrences++;
+
+        _attempts.remove(operand);
+        useMessage(String.format("Failed job : %s", operand), ERROR);
       }
 
       case FAILURE_RETRY -> {
+        _taskStats.failureRetryOccurrences++;
+
         int attempt = _attempts.getOrDefault(operand, 0) + 1;
 
         if (attempt < _taskConfig.logicalRetries) {
@@ -208,16 +217,18 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
               }
               _jobs.add(dispatch(element));
             }
-            CompletableFuture
-                .allOf(_jobs.toArray(CompletableFuture[]::new))
-                .thenRun(() -> {
-                  _jobs.clear();
-                  useState(COLLECTING);
-                });
+            CompletableFuture.allOf(_jobs.toArray(CompletableFuture[]::new)).thenRun(() -> {
+              _taskStats.logicalCycleOccurrences++;
+
+              _jobs.clear();
+              useState(COLLECTING);
+            });
+
             useState(WORKING);
           }
 
           case WORKING -> {
+            // Do nothing, wait for jobs to complete ;)
           }
 
           case RESTARTING -> {
@@ -235,7 +246,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 
           default -> {
             _completable.complete(null);
-            throw new IllegalStateException("Accessed invalid state during ParallelTask execution.");
+            throw new IllegalStateException(String.format("Accessed invalid ParallelTask state : %s", state));
           }
         }
       } catch (final Throwable throwable) {
@@ -243,6 +254,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
         useMessage(String.format("Operation interrupted : %s", throwable.getCause()), ERROR, throwable);
         _completable.completeExceptionally(throwable);
       }
+      _taskStats.executiveCycleOccurrences++;
     }
     useMessage(String.format("Operation ended : %s", _taskConfig.name), DEBUG);
   }

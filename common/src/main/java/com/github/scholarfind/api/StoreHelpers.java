@@ -19,24 +19,27 @@ import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
 
 public final class StoreHelpers {
-  public static <T> PutItemResponse putItem(final @NonNull DynamoDbClient client, final @NonNull T document,
-      final @NonNull String storeLocation,
-      final @NonNull Function<T, Map<String, AttributeValue>> mapper, final @NonNull BiConsumer<String, Level> logger) {
-    Map<String, AttributeValue> item = mapper.apply(document);
+
+  public static BiConsumer<String, Level> _logger = (f, s) -> {
+  };
+
+  public static <T> PutItemResponse putItem(final @NonNull DynamoDbClient client,
+      final @NonNull Map<String, AttributeValue> document,
+      final @NonNull String storeLocation) {
     PutItemRequest putItemRequest = PutItemRequest.builder()
-        .item(item)
+        .item(document)
         .tableName(storeLocation)
         .build();
     PutItemResponse putItemResponse = client.putItem(putItemRequest);
     SdkHttpResponse requestSdkResponse = putItemResponse.sdkHttpResponse();
 
     if (requestSdkResponse.isSuccessful()) {
-      logger.accept(
+      _logger.accept(
           String.format("Put item to table [%s] completed : %s", storeLocation, document
               .toString()),
           Level.INFO);
     } else {
-      logger.accept(
+      _logger.accept(
           String.format("Put item to table [%s] failed : %s", storeLocation, document
               .toString()),
           Level.ERROR);
@@ -46,7 +49,7 @@ public final class StoreHelpers {
   }
 
   public static DeleteItemResponse deleteItem(final @NonNull DynamoDbClient client, final @NonNull UUID id,
-      final String storeLocation, final @NonNull BiConsumer<String, Level> logger) {
+      final String storeLocation) {
     DeleteItemRequest deleteItemRequest = DeleteItemRequest.builder()
         .tableName(storeLocation)
         .key(Map.of(
@@ -56,11 +59,11 @@ public final class StoreHelpers {
     SdkHttpResponse requestSdkResponse = deleteItemResponse.sdkHttpResponse();
 
     if (requestSdkResponse.isSuccessful()) {
-      logger.accept(
+      _logger.accept(
           String.format("Delete item from table [%s] completed : %s", storeLocation, id),
           Level.INFO);
     } else {
-      logger.accept(
+      _logger.accept(
           String.format("Delete item from table [%s] completed : %s", storeLocation, id),
           Level.ERROR);
     }
@@ -70,7 +73,7 @@ public final class StoreHelpers {
 
   public static <T> T getItem(final @NonNull DynamoDbClient client, final @NonNull UUID id,
       final @NonNull String storeLocation,
-      final @NonNull Function<Map<String, AttributeValue>, T> mapper, final @NonNull BiConsumer<String, Level> logger) {
+      final @NonNull Function<Map<String, AttributeValue>, T> mapper) {
     GetItemRequest getItemRequest = GetItemRequest.builder()
         .tableName(storeLocation)
         .key(Map.of(
@@ -83,12 +86,12 @@ public final class StoreHelpers {
     if (requestSdkResponse.isSuccessful()) {
       Map<String, AttributeValue> item = getItemResponse.item();
       document = mapper.apply(item);
-      logger.accept(
+      _logger.accept(
           String.format("Retrieve item from table [%s] completed : %s", storeLocation, id),
           Level.INFO);
       return document;
     } else {
-      logger.accept(
+      _logger.accept(
           String.format("Retrieve item from table [%s] failed : %s", storeLocation, id),
           Level.ERROR);
     }

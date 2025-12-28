@@ -41,7 +41,8 @@ import lombok.experimental.NonFinal;
  * 
  * <p>
  * Used to perform mass operations of similar type `consumes` on a collection of
- * consumable data.
+ * consumable data and transforms via an operation into an object which can be
+ * posted.
  * For example, a task which scrapes all of the data from a website, then parses
  * each individual tag and converts it to a `String`.
  * </p>
@@ -83,13 +84,15 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
 
   @FieldDefaults(level = AccessLevel.PUBLIC)
   public static final class Statistics {
-    Integer failFatalCount = 0;
+    Integer failureFatalOccurrences = 0;
 
-    Integer failRetryCount = 0;
+    Integer failureRetryOccurrences = 0;
 
-    Integer successCount = 0;
+    Integer successOccurrences = 0;
 
-    Integer retryCount = 0;
+    Integer logicalCycleOccurrences = 0;
+
+    Integer executiveCycleOccurrences = 0;
   }
 
   static Logger _logger = LoggerFactory.getLogger(Task.class);

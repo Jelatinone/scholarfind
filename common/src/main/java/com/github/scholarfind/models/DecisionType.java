@@ -1,7 +1,7 @@
 package com.github.scholarfind.models;
 
 public enum DecisionType {
-  CONTINUE,
+  ORIGIN,
 
   PROCEED,
 
