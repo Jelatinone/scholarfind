@@ -30,6 +30,7 @@ import com.github.scholarfind.meta.SequentialTask;
 import com.github.scholarfind.meta.Task;
 import com.github.scholarfind.models.DecisionType;
 import com.github.scholarfind.models.Header;
+import com.github.scholarfind.models.Lifecycle;
 import com.github.scholarfind.models.Trace;
 import com.github.scholarfind.models.context.ContextDocument;
 import com.github.scholarfind.models.search.Classification;
@@ -113,9 +114,7 @@ public final class SearchTask
 
   static Logger _logger = LoggerFactory.getLogger(SearchTask.class);
 
-  SqsQueue _queue;
-  DynamoStore _store;
-
+  Configuration _searchConfig;
   MetricPublisher _metrics;
 
   String _inQueueUrl,
@@ -123,30 +122,28 @@ public final class SearchTask
       _retryQueueUrl,
       _errorQueueUrl;
 
+  SqsQueue _queue;
+  DynamoStore _store;
   BackoffScheduler _networkScheduler;
-  Configuration _searchConfig;
 
-  public SearchTask(Task.Configuration taskConfig, SearchTask.Configuration searchConfig) {
+  public SearchTask(final Task.Configuration taskConfig, final @NonNull SearchTask.Configuration searchConfig) {
     super(taskConfig);
     _searchConfig = searchConfig;
 
     _metrics = CloudWatchMetricPublisher.builder()
         .cloudWatchClient(CloudWatchAsyncClient.create())
-        .detailedMetrics(CoreMetric.API_CALL_DURATION)
+        .detailedMetrics(CoreMetric.API_CALL_DURATION, CoreMetric.API_CALL_SUCCESSFUL)
         .build();
-    _networkScheduler = new ExponentialBackoffScheduler(
-        _searchConfig.baseNetworkTimeoutSeconds,
-        _searchConfig.networkMaximumTimeoutSeconds,
-        _searchConfig.networkBackoffFactor);
+    useMessage("Initialized resources : metrics publisher", INFO);
 
-    final SqsClient sqsClient = SqsClient.builder()
+    SqsClient sqsClient = SqsClient.builder()
         .overrideConfiguration(config -> config
             .addMetricPublisher(_metrics)
             .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.apiCallTimeoutSeconds)))
         .build();
     useMessage("Initialized resources : sqs client", INFO);
 
-    final DynamoDbClient dynamoClient = DynamoDbClient.builder()
+    DynamoDbClient dynamoClient = DynamoDbClient.builder()
         .overrideConfiguration(config -> config
             .addMetricPublisher(_metrics)
             .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.apiCallTimeoutSeconds)))
@@ -183,9 +180,13 @@ public final class SearchTask
 
     _queue = new SqsQueue(sqsClient, this::useMessage, _inQueueUrl, _retryQueueUrl, _errorQueueUrl);
     _store = new DynamoStore(dynamoClient, _searchConfig.searchStoreName, this::useMessage);
+    _networkScheduler = new ExponentialBackoffScheduler(
+        _searchConfig.baseNetworkTimeoutSeconds,
+        _searchConfig.networkMaximumTimeoutSeconds,
+        _searchConfig.networkBackoffFactor);
   }
 
-  private Map<ClassificationType, Double> classify(@NonNull Trace trace, ContextDocument context) {
+  private Map<ClassificationType, Double> classify(final @NonNull Trace trace, final ContextDocument context) {
     Map<ClassificationType, Double> contributions = new HashMap<>();
     Mutable<SignalCost> cost = new Mutable<SignalCost>(_searchConfig.costConfiguration.initial());
 
@@ -203,33 +204,31 @@ public final class SearchTask
         case SignalExtractionResult.Both(SignalCost resultCost, Optional<SignalValue> resultValue) -> {
           value = resultValue;
           cost.value = (SignalCost.max(resultCost, cost.value));
-          useMessage("Extractor returned : BOTH", DEBUG);
+          useMessage("Extractor returned : Both", DEBUG);
         }
 
         case SignalExtractionResult.Value(Optional<SignalValue> resultValue) -> {
           value = resultValue;
-          useMessage("Extractor returned : VALUE", DEBUG);
+          useMessage("Extractor returned : Value", DEBUG);
         }
 
         case SignalExtractionResult.Cost(SignalCost resultCost) -> {
           value = Optional.empty();
           cost.value = (SignalCost.max(resultCost, cost.value));
-          useMessage("Extractor returned : COST", DEBUG);
+          useMessage("Extractor returned : Cost", DEBUG);
         }
       }
-      List<EvidenceRule> evidence = _searchConfig.evidenceConfiguration.rulesFor(identifier);
+      List<EvidenceRule> rules = _searchConfig.evidenceConfiguration.rulesFor(identifier);
 
       useMessage(
-          String.format("Retrieved evidence rules : %d", evidence.size()),
+          String.format("Retrieved evidence rules : %d", rules.size()),
           DEBUG);
 
-      evidence.forEach(rule -> {
-        Double weight = _searchConfig.scoreConfiguration.policyFor(rule.classification())
-            .apply(rule.weight()
-                .apply(
-                    value));
+      rules.forEach(evidence -> {
+        Double weight = _searchConfig.scoreConfiguration.policyFor(evidence.classification())
+            .score(evidence.rule().apply(value));
 
-        ClassificationType classification = rule.classification();
+        ClassificationType classification = evidence.classification();
         contributions.merge(
             classification,
             weight.isInfinite() || weight.isNaN() ? 0D : weight,
@@ -267,7 +266,7 @@ public final class SearchTask
   }
 
   @Override
-  protected @NonNull OperationResult<Envelope<SearchDocument>> operate(
+  protected OperationResult<Envelope<SearchDocument>> operate(
       final @NonNull Envelope<SearchDocument> operand) {
 
     SearchDocument document = operand.document();
@@ -298,9 +297,16 @@ public final class SearchTask
     if (errorSchema) {
       // In the future we'll setup some sort of migration chain...?
       decision = TOMBSTONE;
+
+      useMessage("Operand mismatched schema version", INFO);
     }
-    if (errorAttempts || errorExpired) {
+    if (errorAttempts) {
       decision = TOMBSTONE;
+      useMessage("Operand exceeded maximum attempts", INFO);
+    }
+    if (errorExpired) {
+      decision = TOMBSTONE;
+      useMessage("Operand exceeded expiration date", INFO);
     }
 
     boolean shouldClassify = false;
@@ -325,10 +331,47 @@ public final class SearchTask
           shouldClassify = true;
         }
       }
+
+      Lifecycle retrievedState = retrievedSearch.header().state();
+      switch (retrievedState) {
+        case CURRENT -> {
+        }
+        case SUPERSEEDED -> shouldClassify = false;
+        case TOMBSTONED -> shouldClassify = false;
+      }
+
+      long retrievedSchema = retrievedSearch.header().schemaVersion();
+      if (retrievedSchema != SearchDocument.schemaVersion) {
+        shouldClassify = false;
+      }
+    }
+
+    boolean shouldContextualize = false;
+    if (retrievedSearch == null) {
+      shouldContextualize = false;
+    } else {
+      ZonedDateTime retrievedReviewedAt = retrievedContext.reviewedAt();
+      if (retrievedReviewedAt == null
+          ||
+          retrievedReviewedAt.isBefore(reviewedAt.minusDays(_searchConfig.apiDataExpirationDays))) {
+        shouldContextualize = true;
+      }
+      Lifecycle retrievedState = retrievedContext.header().state();
+      switch (retrievedState) {
+        case CURRENT -> {
+        }
+        case SUPERSEEDED -> shouldClassify = false;
+        case TOMBSTONED -> shouldClassify = false;
+      }
+
+      long retrievedSchema = retrievedContext.header().schemaVersion();
+      if (retrievedSchema != ContextDocument.schemaVersion) {
+        shouldClassify = false;
+      }
     }
 
     Map<ClassificationType, Double> contributions = shouldClassify
-        ? classify(trace, retrievedContext)
+        ? classify(trace, shouldContextualize ? retrievedContext : null)
         : document.classification().contributions();
 
     if (contributions.isEmpty()) {
@@ -373,7 +416,7 @@ public final class SearchTask
   }
 
   @Override
-  protected @NonNull Post post(final OperationResult<Envelope<SearchDocument>> result) {
+  protected Post post(final OperationResult<Envelope<SearchDocument>> result) {
     if (result == null || result.value() == null) {
       useMessage(
           String.format("Operation result document was null : %s", result),
@@ -418,7 +461,7 @@ public final class SearchTask
 
         default -> {
           useMessage(
-              String.format("raised fatal unknown state value : %s", decision),
+              String.format("Raised fatal unknown decision state : %s", decision),
               ERROR);
           return FAILURE_FATAL;
         }

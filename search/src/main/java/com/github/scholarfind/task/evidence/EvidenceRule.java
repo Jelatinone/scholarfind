@@ -10,5 +10,5 @@ import com.github.scholarfind.task.signal.SignalValue;
 public record EvidenceRule(
 		SignalIdentifier signal,
 		ClassificationType classification,
-		Function<Optional<SignalValue>, Double> weight) {
+		Function<Optional<SignalValue>, Double> rule) {
 }

@@ -6,8 +6,8 @@ public record ScoreRule(
 		double min,
 		double max) {
 
-	public double apply(double raw) {
-		double v = raw * scale + bias;
-		return Math.max(min, Math.min(max, v));
+	public double score(double raw) {
+		double value = raw * scale + bias;
+		return Math.max(min, Math.min(max, value));
 	}
 }

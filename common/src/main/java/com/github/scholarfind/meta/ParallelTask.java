@@ -143,8 +143,10 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
     useMessage(String.format("Failed dispatched job : %s", operand), ERROR);
     if (attempt < _taskConfig.logicalRetries) {
       long delay = _retryScheduler.compute(attempt);
+
       _attempts.put(operand, attempt);
       _failed.add(new Locked<Consumes>(operand, delay, NANOSECONDS));
+
       useMessage(String.format("Queued dispatched job : %s", operand), DEBUG);
     }
     _threads.release();
@@ -191,12 +193,12 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
               }
 
               case CollectionResult.Idle() -> {
-                useMessage(String.format("Collection shape : Idle"), INFO);
+                useMessage(String.format("Collection shape : Idle"), DEBUG);
                 useState(_collected.isEmpty() ? AWAITING : DISPATCHING);
               }
 
               case CollectionResult.Empty() -> {
-                useMessage(String.format("Collection shape : Empty"), INFO);
+                useMessage(String.format("Collection shape : Empty"), DEBUG);
                 useState(_collected.isEmpty() ? COMPLETED : DISPATCHING);
               }
             }
