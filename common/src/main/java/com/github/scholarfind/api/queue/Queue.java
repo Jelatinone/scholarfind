@@ -5,9 +5,9 @@ import java.util.Map;
 import lombok.NonNull;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 
-public interface Queue {
+public interface Queue extends AutoCloseable {
 
 	QueueResult poll(int messageCount);
 
-	void send(@NonNull String body, @NonNull Map<String, MessageAttributeValue> attributes);
+	void send(@NonNull String message, @NonNull Map<String, MessageAttributeValue> attributes);
 }

@@ -113,11 +113,9 @@ public final class SearchTask
 
   static Logger _logger = LoggerFactory.getLogger(SearchTask.class);
 
-  SqsQueue _queueManager;
-  SqsClient _queueClient;
+  SqsQueue _queue;
+  DynamoStore _store;
 
-  DynamoStore _storeManager;
-  DynamoDbClient _storeClient;
   MetricPublisher _metrics;
 
   String _inQueueUrl,
@@ -141,50 +139,50 @@ public final class SearchTask
         _searchConfig.networkMaximumTimeoutSeconds,
         _searchConfig.networkBackoffFactor);
 
-    _queueClient = SqsClient.builder()
+    final SqsClient sqsClient = SqsClient.builder()
         .overrideConfiguration(config -> config
             .addMetricPublisher(_metrics)
             .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.apiCallTimeoutSeconds)))
         .build();
-    useMessage("Initialized resources : queue client", INFO);
+    useMessage("Initialized resources : sqs client", INFO);
 
-    _storeClient = DynamoDbClient.builder()
+    final DynamoDbClient dynamoClient = DynamoDbClient.builder()
         .overrideConfiguration(config -> config
             .addMetricPublisher(_metrics)
             .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.apiCallTimeoutSeconds)))
         .build();
-    useMessage("Initialized resources : store client", INFO);
+    useMessage("Initialized resources : dynamo client", INFO);
 
-    _inQueueUrl = _queueClient.getQueueUrl(
+    _inQueueUrl = sqsClient.getQueueUrl(
         GetQueueUrlRequest.builder()
             .queueName(searchConfig.inQueueName)
             .build())
         .queueUrl();
     useMessage("Resolved resource location : ingestion queue URL", INFO);
 
-    _outQueueUrl = _queueClient.getQueueUrl(
+    _outQueueUrl = sqsClient.getQueueUrl(
         GetQueueUrlRequest.builder()
             .queueName(searchConfig.outQueueName)
             .build())
         .queueUrl();
     useMessage("Resolved resource location : output queue URL", INFO);
 
-    _retryQueueUrl = _queueClient.getQueueUrl(
+    _retryQueueUrl = sqsClient.getQueueUrl(
         GetQueueUrlRequest.builder()
             .queueName(searchConfig.retryQueueName)
             .build())
         .queueUrl();
     useMessage("Resolved resource location : retry queue URL", INFO);
 
-    _errorQueueUrl = _queueClient.getQueueUrl(
+    _errorQueueUrl = sqsClient.getQueueUrl(
         GetQueueUrlRequest.builder()
             .queueName(searchConfig.errorQueueName)
             .build())
         .queueUrl();
     useMessage("Resolved resource location : error queue URL", INFO);
 
-    _queueManager = new SqsQueue(_queueClient, this::useMessage, _inQueueUrl, _retryQueueUrl, _errorQueueUrl);
-    _storeManager = new DynamoStore(_storeClient, _searchConfig.searchStoreName, this::useMessage);
+    _queue = new SqsQueue(sqsClient, this::useMessage, _inQueueUrl, _retryQueueUrl, _errorQueueUrl);
+    _store = new DynamoStore(dynamoClient, _searchConfig.searchStoreName, this::useMessage);
   }
 
   private Map<ClassificationType, Double> classify(@NonNull Trace trace, ContextDocument context) {
@@ -248,13 +246,13 @@ public final class SearchTask
   @Override
   public void close() throws IOException {
     _metrics.close();
-    _queueClient.close();
-    _storeClient.close();
+    _queue.close();
+    _store.close();
   }
 
   @Override
   protected @NonNull CollectionResult<Envelope<SearchDocument>> collect() {
-    QueueResult receivedMessages = _queueManager.poll(_taskConfig.collectionSize);
+    QueueResult receivedMessages = _queue.poll(_taskConfig.collectionSize);
     List<Envelope<SearchDocument>> documentEnvelopes = receivedMessages.messages().stream()
         .map((message) -> message.deserialize(SearchDocument::deserialize))
         .filter(Objects::nonNull)
@@ -285,10 +283,10 @@ public final class SearchTask
     ZonedDateTime discoveredAt = trace.discoveredAt();
     ZonedDateTime reviewedAt = ZonedDateTime.now();
 
-    SearchDocument retrievedSearch = _storeManager.get(_searchConfig.searchStoreName, id)
+    SearchDocument retrievedSearch = _store.get(_searchConfig.searchStoreName, id)
         .deserialize((item) -> SearchDocument.deserialize(item));
 
-    ContextDocument retrievedContext = _storeManager.get(_searchConfig.contextStoreName, id)
+    ContextDocument retrievedContext = _store.get(_searchConfig.contextStoreName, id)
         .deserialize((item) -> ContextDocument.deserialize(item));
 
     DecisionType decision = ORIGIN;
@@ -395,8 +393,8 @@ public final class SearchTask
       Map<String, MessageAttributeValue> attributes = document.attribute();
       switch (decision) {
         case PROCEED -> {
-          _storeManager.put(_searchConfig.searchStoreName, document.itemize());
-          _queueManager.send(_outQueueUrl, body, attributes);
+          _store.put(_searchConfig.searchStoreName, document.itemize());
+          _queue.send(_outQueueUrl, body, attributes);
           envelope.acknowledgement().success();
         }
 
@@ -405,12 +403,12 @@ public final class SearchTask
         }
 
         case TOMBSTONE -> {
-          _storeManager.put(_searchConfig.searchStoreName, document.itemize());
+          _store.put(_searchConfig.searchStoreName, document.itemize());
           envelope.acknowledgement().error();
         }
 
         case SUPERSEDE -> {
-          _storeManager.put(_searchConfig.searchStoreName, document.itemize());
+          _store.put(_searchConfig.searchStoreName, document.itemize());
           envelope.acknowledgement().success();
         }
 

@@ -104,4 +104,9 @@ public class DynamoStore implements Store<Map<String, AttributeValue>, UUID> {
 	public void delete(UUID key) {
 		delete(_table, key);
 	}
+
+	@Override
+	public void close() {
+		_client.close();
+	}
 }

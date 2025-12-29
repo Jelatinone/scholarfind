@@ -185,4 +185,9 @@ public final class SqsQueue implements Queue {
 					Level.ERROR);
 		}
 	}
+
+	@Override
+	public void close() {
+		_client.close();
+	}
 }
