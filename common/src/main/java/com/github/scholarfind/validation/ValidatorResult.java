@@ -6,7 +6,7 @@ import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class Validation {
+public class ValidatorResult {
 
     EnumSet<Capability> _capabilities = EnumSet.allOf(Capability.class);
     EnumSet<Reason> _reasons = EnumSet.noneOf(Reason.class);

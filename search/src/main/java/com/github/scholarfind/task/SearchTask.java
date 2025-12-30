@@ -1,19 +1,16 @@
 package com.github.scholarfind.task;
 
 import static org.slf4j.event.Level.*;
-import static com.github.scholarfind.models.DecisionType.*;
 import static com.github.scholarfind.meta.Post.*;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,12 +26,8 @@ import com.github.scholarfind.meta.Post;
 import com.github.scholarfind.meta.SequentialTask;
 import com.github.scholarfind.meta.Task;
 import com.github.scholarfind.models.DecisionType;
-import com.github.scholarfind.models.Header;
-import com.github.scholarfind.models.Lifecycle;
-import com.github.scholarfind.models.Timestamp;
 import com.github.scholarfind.models.Trace;
 import com.github.scholarfind.models.context.ContextDocument;
-import com.github.scholarfind.models.search.Classification;
 import com.github.scholarfind.models.search.ClassificationType;
 import com.github.scholarfind.models.search.SearchDocument;
 import com.github.scholarfind.task.evidence.EvidenceIdentifierConfiguration;
@@ -99,15 +92,14 @@ public final class SearchTask
         networkBackoffFactor = 1_01L;
 
     @Builder.Default
-    SignalExtractorRegistry extractorRegistry = new SignalExtractorRegistry(Set.of());
+    EvidenceIdentifierConfiguration evidenceConfiguration = new EvidenceIdentifierConfiguration(List.of());
+    @Builder.Default
+    ScoreRuleConfiguration scoreConfiguration = new ScoreRuleConfiguration(Map.of());
     @Builder.Default
     SignalCostConfiguration costConfiguration = new SignalCostConfiguration(Map.of(), SignalCost.FREE);
 
     @Builder.Default
-    EvidenceIdentifierConfiguration evidenceConfiguration = new EvidenceIdentifierConfiguration(List.of());
-    @Builder.Default
-    ScoreRuleConfiguration scoreConfiguration = new ScoreRuleConfiguration(Map.of());
-
+    SignalExtractorRegistry extractorRegistry = new SignalExtractorRegistry(Set.of());
     @Builder.Default
     DecisionPolicy decisionPolicy = new DecisionPolicy(0D, 0D);
 
@@ -269,154 +261,9 @@ public final class SearchTask
   @Override
   protected OperationResult<Envelope<SearchDocument>> operate(
       final @NonNull Envelope<SearchDocument> operand) {
-
     SearchDocument document = operand.document();
 
-    Header header = document.header();
-    Trace trace = document.trace();
-    Timestamp timestamp = document.timestamp();
-
-    UUID id = header.id();
-    long schemaVersion = header.schemaVersion();
-
-    int attempts = trace.attempt();
-
-    ZonedDateTime discoveredAt = timestamp.discoveredAt();
-    ZonedDateTime reviewedAt = ZonedDateTime.now();
-
-    SearchDocument retrievedSearch = _store.get(_searchConfig.searchStoreName, id)
-        .deserialize((item) -> SearchDocument.deserialize(item));
-
-    ContextDocument retrievedContext = _store.get(_searchConfig.contextStoreName, id)
-        .deserialize((item) -> ContextDocument.deserialize(item));
-
-    DecisionType decision = ORIGIN;
-
-    boolean errorExpired = discoveredAt.plusDays(_searchConfig.apiDataExpirationDays).isBefore(reviewedAt);
-    boolean errorAttempts = attempts >= _searchConfig.apiMaximumSearchAttempts;
-    boolean errorSchema = schemaVersion != SearchDocument.schemaVersion;
-
-    if (errorSchema) {
-      // In the future we'll setup some sort of migration chain...?
-      decision = TOMBSTONE;
-
-      useMessage("Operand mismatched schema version", INFO);
-    }
-    if (errorAttempts) {
-      decision = TOMBSTONE;
-      useMessage("Operand exceeded maximum attempts", INFO);
-    }
-    if (errorExpired) {
-      decision = TOMBSTONE;
-      useMessage("Operand exceeded expiration date", INFO);
-    }
-
-    boolean shouldClassify = false;
-    if (retrievedSearch == null) {
-      shouldClassify = true;
-    } else {
-      ZonedDateTime retrievedReviewedAt = retrievedSearch.timestamp().reviewedAt();
-      Classification retrievedClassification = retrievedSearch.classification();
-      if (retrievedReviewedAt == null
-          ||
-          retrievedReviewedAt.isBefore(reviewedAt.minusDays(_searchConfig.apiDataExpirationDays))) {
-        shouldClassify = true;
-      }
-      if (retrievedClassification == null) {
-        shouldClassify = true;
-      } else {
-        boolean confidenceBoundary = retrievedClassification.contributions()
-            .values()
-            .stream()
-            .anyMatch((value) -> value >= _searchConfig.decisionPolicy.minimumConfidence());
-        if (!confidenceBoundary) {
-          shouldClassify = true;
-        }
-      }
-
-      Lifecycle retrievedState = retrievedSearch.header().state();
-      switch (retrievedState) {
-        case CURRENT -> {
-        }
-        case SUPERSEEDED -> shouldClassify = false;
-        case TOMBSTONED -> shouldClassify = false;
-      }
-
-      long retrievedSchema = retrievedSearch.header().schemaVersion();
-      if (retrievedSchema != SearchDocument.schemaVersion) {
-        shouldClassify = false;
-      }
-    }
-
-    boolean shouldContextualize = false;
-    if (retrievedSearch == null) {
-      shouldContextualize = false;
-    } else {
-      ZonedDateTime retrievedReviewedAt = retrievedSearch.timestamp().reviewedAt();
-      if (retrievedReviewedAt == null
-          ||
-          retrievedReviewedAt.isBefore(reviewedAt.minusDays(_searchConfig.apiDataExpirationDays))) {
-        shouldContextualize = true;
-      }
-      Lifecycle retrievedState = retrievedContext.header().state();
-      switch (retrievedState) {
-        case CURRENT -> {
-        }
-        case SUPERSEEDED -> shouldClassify = false;
-        case TOMBSTONED -> shouldClassify = false;
-      }
-
-      long retrievedSchema = retrievedContext.header().schemaVersion();
-      if (retrievedSchema != ContextDocument.schemaVersion) {
-        shouldClassify = false;
-      }
-    }
-
-    Map<ClassificationType, Double> contributions = shouldClassify
-        ? classify(trace, shouldContextualize ? retrievedContext : null)
-        : document.classification().contributions();
-
-    if (contributions.isEmpty()) {
-      useMessage(String.format("Classification returned empty contributions : %s", operand), DEBUG);
-    }
-
-    double maximumWeight = contributions.values()
-        .stream()
-        .mapToDouble(Double::doubleValue)
-        .max()
-        .orElse(0D);
-    List<ClassificationType> contenders = contributions.entrySet()
-        .stream()
-        .filter(entry -> maximumWeight - entry.getValue() <= _searchConfig.decisionPolicy.dominanceEpsilon())
-        .map(Map.Entry::getKey)
-        .toList();
-    boolean confidenceBoundary = contenders.stream()
-        .anyMatch(
-            Classification -> contributions.get(Classification) >= _searchConfig.decisionPolicy.minimumConfidence());
-    if (!confidenceBoundary) {
-      decision = IGNORE;
-    } else {
-      if (contenders.contains(ClassificationType.LANDING)) {
-        decision = SUPERSEDE;
-      } else if (contenders.contains(ClassificationType.NOT_APPLICABLE)) {
-        decision = IGNORE;
-      } else {
-        decision = PROCEED;
-      }
-    }
-
-    Trace generatedTrace = new Trace(trace.url(), trace.parentUrl(), _taskConfig.name,
-        trace.depth(), attempts + 1);
-    Header generatedHeader = new Header(header.schemaVersion(), id, header.state());
-    Timestamp generatedTimestamp = new Timestamp(timestamp.discoveredAt(), reviewedAt);
-    Classification generatedClassification = new Classification(contributions);
-
-    SearchDocument generatedDocument = new SearchDocument(generatedHeader, generatedTrace, generatedTimestamp,
-        generatedClassification);
-
-    OperationResult<Envelope<SearchDocument>> result = new OperationResult<Envelope<SearchDocument>>(
-        new Envelope<SearchDocument>(generatedDocument, operand.acknowledgement()), decision);
-    return result;
+    return null;
   }
 
   @Override
