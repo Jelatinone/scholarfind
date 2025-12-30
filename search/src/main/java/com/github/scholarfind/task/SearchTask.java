@@ -102,7 +102,6 @@ public final class SearchTask
     SignalExtractorRegistry extractorRegistry = new SignalExtractorRegistry(Set.of());
     @Builder.Default
     DecisionPolicy decisionPolicy = new DecisionPolicy(0D, 0D);
-
   }
 
   static Logger _logger = LoggerFactory.getLogger(SearchTask.class);

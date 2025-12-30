@@ -17,6 +17,10 @@ public class ValidatorPipeline<Validates extends Document, Context> {
     ValidatorResult record = new ValidatorResult();
     _validators.forEach((validator) -> validator.validate(document, record));
 
+    if (!record.processable()) {
+      return null;
+    }
+
     _mutations.stream()
         .filter((mutator) -> record.capabilities().containsAll(mutator.capabilities()))
         .forEach((mutator) -> mutator.mutate(builder, context));
