@@ -6,6 +6,7 @@ import java.util.Map;
 
 import com.github.scholarfind.models.Header;
 import com.github.scholarfind.models.Location;
+import com.github.scholarfind.models.Timestamp;
 import com.github.scholarfind.models.Trace;
 
 import software.amazon.awssdk.annotations.NotNull;
@@ -16,6 +17,7 @@ import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 public record AnnotateDocument(
     Header header,
     Trace trace,
+    Timestamp timestamp,
 
     String organizationName,
     String scholarshipName,

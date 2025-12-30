@@ -4,6 +4,7 @@ import java.util.Map;
 
 import com.github.scholarfind.api.queue.QueueMessage;
 import com.github.scholarfind.models.Header;
+import com.github.scholarfind.models.Timestamp;
 import com.github.scholarfind.models.Trace;
 
 import software.amazon.awssdk.annotations.NotNull;
@@ -13,6 +14,7 @@ import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 public record SearchDocument(
     Header header,
     Trace trace,
+    Timestamp timestamp,
     Classification classification) {
 
   public static final Long schemaVersion = 1L;

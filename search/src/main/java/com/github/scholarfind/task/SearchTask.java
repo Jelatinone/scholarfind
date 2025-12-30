@@ -31,6 +31,7 @@ import com.github.scholarfind.meta.Task;
 import com.github.scholarfind.models.DecisionType;
 import com.github.scholarfind.models.Header;
 import com.github.scholarfind.models.Lifecycle;
+import com.github.scholarfind.models.Timestamp;
 import com.github.scholarfind.models.Trace;
 import com.github.scholarfind.models.context.ContextDocument;
 import com.github.scholarfind.models.search.Classification;
@@ -273,13 +274,14 @@ public final class SearchTask
 
     Header header = document.header();
     Trace trace = document.trace();
+    Timestamp timestamp = document.timestamp();
 
     UUID id = header.id();
     long schemaVersion = header.schemaVersion();
 
     int attempts = trace.attempt();
 
-    ZonedDateTime discoveredAt = trace.discoveredAt();
+    ZonedDateTime discoveredAt = timestamp.discoveredAt();
     ZonedDateTime reviewedAt = ZonedDateTime.now();
 
     SearchDocument retrievedSearch = _store.get(_searchConfig.searchStoreName, id)
@@ -313,7 +315,7 @@ public final class SearchTask
     if (retrievedSearch == null) {
       shouldClassify = true;
     } else {
-      ZonedDateTime retrievedReviewedAt = retrievedSearch.trace().reviewedAt();
+      ZonedDateTime retrievedReviewedAt = retrievedSearch.timestamp().reviewedAt();
       Classification retrievedClassification = retrievedSearch.classification();
       if (retrievedReviewedAt == null
           ||
@@ -350,7 +352,7 @@ public final class SearchTask
     if (retrievedSearch == null) {
       shouldContextualize = false;
     } else {
-      ZonedDateTime retrievedReviewedAt = retrievedContext.reviewedAt();
+      ZonedDateTime retrievedReviewedAt = retrievedSearch.timestamp().reviewedAt();
       if (retrievedReviewedAt == null
           ||
           retrievedReviewedAt.isBefore(reviewedAt.minusDays(_searchConfig.apiDataExpirationDays))) {
@@ -404,11 +406,13 @@ public final class SearchTask
     }
 
     Trace generatedTrace = new Trace(trace.url(), trace.parentUrl(), _taskConfig.name,
-        trace.depth(), attempts + 1, discoveredAt, reviewedAt);
+        trace.depth(), attempts + 1);
     Header generatedHeader = new Header(header.schemaVersion(), id, header.state());
+    Timestamp generatedTimestamp = new Timestamp(timestamp.discoveredAt(), reviewedAt);
     Classification generatedClassification = new Classification(contributions);
 
-    SearchDocument generatedDocument = new SearchDocument(generatedHeader, generatedTrace, generatedClassification);
+    SearchDocument generatedDocument = new SearchDocument(generatedHeader, generatedTrace, generatedTimestamp,
+        generatedClassification);
 
     OperationResult<Envelope<SearchDocument>> result = new OperationResult<Envelope<SearchDocument>>(
         new Envelope<SearchDocument>(generatedDocument, operand.acknowledgement()), decision);

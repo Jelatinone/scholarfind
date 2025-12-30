@@ -1,9 +1,9 @@
 package com.github.scholarfind.models.context;
 
-import java.time.ZonedDateTime;
 import java.util.Map;
 
 import com.github.scholarfind.models.Header;
+import com.github.scholarfind.models.Timestamp;
 
 import software.amazon.awssdk.annotations.NotNull;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -12,12 +12,10 @@ import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 
 public record ContextDocument(
     Header header,
+    Timestamp timestamp,
 
     String rawContext,
-    String fingerprint,
-
-    ZonedDateTime discoveredAt,
-    ZonedDateTime reviewedAt) {
+    String fingerprint) {
   public static final Long schemaVersion = 1L;
 
   public static ContextDocument deserialize(final @NotNull Map<String, AttributeValue> item) {
