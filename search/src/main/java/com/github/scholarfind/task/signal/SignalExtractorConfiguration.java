@@ -8,11 +8,11 @@ import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class SignalExtractorRegistry {
+public class SignalExtractorConfiguration {
 
 	private final Map<SignalIdentifier, SignalExtractor> _extractors;
 
-	public SignalExtractorRegistry(Set<SignalExtractor> extractors) {
+	public SignalExtractorConfiguration(Set<SignalExtractor> extractors) {
 		this._extractors = extractors.stream()
 				.collect(Collectors.toMap(SignalExtractor::identifier, entry -> entry));
 	}

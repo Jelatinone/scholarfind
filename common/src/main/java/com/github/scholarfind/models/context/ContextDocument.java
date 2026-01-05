@@ -2,8 +2,10 @@ package com.github.scholarfind.models.context;
 
 import java.util.Map;
 
+import com.github.scholarfind.models.Document;
 import com.github.scholarfind.models.Header;
 import com.github.scholarfind.models.Timestamp;
+import com.github.scholarfind.utility.Builder;
 
 import software.amazon.awssdk.annotations.NotNull;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -15,7 +17,7 @@ public record ContextDocument(
     Timestamp timestamp,
 
     String rawContext,
-    String fingerprint) {
+    String fingerprint) implements Document<ContextDocument> {
   public static final Long schemaVersion = 1L;
 
   public static ContextDocument deserialize(final @NotNull Map<String, AttributeValue> item) {
@@ -28,17 +30,26 @@ public record ContextDocument(
     return null;
   }
 
+  @Override
   public Map<String, MessageAttributeValue> attribute() {
     // Not yet implemented...
     return null;
   }
 
+  @Override
   public Map<String, AttributeValue> itemize() {
     // Not yet implemented...
     return null;
   }
 
+  @Override
   public String json() {
+    // Not yet implemented...
+    return null;
+  }
+
+  @Override
+  public Builder<ContextDocument> toBuilder() {
     // Not yet implemented...
     return null;
   }

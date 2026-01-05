@@ -8,23 +8,24 @@ import com.github.scholarfind.utility.Builder;
 import lombok.AllArgsConstructor;
 
 @AllArgsConstructor
-public class ValidatorPipeline<Validates extends Document, Context> {
+public class ValidatorPipeline<Validates extends Document<Validates>, Context extends ValidationContext<Validates>> {
 
   Set<Validator<Validates>> _validators;
   Set<Mutator<Validates, Context>> _mutations;
 
-  public Validates process(Validates document, Builder<Validates> builder, Context context) {
+  public ValidatorPipelineResult<Validates> process(Context context) {
     ValidatorResult record = new ValidatorResult();
-    _validators.forEach((validator) -> validator.validate(document, record));
+    _validators.forEach((validator) -> validator.validate(record, context));
 
     if (!record.processable()) {
-      return null;
+      return new ValidatorPipelineResult<>(context.document(), record);
     }
 
+    Builder<Validates> builder = context.document().toBuilder();
     _mutations.stream()
         .filter((mutator) -> record.capabilities().containsAll(mutator.capabilities()))
         .forEach((mutator) -> mutator.mutate(builder, context));
 
-    return builder.build();
+    return new ValidatorPipelineResult<>(builder.build(), record);
   }
 }

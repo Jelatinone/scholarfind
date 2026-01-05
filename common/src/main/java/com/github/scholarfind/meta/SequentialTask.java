@@ -28,7 +28,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
   @NonFinal
   Consumes operand = null;
   @NonFinal
-  Produces result = null;
+  OperationResult<Produces> result = null;
 
   /**
    * Creates a new sequential Task
@@ -45,7 +45,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
     while (!_completable.isDone()) {
       try {
         State state = _state.get();
-        useMessage(String.format("Operation %s : %s", _taskConfig.name, state), INFO);
+        useMessage(String.format("Operation staged : %s", state), DEBUG);
         switch (state) {
 
           case CREATED -> {
@@ -55,6 +55,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 
           case AWAITING -> {
             await();
+            useMessage(String.format("Awaited jobs : %d", _failed.size()), INFO);
             useState(COLLECTING);
           }
 
@@ -73,26 +74,32 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
                 useMessage(String.format("Collection shape : Alive"), INFO);
 
                 _collected.addAll(collection);
-                _collectScheduler.reset();
+                _taskConfig.retryScheduler.reset();
 
                 useMessage(String.format("Added collected work : %d", collection.size()), DEBUG);
-
-                useState(OPERATING);
               }
 
               case CollectionResult.Idle() -> {
                 useMessage(String.format("Collection shape : Idle"), INFO);
-                useState(_collected.isEmpty() ? AWAITING : OPERATING);
               }
 
               case CollectionResult.Empty() -> {
                 useMessage(String.format("Collection shape : Empty"), INFO);
-                useState(_collected.isEmpty() ? COMPLETED : OPERATING);
               }
             }
-            if (_collected.size() > 0) {
+
+            if (!_collected.isEmpty()) {
               setup();
+              useState(OPERATING);
+              return;
             }
+
+            if (!_failed.isEmpty()) {
+              useState(AWAITING);
+              return;
+            }
+
+            useState(COMPLETED);
           }
 
           case OPERATING -> {
@@ -107,7 +114,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           }
 
           case POSTING -> {
-            Post currentStatus = post(result);
+            PostResult currentStatus = post(result);
 
             useMessage(String.format("Posted work : %s", currentStatus), ERROR);
 
@@ -131,7 +138,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 
                 int attempt = _attempts.getOrDefault(operand, 0) + 1;
                 if (attempt < _taskConfig.logicalRetries) {
-                  long delay = _retryScheduler.compute(attempt);
+                  long delay = _taskConfig.retryScheduler.compute(attempt);
 
                   _attempts.put(operand, attempt);
                   _failed.add(new Locked<Consumes>(operand, delay, NANOSECONDS));
@@ -186,7 +193,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
    * 
    * @return Previous produced operand
    */
-  public Produces getProduced() {
+  public OperationResult<Produces> getProduced() {
     return result;
   }
 }

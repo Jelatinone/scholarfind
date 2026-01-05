@@ -1,15 +1,14 @@
 package com.github.scholarfind.task;
 
 import static org.slf4j.event.Level.*;
-import static com.github.scholarfind.meta.Post.*;
+import static com.github.scholarfind.meta.PostResult.*;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.HashMap;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -18,28 +17,26 @@ import org.slf4j.LoggerFactory;
 import com.github.scholarfind.api.queue.QueueResult;
 import com.github.scholarfind.aws.DynamoStore;
 import com.github.scholarfind.aws.SqsQueue;
-import com.github.scholarfind.backoff.BackoffScheduler;
-import com.github.scholarfind.backoff.ExponentialBackoffScheduler;
 import com.github.scholarfind.meta.CollectionResult;
 import com.github.scholarfind.meta.OperationResult;
-import com.github.scholarfind.meta.Post;
+import com.github.scholarfind.meta.PostResult;
 import com.github.scholarfind.meta.SequentialTask;
 import com.github.scholarfind.meta.Task;
 import com.github.scholarfind.models.DecisionType;
-import com.github.scholarfind.models.Trace;
 import com.github.scholarfind.models.context.ContextDocument;
 import com.github.scholarfind.models.search.ClassificationType;
 import com.github.scholarfind.models.search.SearchDocument;
 import com.github.scholarfind.task.evidence.EvidenceIdentifierConfiguration;
-import com.github.scholarfind.task.evidence.EvidenceRule;
+import com.github.scholarfind.task.score.DominancePolicy;
 import com.github.scholarfind.task.score.ScoreRuleConfiguration;
 import com.github.scholarfind.task.signal.SignalCost;
 import com.github.scholarfind.task.signal.SignalCostConfiguration;
-import com.github.scholarfind.task.signal.SignalExtractionResult;
-import com.github.scholarfind.task.signal.SignalExtractor;
-import com.github.scholarfind.task.signal.SignalExtractorRegistry;
-import com.github.scholarfind.task.signal.SignalValue;
-import com.github.scholarfind.utility.Mutable;
+import com.github.scholarfind.task.signal.SignalExtractorConfiguration;
+import com.github.scholarfind.task.validation.ClassificationConfiguration;
+import com.github.scholarfind.validation.Reason;
+import com.github.scholarfind.validation.ValidatorPipeline;
+import com.github.scholarfind.validation.ValidatorPipelineResult;
+import com.github.scholarfind.validation.ValidatorResult;
 import com.github.scholarfind.utility.Envelope;
 
 import lombok.AccessLevel;
@@ -58,7 +55,7 @@ import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public final class SearchTask
-    extends SequentialTask<Envelope<SearchDocument>, OperationResult<Envelope<SearchDocument>>> {
+    extends SequentialTask<Envelope<SearchDocument>, Envelope<SearchDocument>> {
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
@@ -74,34 +71,17 @@ public final class SearchTask
         contextStoreName = "store_context";
 
     @Builder.Default
-    Long apiDataExpirationDays = 90L,
-        apiCallTimeoutSeconds = 30L;
+    Long callTimeoutSeconds = 30L;
 
     @Builder.Default
-    Integer apiMaximumSearchAttempts = 5;
+    ClassificationConfiguration classificationConfiguration = new ClassificationConfiguration(
+        new SignalCostConfiguration(Map.of(), SignalCost.FREE), new SignalExtractorConfiguration(Set.of()),
+        new EvidenceIdentifierConfiguration(List.of()), new ScoreRuleConfiguration(Map.of()));
+    DominancePolicy decisionPolicy = new DominancePolicy(0D, 0D);
 
     @Builder.Default
-    Long networkTimeoutMilliseconds = 3000L;
-
-    @Builder.Default
-    Integer networkMaximumRedirects = 5;
-
-    @Builder.Default
-    Long networkMaximumTimeoutSeconds = 3_500L,
-        baseNetworkTimeoutSeconds = 100L,
-        networkBackoffFactor = 1_01L;
-
-    @Builder.Default
-    EvidenceIdentifierConfiguration evidenceConfiguration = new EvidenceIdentifierConfiguration(List.of());
-    @Builder.Default
-    ScoreRuleConfiguration scoreConfiguration = new ScoreRuleConfiguration(Map.of());
-    @Builder.Default
-    SignalCostConfiguration costConfiguration = new SignalCostConfiguration(Map.of(), SignalCost.FREE);
-
-    @Builder.Default
-    SignalExtractorRegistry extractorRegistry = new SignalExtractorRegistry(Set.of());
-    @Builder.Default
-    DecisionPolicy decisionPolicy = new DecisionPolicy(0D, 0D);
+    ValidatorPipeline<SearchDocument, SearchContext> validatorPipeline = new ValidatorPipeline<SearchDocument, SearchContext>(
+        Set.of(), Set.of());
   }
 
   static Logger _logger = LoggerFactory.getLogger(SearchTask.class);
@@ -116,7 +96,6 @@ public final class SearchTask
 
   SqsQueue _queue;
   DynamoStore _store;
-  BackoffScheduler _networkScheduler;
 
   public SearchTask(final Task.Configuration taskConfig, final @NonNull SearchTask.Configuration searchConfig) {
     super(taskConfig);
@@ -131,14 +110,14 @@ public final class SearchTask
     SqsClient sqsClient = SqsClient.builder()
         .overrideConfiguration(config -> config
             .addMetricPublisher(_metrics)
-            .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.apiCallTimeoutSeconds)))
+            .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.callTimeoutSeconds)))
         .build();
     useMessage("Initialized resources : sqs client", INFO);
 
     DynamoDbClient dynamoClient = DynamoDbClient.builder()
         .overrideConfiguration(config -> config
             .addMetricPublisher(_metrics)
-            .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.apiCallTimeoutSeconds)))
+            .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.callTimeoutSeconds)))
         .build();
     useMessage("Initialized resources : dynamo client", INFO);
 
@@ -170,68 +149,8 @@ public final class SearchTask
         .queueUrl();
     useMessage("Resolved resource location : error queue URL", INFO);
 
-    _queue = new SqsQueue(sqsClient, this::useMessage, _inQueueUrl, _retryQueueUrl, _errorQueueUrl);
+    _queue = new SqsQueue(sqsClient, _inQueueUrl, _retryQueueUrl, _errorQueueUrl, this::useMessage);
     _store = new DynamoStore(dynamoClient, _searchConfig.searchStoreName, this::useMessage);
-    _networkScheduler = new ExponentialBackoffScheduler(
-        _searchConfig.baseNetworkTimeoutSeconds,
-        _searchConfig.networkMaximumTimeoutSeconds,
-        _searchConfig.networkBackoffFactor);
-  }
-
-  private Map<ClassificationType, Double> classify(final @NonNull Trace trace, final ContextDocument context) {
-    Map<ClassificationType, Double> contributions = new HashMap<>();
-    Mutable<SignalCost> cost = new Mutable<SignalCost>(_searchConfig.costConfiguration.initial());
-
-    _searchConfig.costConfiguration.costs().forEach((identifier, signalCost) -> {
-      if (SignalCost.max(signalCost, cost.value) != cost.value) {
-        useMessage(String.format("Identifier %s cost bounds exceeded : %s", identifier, signalCost), DEBUG);
-        return;
-      }
-
-      SignalExtractor extractor = _searchConfig.extractorRegistry.extractor(identifier);
-      SignalExtractionResult result = extractor.extract(trace, context);
-
-      final Optional<SignalValue> value;
-      switch (result) {
-        case SignalExtractionResult.Both(SignalCost resultCost, Optional<SignalValue> resultValue) -> {
-          value = resultValue;
-          cost.value = (SignalCost.max(resultCost, cost.value));
-          useMessage("Extractor returned : Both", DEBUG);
-        }
-
-        case SignalExtractionResult.Value(Optional<SignalValue> resultValue) -> {
-          value = resultValue;
-          useMessage("Extractor returned : Value", DEBUG);
-        }
-
-        case SignalExtractionResult.Cost(SignalCost resultCost) -> {
-          value = Optional.empty();
-          cost.value = (SignalCost.max(resultCost, cost.value));
-          useMessage("Extractor returned : Cost", DEBUG);
-        }
-      }
-      List<EvidenceRule> rules = _searchConfig.evidenceConfiguration.rulesFor(identifier);
-
-      useMessage(
-          String.format("Retrieved evidence rules : %d", rules.size()),
-          DEBUG);
-
-      rules.forEach(evidence -> {
-        Double weight = _searchConfig.scoreConfiguration.policyFor(evidence.classification())
-            .score(evidence.rule().apply(value));
-
-        ClassificationType classification = evidence.classification();
-        contributions.merge(
-            classification,
-            weight.isInfinite() || weight.isNaN() ? 0D : weight,
-            Double::sum);
-
-        useMessage(
-            String.format("Rule %s applied weight : %d", classification, weight),
-            DEBUG);
-      });
-    });
-    return contributions;
   }
 
   @Override
@@ -261,12 +180,63 @@ public final class SearchTask
   protected OperationResult<Envelope<SearchDocument>> operate(
       final @NonNull Envelope<SearchDocument> operand) {
     SearchDocument document = operand.document();
+    ZonedDateTime reviewedAt = ZonedDateTime.now();
 
-    return null;
+    SearchDocument retrievedSearch = _store.get(_searchConfig.searchStoreName, document.header().id())
+        .deserialize((item) -> SearchDocument.deserialize(item));
+    ContextDocument retrievedContext = _store.get(_searchConfig.contextStoreName, document.header().id())
+        .deserialize((item) -> ContextDocument.deserialize(item));
+
+    SearchContext pipelineContext = new SearchContext(document, _searchConfig, _taskConfig, reviewedAt, retrievedSearch,
+        retrievedContext);
+    ValidatorPipelineResult<SearchDocument> pipelineResult = _searchConfig.validatorPipeline.process(pipelineContext);
+
+    DecisionType decision = DecisionType.TOMBSTONE;
+
+    if (pipelineResult == null || !pipelineResult.result().processable()) {
+      decision = DecisionType.TOMBSTONE;
+
+    } else {
+      ValidatorResult validation = pipelineResult.result();
+
+      if (validation.reasons().contains(Reason.ATTEMPTS_EXCEEDED)
+          || validation.reasons().contains(Reason.DOCUMENT_ERROR)) {
+        decision = DecisionType.IGNORE;
+
+      } else {
+        Map<ClassificationType, Double> contributions = pipelineResult.document().classification().contributions();
+        double dominance = contributions.values().stream()
+            .mapToDouble(Double::doubleValue).max().orElse(0D);
+        List<ClassificationType> contenders = contributions.entrySet().stream()
+            .filter(entry -> dominance - entry.getValue() <= _searchConfig.decisionPolicy.dominanceEpsilon())
+            .map(Map.Entry::getKey)
+            .toList();
+        boolean boundary = contenders.stream()
+            .anyMatch(contender -> contributions.get(contender) >= _searchConfig.decisionPolicy.minimumConfidence());
+
+        if (!boundary) {
+          decision = DecisionType.IGNORE;
+
+        } else if (contenders.contains(ClassificationType.LANDING)) {
+          decision = DecisionType.SUPERSEDE;
+
+        } else if (contenders.contains(ClassificationType.NOT_APPLICABLE)) {
+          decision = DecisionType.IGNORE;
+
+        } else {
+          decision = DecisionType.PROCEED;
+
+        }
+      }
+    }
+
+    return new OperationResult<>(
+        new Envelope<>(pipelineResult.document(), operand.acknowledgement()),
+        decision);
   }
 
   @Override
-  protected Post post(final OperationResult<Envelope<SearchDocument>> result) {
+  protected PostResult post(final OperationResult<Envelope<SearchDocument>> result) {
     if (result == null || result.value() == null) {
       useMessage(
           String.format("Operation result document was null : %s", result),

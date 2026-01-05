@@ -34,6 +34,6 @@ public class ValidatorResult {
     }
 
     public boolean processable() {
-        return unprocessable;
+        return !unprocessable;
     }
 }

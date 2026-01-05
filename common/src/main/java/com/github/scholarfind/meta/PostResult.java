@@ -1,6 +1,6 @@
 package com.github.scholarfind.meta;
 
-public enum Post {
+public enum PostResult {
 	SUCCESS,
 
 	FAILURE_RETRY,

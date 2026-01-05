@@ -5,15 +5,7 @@ public enum Capability {
 
   CONTEXTUALIZE,
 
-  PROCEED,
-
-  SUPERSEDE,
-
   PERSIST,
 
-  EMIT,
-
-  RETRY,
-
-  TOMBSTONE
+  EMIT
 }

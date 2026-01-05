@@ -38,7 +38,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
   @NonFinal
   Collection<Consumes> operands;
   @NonFinal
-  Collection<Produces> results;
+  Collection<OperationResult<Produces>> results;
 
   /**
    * Creates a new parallel Task
@@ -67,12 +67,12 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * @throws InterruptedException When interrupted while updating the number of
    *                              currently active threads.
    */
-  private CompletableFuture<Void> dispatch(final Consumes element) throws InterruptedException {
+  private CompletableFuture<Void> dispatch(final @NonNull Consumes element) throws InterruptedException {
     _threads.acquire();
     CompletableFuture<Void> product = CompletableFuture
         .supplyAsync(() -> {
           operands.add(element);
-          Produces result = operate(element);
+          OperationResult<Produces> result = operate(element);
           results.add(result);
 
           return result;
@@ -92,8 +92,8 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * @param operand Consumable unit of information
    * @param result  Produced unit of information
    */
-  private void handlePost(final Consumes operand, final Produces result) {
-    Post currentStatus = post(result);
+  private void handlePost(final Consumes operand, final OperationResult<Produces> result) {
+    PostResult currentStatus = post(result);
     useMessage(String.format("Posted job : %s", currentStatus), ERROR);
 
     switch (currentStatus) {
@@ -117,7 +117,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
         int attempt = _attempts.getOrDefault(operand, 0) + 1;
 
         if (attempt < _taskConfig.logicalRetries) {
-          long delay = _retryScheduler.compute(attempt);
+          long delay = _taskConfig.retryScheduler.compute(attempt);
 
           _attempts.put(operand, attempt);
           _failed.add(new Locked<Consumes>(operand, delay, NANOSECONDS));
@@ -142,7 +142,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 
     useMessage(String.format("Failed dispatched job : %s", operand), ERROR);
     if (attempt < _taskConfig.logicalRetries) {
-      long delay = _retryScheduler.compute(attempt);
+      long delay = _taskConfig.retryScheduler.compute(attempt);
 
       _attempts.put(operand, attempt);
       _failed.add(new Locked<Consumes>(operand, delay, NANOSECONDS));
@@ -158,7 +158,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
     while (!_completable.isDone()) {
       try {
         State state = _state.get();
-        useMessage(String.format("Operation %s : %s", state, _taskConfig.name), INFO);
+        useMessage(String.format("Operation staged : %s", state), DEBUG);
         switch (state) {
           case CREATED -> {
             setup();
@@ -167,6 +167,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 
           case AWAITING -> {
             await();
+            useMessage(String.format("Awaited jobs : %d", _failed.size()), INFO);
             useState(COLLECTING);
           }
 
@@ -185,26 +186,31 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
                 useMessage(String.format("Collection shape : Alive"), INFO);
 
                 _collected.addAll(collection);
-                _collectScheduler.reset();
+                _taskConfig.retryScheduler.reset();
 
                 useMessage(String.format("Added collected jobs : %d", collection.size()), DEBUG);
-
-                useState(DISPATCHING);
               }
 
               case CollectionResult.Idle() -> {
                 useMessage(String.format("Collection shape : Idle"), DEBUG);
-                useState(_collected.isEmpty() ? AWAITING : DISPATCHING);
               }
 
               case CollectionResult.Empty() -> {
                 useMessage(String.format("Collection shape : Empty"), DEBUG);
-                useState(_collected.isEmpty() ? COMPLETED : DISPATCHING);
               }
             }
-            if (_collected.size() > 0) {
+            if (!_collected.isEmpty()) {
               setup();
+              useState(DISPATCHING);
+              return;
             }
+
+            if (!_failed.isEmpty()) {
+              useState(AWAITING);
+              return;
+            }
+
+            useState(COMPLETED);
           }
 
           case DISPATCHING -> {
@@ -275,7 +281,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * 
    * @return Previous produced operand
    */
-  public Collection<Produces> getProduced() {
+  public Collection<OperationResult<Produces>> getProduced() {
     return results;
   }
 }

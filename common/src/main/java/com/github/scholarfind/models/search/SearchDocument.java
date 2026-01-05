@@ -3,19 +3,22 @@ package com.github.scholarfind.models.search;
 import java.util.Map;
 
 import com.github.scholarfind.api.queue.QueueMessage;
+import com.github.scholarfind.models.Document;
 import com.github.scholarfind.models.Header;
 import com.github.scholarfind.models.Timestamp;
 import com.github.scholarfind.models.Trace;
+import com.github.scholarfind.utility.Builder;
 
 import software.amazon.awssdk.annotations.NotNull;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 
+@lombok.Builder
 public record SearchDocument(
     Header header,
     Trace trace,
     Timestamp timestamp,
-    Classification classification) {
+    Classification classification) implements Document<SearchDocument> {
 
   public static final Long schemaVersion = 1L;
 
@@ -29,17 +32,26 @@ public record SearchDocument(
     return null;
   }
 
+  @Override
   public Map<String, MessageAttributeValue> attribute() {
     // Not yet implemented...
     return null;
   }
 
+  @Override
   public Map<String, AttributeValue> itemize() {
     // Not yet implemented...
     return null;
   }
 
+  @Override
   public String json() {
+    // Not yet implemented...
+    return null;
+  }
+
+  @Override
+  public Builder<SearchDocument> toBuilder() {
     // Not yet implemented...
     return null;
   }

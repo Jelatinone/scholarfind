@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
 
 import com.github.scholarfind.backoff.BackoffScheduler;
-import com.github.scholarfind.backoff.ExponentialBackoffScheduler;
+import com.github.scholarfind.backoff.LinearBackoffScheduler;
 import com.github.scholarfind.utility.Locked;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -60,39 +60,33 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
     String name = String.format("Task-[%d]", ThreadLocalRandom.current().nextLong());
 
     @Builder.Default
-    Level logLevel = INFO;
+    Level logLevel = DEBUG;
 
     @Builder.Default
-    Integer logicalRetries = 5;
+    int logicalRetries = 5;
 
     @Builder.Default
-    Integer threadParallelism = 5;
+    int threadParallelism = 5;
 
     @Builder.Default
-    Integer collectionSize = 10;
+    int collectionSize = 10;
 
     @Builder.Default
-    Long awaitBaseTimeout = 100L,
-        awaitMaximumTimeout = 3500L,
-        awaitBaseFactor = 3 / 2L;
-
-    @Builder.Default
-    Long retryBaseTimeout = 100L,
-        retryMaximumTimeout = 3500L,
-        retryBackoffFactor = 3 / 2L;
+    BackoffScheduler awaitScheduler = new LinearBackoffScheduler(10L, 1000L, 1L),
+        retryScheduler = new LinearBackoffScheduler(10L, 1000L, 1L);
   }
 
   @FieldDefaults(level = AccessLevel.PUBLIC)
   public static final class Statistics {
-    Integer failureFatalOccurrences = 0;
+    int failureFatalOccurrences = 0;
 
-    Integer failureRetryOccurrences = 0;
+    int failureRetryOccurrences = 0;
 
-    Integer successOccurrences = 0;
+    int successOccurrences = 0;
 
-    Integer logicalCycleOccurrences = 0;
+    int logicalCycleOccurrences = 0;
 
-    Integer executiveCycleOccurrences = 0;
+    int executiveCycleOccurrences = 0;
   }
 
   static Logger _logger = LoggerFactory.getLogger(Task.class);
@@ -101,8 +95,6 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   Statistics _taskStats;
 
   AtomicReference<State> _state;
-  BackoffScheduler _collectScheduler;
-  BackoffScheduler _retryScheduler;
 
   Map<Consumes, Integer> _attempts;
   Queue<Locked<Consumes>> _failed;
@@ -123,14 +115,6 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
     _taskStats = new Statistics();
 
     _state = new AtomicReference<State>();
-    _collectScheduler = new ExponentialBackoffScheduler(
-        _taskConfig.awaitBaseTimeout,
-        _taskConfig.awaitMaximumTimeout,
-        _taskConfig.awaitBaseFactor);
-    _retryScheduler = new ExponentialBackoffScheduler(
-        _taskConfig.retryBaseTimeout,
-        _taskConfig.retryMaximumTimeout,
-        _taskConfig.retryBackoffFactor);
 
     _attempts = new ConcurrentHashMap<>();
     _failed = new DelayQueue<>();
@@ -158,7 +142,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    * @param operand Data to be mapped
    * @return Mapped result
    */
-  protected abstract Produces operate(final @NonNull Consumes operand);
+  protected abstract OperationResult<Produces> operate(final @NonNull Consumes operand);
 
   /**
    * Self-callback function to determine the validity of the resulting data
@@ -166,7 +150,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    * @param operand Data to be checked
    * @return Mapped result
    */
-  protected abstract @NonNull Post post(final Produces operand);
+  protected abstract @NonNull PostResult post(final OperationResult<Produces> operand);
 
   /**
    * Restarts the current instance, performs necessary clean-up operations on this
@@ -216,7 +200,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    * 
    */
   protected synchronized void await() throws InterruptedException {
-    long backoff = _collectScheduler.compute();
+    long backoff = _taskConfig.awaitScheduler.compute();
     Thread.sleep(backoff);
 
     useMessage(String.format("Awaited milliseconds : %s", backoff), INFO);

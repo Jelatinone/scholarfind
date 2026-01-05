@@ -34,10 +34,10 @@ import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 public final class SqsQueue implements Queue {
 
 	SqsClient _client;
-	BiConsumer<String, Level> _logger;
 	String _inputUrl,
 			_retryUrl,
 			_errorUrl;
+	BiConsumer<String, Level> _logger;
 
 	@Override
 	public QueueResult poll(int messageCount) {
