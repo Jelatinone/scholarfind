@@ -27,7 +27,7 @@ public class DynamoStore implements Store<Map<String, AttributeValue>, UUID> {
 	BiConsumer<String, Level> _logger;
 
 	public void put(String table, Map<String, AttributeValue> body) {
-		PutItemResponse putItemResponse = _client.putItem(b -> b.item(body)
+		PutItemResponse putItemResponse = _client.putItem(builder -> builder.item(body)
 				.tableName(_table)
 				.build());
 

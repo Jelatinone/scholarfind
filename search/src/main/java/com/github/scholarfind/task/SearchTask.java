@@ -27,7 +27,7 @@ import com.github.scholarfind.models.context.ContextDocument;
 import com.github.scholarfind.models.search.ClassificationType;
 import com.github.scholarfind.models.search.SearchDocument;
 import com.github.scholarfind.task.evidence.EvidenceIdentifierConfiguration;
-import com.github.scholarfind.task.score.DominancePolicy;
+import com.github.scholarfind.task.score.DominanceConfiguration;
 import com.github.scholarfind.task.score.ScoreRuleConfiguration;
 import com.github.scholarfind.task.signal.SignalCost;
 import com.github.scholarfind.task.signal.SignalCostConfiguration;
@@ -77,7 +77,7 @@ public final class SearchTask
     ClassificationConfiguration classificationConfiguration = new ClassificationConfiguration(
         new SignalCostConfiguration(Map.of(), SignalCost.FREE), new SignalExtractorConfiguration(Set.of()),
         new EvidenceIdentifierConfiguration(List.of()), new ScoreRuleConfiguration(Map.of()));
-    DominancePolicy decisionPolicy = new DominancePolicy(0D, 0D);
+    DominanceConfiguration dominanceConfiguration = new DominanceConfiguration(0D, 0D);
 
     @Builder.Default
     ValidatorPipeline<SearchDocument, SearchContext> validatorPipeline = new ValidatorPipeline<SearchDocument, SearchContext>(
@@ -209,11 +209,12 @@ public final class SearchTask
         double dominance = contributions.values().stream()
             .mapToDouble(Double::doubleValue).max().orElse(0D);
         List<ClassificationType> contenders = contributions.entrySet().stream()
-            .filter(entry -> dominance - entry.getValue() <= _searchConfig.decisionPolicy.dominanceEpsilon())
+            .filter(entry -> dominance - entry.getValue() <= _searchConfig.dominanceConfiguration.dominanceEpsilon())
             .map(Map.Entry::getKey)
             .toList();
         boolean boundary = contenders.stream()
-            .anyMatch(contender -> contributions.get(contender) >= _searchConfig.decisionPolicy.minimumConfidence());
+            .anyMatch(
+                contender -> contributions.get(contender) >= _searchConfig.dominanceConfiguration.minimumConfidence());
 
         if (!boundary) {
           decision = DecisionType.IGNORE;

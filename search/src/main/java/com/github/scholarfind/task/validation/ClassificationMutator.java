@@ -45,7 +45,7 @@ public class ClassificationMutator implements Mutator<SearchDocument, SearchCont
       switch (result) {
         case SignalExtractionResult.Both(SignalCost resultCost, Optional<SignalValue> resultValue) -> {
           value = resultValue;
-          cost.value = (SignalCost.max(resultCost, cost.value));
+          cost.value = SignalCost.max(resultCost, cost.value);
         }
 
         case SignalExtractionResult.Value(Optional<SignalValue> resultValue) -> {
@@ -54,7 +54,7 @@ public class ClassificationMutator implements Mutator<SearchDocument, SearchCont
 
         case SignalExtractionResult.Cost(SignalCost resultCost) -> {
           value = Optional.empty();
-          cost.value = (SignalCost.max(resultCost, cost.value));
+          cost.value = SignalCost.max(resultCost, cost.value);
         }
       }
       List<EvidenceRule> rules = configuration.evidenceConfiguration().rulesFor(identifier);
