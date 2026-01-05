@@ -6,8 +6,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import com.github.scholarfind.models.Trace;
-import com.github.scholarfind.models.context.ContextDocument;
 import com.github.scholarfind.models.search.ClassificationType;
 import com.github.scholarfind.models.search.SearchDocument;
 import com.github.scholarfind.task.SearchContext;
@@ -21,8 +19,6 @@ import com.github.scholarfind.utility.Mutable;
 import com.github.scholarfind.validation.Capability;
 import com.github.scholarfind.validation.Mutator;
 
-import lombok.NonNull;
-
 public class ClassificationMutator implements Mutator<SearchDocument, SearchContext> {
 
   @Override
@@ -32,11 +28,8 @@ public class ClassificationMutator implements Mutator<SearchDocument, SearchCont
 
   @Override
   public void mutate(Builder<SearchDocument> builder, SearchContext context) {
+    ClassificationConfiguration configuration = context.classificationConfiguration();
 
-  }
-
-  Map<ClassificationType, Double> classify(final ClassificationConfiguration configuration,
-      final @NonNull Trace trace, final ContextDocument context) {
     Map<ClassificationType, Double> contributions = new HashMap<>();
     Mutable<SignalCost> cost = new Mutable<SignalCost>(configuration.costConfiguration().initial());
 
@@ -46,7 +39,7 @@ public class ClassificationMutator implements Mutator<SearchDocument, SearchCont
       }
 
       SignalExtractor extractor = configuration.extractorConfiguration().extractor(identifier);
-      SignalExtractionResult result = extractor.extract(trace, context);
+      SignalExtractionResult result = extractor.extract(context.document().trace(), context.retrievedContext());
 
       final Optional<SignalValue> value;
       switch (result) {
@@ -77,7 +70,7 @@ public class ClassificationMutator implements Mutator<SearchDocument, SearchCont
             Double::sum);
       });
     });
-    return contributions;
-  }
 
+    // TODO: Add To Builder
+  }
 }

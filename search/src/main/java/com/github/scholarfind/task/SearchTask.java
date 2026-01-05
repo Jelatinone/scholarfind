@@ -187,7 +187,8 @@ public final class SearchTask
     ContextDocument retrievedContext = _store.get(_searchConfig.contextStoreName, document.header().id())
         .deserialize((item) -> ContextDocument.deserialize(item));
 
-    SearchContext pipelineContext = new SearchContext(document, _searchConfig, _taskConfig, reviewedAt, retrievedSearch,
+    SearchContext pipelineContext = new SearchContext(document, _searchConfig.classificationConfiguration, reviewedAt,
+        retrievedSearch,
         retrievedContext);
     ValidatorPipelineResult<SearchDocument> pipelineResult = _searchConfig.validatorPipeline.process(pipelineContext);
 
