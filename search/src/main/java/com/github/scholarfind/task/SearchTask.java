@@ -53,6 +53,7 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 
+// TODO: Considering a change to ParallelTask?
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public final class SearchTask
     extends SequentialTask<Envelope<SearchDocument>, Envelope<SearchDocument>> {
@@ -76,8 +77,8 @@ public final class SearchTask
     @Builder.Default
     ClassificationConfiguration classificationConfiguration = new ClassificationConfiguration(
         new SignalCostConfiguration(Map.of(), SignalCost.FREE), new SignalExtractorConfiguration(Set.of()),
-        new EvidenceIdentifierConfiguration(List.of()), new ScoreRuleConfiguration(Map.of()));
-    DominanceConfiguration dominanceConfiguration = new DominanceConfiguration(0D, 0D);
+        new EvidenceIdentifierConfiguration(List.of()), new ScoreRuleConfiguration(Map.of()),
+        new DominanceConfiguration(0D, 0D));
 
     @Builder.Default
     ValidatorPipeline<SearchDocument, SearchContext> validatorPipeline = new ValidatorPipeline<SearchDocument, SearchContext>(
@@ -209,13 +210,14 @@ public final class SearchTask
         double dominance = contributions.values().stream()
             .mapToDouble(Double::doubleValue).max().orElse(0D);
         List<ClassificationType> contenders = contributions.entrySet().stream()
-            .filter(entry -> dominance - entry.getValue() <= _searchConfig.dominanceConfiguration.dominanceEpsilon())
+            .filter(entry -> dominance - entry.getValue() <= _searchConfig.classificationConfiguration
+                .dominanceConfiguration().dominanceEpsilon())
             .map(Map.Entry::getKey)
             .toList();
         boolean boundary = contenders.stream()
             .anyMatch(
-                contender -> contributions.get(contender) >= _searchConfig.dominanceConfiguration.minimumConfidence());
-
+                contender -> contributions.get(contender) >= _searchConfig.classificationConfiguration
+                    .dominanceConfiguration().minimumConfidence());
         if (!boundary) {
           decision = DecisionType.IGNORE;
 

@@ -1,11 +1,10 @@
 package com.github.scholarfind.validation;
 
 import com.github.scholarfind.models.Document;
-import java.lang.FunctionalInterface;
 
 @FunctionalInterface
-public interface Validator<Validates extends Document<?>> {
+public interface Validator<D extends Document<?>, C extends ValidationContext<D>> {
 
-  void validate(ValidatorResult record, ValidationContext<Validates> context);
+  void validate(ValidatorResult record, C context);
 
 }
