@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import com.github.scholarfind.models.search.Classification;
 import com.github.scholarfind.models.search.ClassificationType;
 import com.github.scholarfind.models.search.SearchDocument;
 import com.github.scholarfind.task.SearchContext;
@@ -27,7 +28,7 @@ public class ClassificationMutator implements Mutator<SearchDocument, SearchCont
   }
 
   @Override
-  public void mutate(Builder<SearchDocument> builder, SearchContext context) {
+  public <Builds extends Builder<SearchDocument>> void mutate(Builds builder, SearchContext context) {
     ClassificationConfiguration configuration = context.classificationConfiguration();
 
     Map<ClassificationType, Double> contributions = new HashMap<>();
@@ -63,14 +64,14 @@ public class ClassificationMutator implements Mutator<SearchDocument, SearchCont
         Double weight = configuration.scoreConfiguration().policyFor(evidence.classification())
             .score(evidence.rule().apply(value));
 
-        ClassificationType classification = evidence.classification();
+        ClassificationType kind = evidence.classification();
         contributions.merge(
-            classification,
+            kind,
             weight.isInfinite() || weight.isNaN() ? 0D : weight,
             Double::sum);
       });
     });
+    Classification classification = new Classification(contributions);
 
-    // TODO: Add To Builder
   }
 }

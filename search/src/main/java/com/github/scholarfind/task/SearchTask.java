@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,8 +20,8 @@ import com.github.scholarfind.aws.DynamoStore;
 import com.github.scholarfind.aws.SqsQueue;
 import com.github.scholarfind.meta.CollectionResult;
 import com.github.scholarfind.meta.OperationResult;
+import com.github.scholarfind.meta.ParallelTask;
 import com.github.scholarfind.meta.PostResult;
-import com.github.scholarfind.meta.SequentialTask;
 import com.github.scholarfind.meta.Task;
 import com.github.scholarfind.models.DecisionType;
 import com.github.scholarfind.models.context.ContextDocument;
@@ -53,10 +54,9 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 
-// TODO: Considering a change to ParallelTask?
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public final class SearchTask
-    extends SequentialTask<Envelope<SearchDocument>, Envelope<SearchDocument>> {
+    extends ParallelTask<Envelope<SearchDocument>, Envelope<SearchDocument>> {
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
@@ -72,7 +72,7 @@ public final class SearchTask
         contextStoreName = "store_context";
 
     @Builder.Default
-    Long callTimeoutSeconds = 30L;
+    int callTimeoutSeconds = 30;
 
     @Builder.Default
     ClassificationConfiguration classificationConfiguration = new ClassificationConfiguration(
@@ -98,8 +98,9 @@ public final class SearchTask
   SqsQueue _queue;
   DynamoStore _store;
 
-  public SearchTask(final Task.Configuration taskConfig, final @NonNull SearchTask.Configuration searchConfig) {
-    super(taskConfig);
+  public SearchTask(final Task.Configuration taskConfig, final @NonNull SearchTask.Configuration searchConfig,
+      final @NonNull ExecutorService executor) {
+    super(executor, taskConfig);
     _searchConfig = searchConfig;
 
     _metrics = CloudWatchMetricPublisher.builder()

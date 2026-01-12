@@ -18,7 +18,7 @@ import lombok.NonNull;
 public enum UrlPathNameExtractors {
 	STANDARD((trace, context) -> {
 		List<String> segments = Arrays.stream(trace.url().getPath().split("/"))
-				.filter(s -> !s.isBlank())
+				.filter(part -> !part.isBlank())
 				.toList();
 
 		return new SignalExtractionResult.Both(SignalCost.HEAD, Optional.of(new SignalValue.ListSignal<String>(segments)));

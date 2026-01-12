@@ -6,8 +6,8 @@ import lombok.NonNull;
 
 public record Header(
         long schemaVersion,
+        int attempt,
         @NonNull UUID id,
-        @NonNull Lifecycle state,
-        int attempt) {
+        @NonNull Lifecycle state) {
 
 }

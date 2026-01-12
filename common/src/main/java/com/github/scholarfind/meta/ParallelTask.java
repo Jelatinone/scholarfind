@@ -46,7 +46,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * @param executor Service to execute parallel jobs with
    * @param config   Config to associate with this task
    */
-  protected ParallelTask(final @NonNull String name, final @NonNull ExecutorService executor,
+  protected ParallelTask(final @NonNull ExecutorService executor,
       final @NonNull Configuration config) {
     super(config);
 
