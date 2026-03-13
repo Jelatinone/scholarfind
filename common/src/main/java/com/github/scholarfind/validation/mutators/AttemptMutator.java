@@ -2,15 +2,14 @@ package com.github.scholarfind.validation.mutators;
 
 import java.util.Set;
 
-import com.github.scholarfind.models.Document;
-import com.github.scholarfind.models.Header;
-import com.github.scholarfind.utility.Builder;
+import com.github.scholarfind.models.shared.RequestHeader;
+import com.github.scholarfind.models.shared.StageDocument;
 import com.github.scholarfind.validation.Capability;
 import com.github.scholarfind.validation.Mutator;
 import com.github.scholarfind.validation.ValidationContext;
 
-public class AttemptMutator<D extends Document<?>>
-    implements Mutator<D, ValidationContext<?>> {
+public class AttemptMutator<D extends StageDocument<D>>
+    implements Mutator<D, ValidationContext<D>> {
 
   @Override
   public Set<Capability> capabilities() {
@@ -18,9 +17,14 @@ public class AttemptMutator<D extends Document<?>>
   }
 
   @Override
-  public <Builds extends Builder<D>> void mutate(Builds builder, ValidationContext<?> context) {
-    Header header = context.document().header();
-    builder.setHeader(
-        new Header(header.schemaVersion(), header.attempt() + 1, header.id(), header.state()));
+  public D mutate(D document, ValidationContext<D> context) {
+    RequestHeader header = document.requestHeader();
+    return document.withRequestHeader(
+        new RequestHeader(
+            header.schemaVersion(),
+            header.requestId(),
+            header.attempt() + 1,
+            header.idempotencyKey(),
+            header.enqueuedAt()));
   }
 }

@@ -1,38 +1,31 @@
 package com.github.scholarfind.task.validation;
 
-import java.time.ZonedDateTime;
-
-import com.github.scholarfind.models.search.Classification;
-import com.github.scholarfind.models.search.SearchDocument;
+import com.github.scholarfind.models.investigate.Classification;
+import com.github.scholarfind.models.investigate.InvestigateDocument;
 import com.github.scholarfind.task.SearchContext;
-import com.github.scholarfind.validation.*;
+import com.github.scholarfind.validation.Capability;
+import com.github.scholarfind.validation.Reason;
+import com.github.scholarfind.validation.Validator;
+import com.github.scholarfind.validation.ValidatorResult;
 
 public class ClassificationValidator
-    implements Validator<SearchDocument, SearchContext> {
+    implements Validator<InvestigateDocument, SearchContext> {
 
   @Override
   public void validate(ValidatorResult record, SearchContext context) {
-    SearchDocument retrieved = context.retreivedSearch();
+    InvestigateDocument retrieved = context.retrievedInvestigate();
 
     if (retrieved == null) {
       return;
     }
 
-    switch (retrieved.header().state()) {
-      case SUPERSEEDED, TOMBSTONED -> {
-      }
-      case CURRENT -> {
-        record.deny(Capability.CLASSIFY, Reason.STATE_EXCEEDED);
-      }
-    }
-
-    if (retrieved.header().schemaVersion() != SearchDocument.schemaVersion) {
+    if (retrieved.documentHeader().schemaVersion() != InvestigateDocument.schemaVersion) {
       record.deny(Capability.CLASSIFY, Reason.SCHEMA_MISMATCH);
     }
 
-    ZonedDateTime retrievedReviewedAt = retrieved.timestamp().reviewedAt();
+    var retrievedReviewedAt = retrieved.reviewedAt();
     if (retrievedReviewedAt != null &&
-        retrievedReviewedAt.isAfter(context.reviewedAt().minusDays(30))) { // TODO: <--- Needs configurability
+        retrievedReviewedAt.isAfter(context.reviewedAt().minusSeconds(30L * 24 * 60 * 60))) {
 
       Classification classification = retrieved.classification();
       if (classification != null) {

@@ -2,5 +2,6 @@ rootProject.name = "scholarfind"
 
 include(
     'common',
+    'infra',
     'search'
     )

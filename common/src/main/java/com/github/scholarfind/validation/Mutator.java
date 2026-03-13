@@ -2,13 +2,12 @@ package com.github.scholarfind.validation;
 
 import java.util.Set;
 
-import com.github.scholarfind.models.Document;
-import com.github.scholarfind.utility.Builder;
+import com.github.scholarfind.models.shared.StageDocument;
 
-public interface Mutator<D extends Document<?>, Context extends ValidationContext<?>> {
+public interface Mutator<D extends StageDocument<D>, Context extends ValidationContext<D>> {
 
   Set<Capability> capabilities();
 
-  <Builds extends Builder<D>> void mutate(Builds builder, Context context);
+  D mutate(D document, Context context);
 
 }

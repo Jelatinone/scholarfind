@@ -1,11 +1,11 @@
 package com.github.scholarfind.validation.validators;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 
-import com.github.scholarfind.models.Document;
+import com.github.scholarfind.models.shared.StageDocument;
 import com.github.scholarfind.validation.*;
 
-public class ExpirationValidator<D extends Document<?>>
+public class ExpirationValidator<D extends StageDocument<D>>
     implements Validator<D, ValidationContext<D>> {
 
   private final int expirationDays;
@@ -16,10 +16,10 @@ public class ExpirationValidator<D extends Document<?>>
 
   @Override
   public void validate(ValidatorResult record, ValidationContext<D> context) {
-    ZonedDateTime discoveredAt = context.document().timestamp().discoveredAt();
-    ZonedDateTime now = ZonedDateTime.now();
+    Instant discoveredAt = context.document().target().discoveredAt();
+    Instant now = Instant.now();
 
-    if (discoveredAt.plusDays(expirationDays).isBefore(now)) {
+    if (discoveredAt != null && discoveredAt.plusSeconds((long) expirationDays * 24 * 60 * 60).isBefore(now)) {
       record.fail(Reason.DOCUMENT_EXPIRED);
     }
   }

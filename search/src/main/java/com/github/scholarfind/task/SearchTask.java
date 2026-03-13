@@ -1,32 +1,48 @@
 package com.github.scholarfind.task;
 
-import static org.slf4j.event.Level.*;
-import static com.github.scholarfind.meta.PostResult.*;
+import static com.github.scholarfind.meta.result.PostResult.FAILURE_FATAL;
+import static com.github.scholarfind.meta.result.PostResult.FAILURE_RETRY;
+import static com.github.scholarfind.meta.result.PostResult.SUCCESS;
+import static org.slf4j.event.Level.DEBUG;
+import static org.slf4j.event.Level.ERROR;
+import static org.slf4j.event.Level.INFO;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.scholarfind.api.queue.QueueResult;
-import com.github.scholarfind.aws.DynamoStore;
-import com.github.scholarfind.aws.SqsQueue;
-import com.github.scholarfind.meta.CollectionResult;
-import com.github.scholarfind.meta.OperationResult;
+import com.github.scholarfind.infra.queue.AnnotateRequestQueue;
+import com.github.scholarfind.infra.queue.InvestigateRequestQueue;
+import com.github.scholarfind.infra.repository.ContextDocumentStore;
+import com.github.scholarfind.infra.repository.InvestigateDocumentStore;
 import com.github.scholarfind.meta.ParallelTask;
-import com.github.scholarfind.meta.PostResult;
 import com.github.scholarfind.meta.Task;
-import com.github.scholarfind.models.DecisionType;
-import com.github.scholarfind.models.context.ContextDocument;
-import com.github.scholarfind.models.search.ClassificationType;
-import com.github.scholarfind.models.search.SearchDocument;
+import com.github.scholarfind.meta.result.CollectionResult;
+import com.github.scholarfind.meta.result.OperationResult;
+import com.github.scholarfind.meta.result.PostResult;
+import com.github.scholarfind.meta.transitory.Disposition;
+import com.github.scholarfind.meta.transitory.Emission;
+import com.github.scholarfind.meta.transitory.Outcome;
+import com.github.scholarfind.models.annotate.AnnotateRequest;
+import com.github.scholarfind.models.investigate.Classification;
+import com.github.scholarfind.models.investigate.ClassificationType;
+import com.github.scholarfind.models.investigate.InvestigateDocument;
+import com.github.scholarfind.models.investigate.InvestigateRequest;
+import com.github.scholarfind.models.shared.ContextDocument;
+import com.github.scholarfind.models.shared.DocumentHeader;
+import com.github.scholarfind.models.shared.ReasonCode;
+import com.github.scholarfind.models.shared.Request;
+import com.github.scholarfind.models.shared.TraceReference;
 import com.github.scholarfind.task.evidence.EvidenceIdentifierConfiguration;
 import com.github.scholarfind.task.score.DominanceConfiguration;
 import com.github.scholarfind.task.score.ScoreRuleConfiguration;
@@ -44,7 +60,6 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
-
 import software.amazon.awssdk.core.metrics.CoreMetric;
 import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.metrics.publishers.cloudwatch.CloudWatchMetricPublisher;
@@ -52,23 +67,22 @@ import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
-import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public final class SearchTask
-    extends ParallelTask<Envelope<SearchDocument>, Envelope<SearchDocument>> {
+    extends ParallelTask<Envelope<InvestigateRequest>, Envelope<Outcome<InvestigateDocument>>> {
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration {
     @Builder.Default
-    String inQueueName = "queue_search",
+    String inQueueName = "queue_investigate",
         outQueueName = "queue_annotate",
-        retryQueueName = "queue_retry",
-        errorQueueName = "queue_error";
+        retryQueueName = "queue_investigate_retry",
+        errorQueueName = "queue_investigate_error";
 
     @Builder.Default
-    String searchStoreName = "store_search",
+    String investigateStoreName = "store_investigate",
         contextStoreName = "store_context";
 
     @Builder.Default
@@ -81,29 +95,28 @@ public final class SearchTask
         new DominanceConfiguration(0D, 0D));
 
     @Builder.Default
-    ValidatorPipeline<SearchDocument, SearchContext> validatorPipeline = new ValidatorPipeline<SearchDocument, SearchContext>(
-        Set.of(), Set.of());
+    ValidatorPipeline<InvestigateDocument, SearchContext> validatorPipeline = new ValidatorPipeline<>(Set.of(),
+        Set.of());
   }
 
-  static Logger _logger = LoggerFactory.getLogger(SearchTask.class);
+  static Logger logger = LoggerFactory.getLogger(SearchTask.class);
 
-  Configuration _searchConfig;
-  MetricPublisher _metrics;
+  Configuration searchConfig;
+  MetricPublisher metrics;
 
-  String _inQueueUrl,
-      _outQueueUrl,
-      _retryQueueUrl,
-      _errorQueueUrl;
+  InvestigateRequestQueue inQueue;
+  AnnotateRequestQueue outQueue;
+  InvestigateDocumentStore investigateStore;
+  ContextDocumentStore contextStore;
 
-  SqsQueue _queue;
-  DynamoStore _store;
-
-  public SearchTask(final Task.Configuration taskConfig, final @NonNull SearchTask.Configuration searchConfig,
+  public SearchTask(
+      final Task.Configuration taskConfig,
+      final @NonNull SearchTask.Configuration searchConfig,
       final @NonNull ExecutorService executor) {
     super(executor, taskConfig);
-    _searchConfig = searchConfig;
+    this.searchConfig = searchConfig;
 
-    _metrics = CloudWatchMetricPublisher.builder()
+    metrics = CloudWatchMetricPublisher.builder()
         .cloudWatchClient(CloudWatchAsyncClient.create())
         .detailedMetrics(CoreMetric.API_CALL_DURATION, CoreMetric.API_CALL_SUCCESSFUL)
         .build();
@@ -111,66 +124,46 @@ public final class SearchTask
 
     SqsClient sqsClient = SqsClient.builder()
         .overrideConfiguration(config -> config
-            .addMetricPublisher(_metrics)
-            .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.callTimeoutSeconds)))
+            .addMetricPublisher(metrics)
+            .apiCallAttemptTimeout(Duration.ofSeconds(searchConfig.callTimeoutSeconds)))
         .build();
     useMessage("Initialized resources : sqs client", INFO);
 
     DynamoDbClient dynamoClient = DynamoDbClient.builder()
         .overrideConfiguration(config -> config
-            .addMetricPublisher(_metrics)
-            .apiCallAttemptTimeout(Duration.ofSeconds(_searchConfig.callTimeoutSeconds)))
+            .addMetricPublisher(metrics)
+            .apiCallAttemptTimeout(Duration.ofSeconds(searchConfig.callTimeoutSeconds)))
         .build();
     useMessage("Initialized resources : dynamo client", INFO);
 
-    _inQueueUrl = sqsClient.getQueueUrl(
-        GetQueueUrlRequest.builder()
-            .queueName(searchConfig.inQueueName)
-            .build())
-        .queueUrl();
-    useMessage("Resolved resource location : ingestion queue URL", INFO);
+    String inQueueUrl = resolveQueueUrl(sqsClient, searchConfig.inQueueName);
+    String outQueueUrl = resolveQueueUrl(sqsClient, searchConfig.outQueueName);
+    String retryQueueUrl = resolveQueueUrl(sqsClient, searchConfig.retryQueueName);
+    String errorQueueUrl = resolveQueueUrl(sqsClient, searchConfig.errorQueueName);
 
-    _outQueueUrl = sqsClient.getQueueUrl(
-        GetQueueUrlRequest.builder()
-            .queueName(searchConfig.outQueueName)
-            .build())
-        .queueUrl();
-    useMessage("Resolved resource location : output queue URL", INFO);
-
-    _retryQueueUrl = sqsClient.getQueueUrl(
-        GetQueueUrlRequest.builder()
-            .queueName(searchConfig.retryQueueName)
-            .build())
-        .queueUrl();
-    useMessage("Resolved resource location : retry queue URL", INFO);
-
-    _errorQueueUrl = sqsClient.getQueueUrl(
-        GetQueueUrlRequest.builder()
-            .queueName(searchConfig.errorQueueName)
-            .build())
-        .queueUrl();
-    useMessage("Resolved resource location : error queue URL", INFO);
-
-    _queue = new SqsQueue(sqsClient, _inQueueUrl, _retryQueueUrl, _errorQueueUrl, this::useMessage);
-    _store = new DynamoStore(dynamoClient, _searchConfig.searchStoreName, this::useMessage);
+    inQueue = new InvestigateRequestQueue(sqsClient, inQueueUrl, retryQueueUrl, errorQueueUrl, this::useMessage);
+    outQueue = new AnnotateRequestQueue(sqsClient, outQueueUrl, this::useMessage);
+    investigateStore = new InvestigateDocumentStore(dynamoClient, searchConfig.investigateStoreName, this::useMessage);
+    contextStore = new ContextDocumentStore(dynamoClient, searchConfig.contextStoreName, this::useMessage);
   }
 
   @Override
   public void close() throws IOException {
-    _metrics.close();
-    _queue.close();
-    _store.close();
+    metrics.close();
+    inQueue.close();
+    outQueue.close();
+    investigateStore.close();
+    contextStore.close();
   }
 
   @Override
-  protected @NonNull CollectionResult<Envelope<SearchDocument>> collect() {
-    QueueResult receivedMessages = _queue.poll(_taskConfig.collectionSize);
-    List<Envelope<SearchDocument>> documentEnvelopes = receivedMessages.messages().stream()
-        .map((message) -> message.deserialize(SearchDocument::deserialize))
-        .filter(Objects::nonNull)
+  protected @NonNull CollectionResult<Envelope<InvestigateRequest>> collect() {
+    QueueResult<InvestigateRequest> receivedMessages = inQueue.poll(_taskConfig.collectionSize);
+    List<Envelope<InvestigateRequest>> envelopes = receivedMessages.messages().stream()
+        .map(message -> new Envelope<>(message.message(), message.acknowledgement()))
         .toList();
-    if (!documentEnvelopes.isEmpty()) {
-      return new CollectionResult.Alive<>(documentEnvelopes);
+    if (!envelopes.isEmpty()) {
+      return new CollectionResult.Alive<>(envelopes);
     }
     return switch (receivedMessages.state()) {
       case ACTIVE, IDLE -> new CollectionResult.Idle<>();
@@ -179,117 +172,107 @@ public final class SearchTask
   }
 
   @Override
-  protected OperationResult<Envelope<SearchDocument>> operate(
-      final @NonNull Envelope<SearchDocument> operand) {
-    SearchDocument document = operand.document();
-    ZonedDateTime reviewedAt = ZonedDateTime.now();
+  protected OperationResult<Envelope<Outcome<InvestigateDocument>>> operate(
+      final @NonNull Envelope<InvestigateRequest> operand) {
+    InvestigateRequest request = operand.document();
+    Instant reviewedAt = Instant.now();
 
-    SearchDocument retrievedSearch = _store.get(_searchConfig.searchStoreName, document.header().id())
-        .deserialize((item) -> SearchDocument.deserialize(item));
-    ContextDocument retrievedContext = _store.get(_searchConfig.contextStoreName, document.header().id())
-        .deserialize((item) -> ContextDocument.deserialize(item));
+    InvestigateDocument currentDocument = InvestigateDocument.builder()
+        .documentHeader(new DocumentHeader(
+            InvestigateDocument.schemaVersion,
+            UUID.randomUUID(),
+            request.requestHeader().requestId(),
+            request.target().targetId(),
+            reviewedAt))
+        .requestHeader(request.requestHeader())
+        .target(request.target())
+        .trace(new TraceReference(request.target().normalizedUrl(), null, SearchTask.class.getSimpleName(),
+            request.target().depth()))
+        .reviewedAt(reviewedAt)
+        .classification(new Classification(Map.of()))
+        .confidence(0D)
+        .discoveredTargetCount(0)
+        .build();
 
-    SearchContext pipelineContext = new SearchContext(document, _searchConfig.classificationConfiguration, reviewedAt,
-        retrievedSearch,
+    InvestigateDocument retrievedInvestigate = investigateStore.get(request.target().targetId());
+    ContextDocument retrievedContext = contextStore.get(request.target().targetId());
+
+    SearchContext pipelineContext = new SearchContext(
+        currentDocument,
+        searchConfig.classificationConfiguration,
+        reviewedAt,
+        retrievedInvestigate,
         retrievedContext);
-    ValidatorPipelineResult<SearchDocument> pipelineResult = _searchConfig.validatorPipeline.process(pipelineContext);
+    ValidatorPipelineResult<InvestigateDocument> pipelineResult = searchConfig.validatorPipeline
+        .process(pipelineContext);
 
-    DecisionType decision = DecisionType.TOMBSTONE;
+    InvestigateDocument document = pipelineResult == null ? currentDocument : pipelineResult.document();
+    ValidatorResult validation = pipelineResult == null ? new ValidatorResult() : pipelineResult.result();
 
-    if (pipelineResult == null || !pipelineResult.result().processable()) {
-      decision = DecisionType.TOMBSTONE;
+    List<Emission<? extends Request>> emissions = List.of();
+    Disposition disposition = Disposition.COMPLETE;
 
-    } else {
-      ValidatorResult validation = pipelineResult.result();
-
-      if (validation.reasons().contains(Reason.ATTEMPTS_EXCEEDED)
-          || validation.reasons().contains(Reason.DOCUMENT_ERROR)) {
-        decision = DecisionType.IGNORE;
-
-      } else {
-        Map<ClassificationType, Double> contributions = pipelineResult.document().classification().contributions();
-        double dominance = contributions.values().stream()
-            .mapToDouble(Double::doubleValue).max().orElse(0D);
-        List<ClassificationType> contenders = contributions.entrySet().stream()
-            .filter(entry -> dominance - entry.getValue() <= _searchConfig.classificationConfiguration
-                .dominanceConfiguration().dominanceEpsilon())
-            .map(Map.Entry::getKey)
-            .toList();
-        boolean boundary = contenders.stream()
-            .anyMatch(
-                contender -> contributions.get(contender) >= _searchConfig.classificationConfiguration
-                    .dominanceConfiguration().minimumConfidence());
-        if (!boundary) {
-          decision = DecisionType.IGNORE;
-
-        } else if (contenders.contains(ClassificationType.LANDING)) {
-          decision = DecisionType.SUPERSEDE;
-
-        } else if (contenders.contains(ClassificationType.NOT_APPLICABLE)) {
-          decision = DecisionType.IGNORE;
-
-        } else {
-          decision = DecisionType.PROCEED;
-
+    if (!validation.processable() && validation.reasons().contains(Reason.ATTEMPTS_EXCEEDED)) {
+      disposition = Disposition.FAIL_PERMANENT;
+    } else if (validation.processable()) {
+      Map<ClassificationType, Double> contributions = document.classification() == null
+          ? Map.of()
+          : document.classification().contributions();
+      double dominance = contributions.values().stream()
+          .mapToDouble(Double::doubleValue)
+          .max()
+          .orElse(0D);
+      List<ClassificationType> contenders = contributions.entrySet().stream()
+          .filter(entry -> dominance - entry.getValue() <= searchConfig.classificationConfiguration
+              .dominanceConfiguration().dominanceEpsilon())
+          .map(Map.Entry::getKey)
+          .toList();
+      boolean boundary = contenders.stream()
+          .anyMatch(contender -> contributions.get(contender) >= searchConfig.classificationConfiguration
+              .dominanceConfiguration().minimumConfidence());
+        if (boundary
+            && !contenders.contains(ClassificationType.LANDING)
+            && !contenders.contains(ClassificationType.NOT_APPLICABLE)) {
+          emissions = List.of(new Emission<>(
+              new AnnotateRequest(document.requestHeader(), document.target(), document.classification()),
+              null,
+              null,
+              document.requestHeader().idempotencyKey()));
         }
-      }
     }
 
-    return new OperationResult<>(
-        new Envelope<>(pipelineResult.document(), operand.acknowledgement()),
-        decision);
+    Set<ReasonCode> reasonCodes = validation.reasons().stream()
+        .map(reason -> (ReasonCode) reason)
+        .collect(Collectors.toSet());
+    Outcome<InvestigateDocument> outcome = new Outcome<>(document, disposition, reasonCodes, emissions);
+    return new OperationResult<>(new Envelope<>(outcome, operand.acknowledgement()));
   }
 
   @Override
-  protected PostResult post(final OperationResult<Envelope<SearchDocument>> result) {
+  protected PostResult post(final OperationResult<Envelope<Outcome<InvestigateDocument>>> result) {
     if (result == null || result.value() == null) {
-      useMessage(
-          String.format("Operation result document was null : %s", result),
-          DEBUG);
+      useMessage(String.format("Operation result document was null : %s", result), DEBUG);
       return FAILURE_FATAL;
     }
 
-    Envelope<SearchDocument> envelope = result.value();
-    SearchDocument document = envelope.document();
-    DecisionType decision = result.decision();
+    Envelope<Outcome<InvestigateDocument>> envelope = result.value();
+    Outcome<InvestigateDocument> outcome = envelope.document();
+    InvestigateDocument document = outcome.document();
 
-    useMessage(
-        String.format("document decision : %s", decision),
-        DEBUG);
+    useMessage(String.format("document disposition : %s", outcome.disposition()), DEBUG);
     try {
-      String body = document.json();
-      Map<String, MessageAttributeValue> attributes = document.attribute();
-      switch (decision) {
-        case PROCEED -> {
-          _store.put(_searchConfig.searchStoreName, document.itemize());
-          _queue.send(_outQueueUrl, body, attributes);
+      investigateStore.put(document);
+      switch (outcome.disposition()) {
+        case COMPLETE -> {
+          for (Emission<? extends Request> emission : outcome.emissions()) {
+            if (emission.request() instanceof AnnotateRequest annotateRequest) {
+              outQueue.send(annotateRequest);
+            }
+          }
           envelope.acknowledgement().success();
         }
-
-        case RETRY -> {
-          envelope.acknowledgement().retry();
-        }
-
-        case TOMBSTONE -> {
-          _store.put(_searchConfig.searchStoreName, document.itemize());
-          envelope.acknowledgement().error();
-        }
-
-        case SUPERSEDE -> {
-          _store.put(_searchConfig.searchStoreName, document.itemize());
-          envelope.acknowledgement().success();
-        }
-
-        case IGNORE -> {
-          envelope.acknowledgement().success();
-        }
-
-        default -> {
-          useMessage(
-              String.format("Raised fatal unknown decision state : %s", decision),
-              ERROR);
-          return FAILURE_FATAL;
-        }
+        case RETRY -> envelope.acknowledgement().retry();
+        case FAIL_PERMANENT -> envelope.acknowledgement().error();
       }
       return SUCCESS;
     } catch (final Exception exception) {
@@ -299,5 +282,15 @@ public final class SearchTask
           exception);
       return FAILURE_RETRY;
     }
+  }
+
+  private String resolveQueueUrl(SqsClient sqsClient, String queueName) {
+    String queueUrl = sqsClient.getQueueUrl(
+        GetQueueUrlRequest.builder()
+            .queueName(queueName)
+            .build())
+        .queueUrl();
+    useMessage(String.format("Resolved resource location : %s", queueName), INFO);
+    return queueUrl;
   }
 }

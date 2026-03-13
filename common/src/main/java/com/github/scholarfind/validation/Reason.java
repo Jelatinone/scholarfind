@@ -1,13 +1,22 @@
 package com.github.scholarfind.validation;
 
-public enum Reason {
+import com.github.scholarfind.models.shared.ReasonCode;
+
+public enum Reason implements ReasonCode {
   SCHEMA_MISMATCH,
 
   DOCUMENT_EXPIRED,
 
-  STATE_EXCEEDED,
-
   ATTEMPTS_EXCEEDED,
 
   DOCUMENT_ERROR,
+
+  REQUEST_REJECTED,
+
+  REQUEST_DEAD_LETTERED;
+
+  @Override
+  public String code() {
+    return name();
+  }
 }

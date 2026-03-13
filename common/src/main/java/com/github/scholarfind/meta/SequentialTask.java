@@ -6,6 +6,9 @@ import static java.util.concurrent.TimeUnit.*;
 
 import java.util.List;
 
+import com.github.scholarfind.meta.result.CollectionResult;
+import com.github.scholarfind.meta.result.OperationResult;
+import com.github.scholarfind.meta.result.PostResult;
 import com.github.scholarfind.utility.Locked;
 
 import lombok.AccessLevel;

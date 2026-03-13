@@ -12,6 +12,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 
+import com.github.scholarfind.meta.result.CollectionResult;
+import com.github.scholarfind.meta.result.OperationResult;
+import com.github.scholarfind.meta.result.PostResult;
 import com.github.scholarfind.utility.Locked;
 
 import lombok.AccessLevel;

@@ -1,0 +1,30 @@
+package com.github.scholarfind.models.dossier;
+
+public enum SupplementalType {
+
+  WRITTEN_STATEMENT,
+
+  STUDENT_BACKGROUND,
+
+  STUDENT_NEED,
+
+  STUDENT_MERIT,
+
+  FUTURE_IMPACT,
+
+  RECOMMENDATION_LETTER,
+
+  MEMBERSHIP,
+
+  STUDENT_DISTRICT,
+
+  STUDENT_SCHOOL,
+
+  MINIMUM_UNWEIGHTED_GPA,
+
+  MINIMUM_WEIGHTED_GPA,
+
+  FULLTIME_STUDENT,
+
+  PART_TIME_STUDENT,
+}

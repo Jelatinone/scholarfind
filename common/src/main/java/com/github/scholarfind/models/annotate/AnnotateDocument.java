@@ -1,74 +1,86 @@
 package com.github.scholarfind.models.annotate;
 
-import java.time.chrono.ChronoLocalDate;
+import java.time.LocalDate;
 import java.util.Collection;
-import java.util.Map;
 
-import com.github.scholarfind.models.Document;
-import com.github.scholarfind.models.Header;
-import com.github.scholarfind.models.Location;
-import com.github.scholarfind.models.Timestamp;
-import com.github.scholarfind.models.Trace;
-import com.github.scholarfind.utility.Builder;
-
-import software.amazon.awssdk.annotations.NotNull;
-import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
-import software.amazon.awssdk.services.sqs.model.Message;
-import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
+import com.github.scholarfind.models.dossier.Activity;
+import com.github.scholarfind.models.dossier.EducationLevel;
+import com.github.scholarfind.models.dossier.Location;
+import com.github.scholarfind.models.dossier.PursuedDegreeLevel;
+import com.github.scholarfind.models.dossier.SupplementalType;
+import com.github.scholarfind.models.shared.DocumentHeader;
+import com.github.scholarfind.models.shared.FetchReference;
+import com.github.scholarfind.models.shared.ReasonCode;
+import com.github.scholarfind.models.shared.RequestHeader;
+import com.github.scholarfind.models.shared.StageDocument;
+import com.github.scholarfind.models.shared.TargetReference;
+import com.github.scholarfind.models.shared.TraceReference;
 
 public record AnnotateDocument(
-    Header header,
-    Trace trace,
-    Timestamp timestamp,
-
+    DocumentHeader documentHeader,
+    RequestHeader requestHeader,
+    TargetReference target,
+    TraceReference trace,
+    FetchReference snapshot,
     String organizationName,
     String scholarshipName,
-
-    ChronoLocalDate openDate,
-    ChronoLocalDate closeDate,
-
+    LocalDate openDate,
+    LocalDate closeDate,
     Double awardAmount,
-
     Collection<Location> location,
-
     Collection<Activity> activities,
     Collection<SupplementalType> supplements,
-
     Collection<PursuedDegreeLevel> pursuedDegrees,
-    Collection<EducationLevel> educationLevels) implements Document<AnnotateDocument> {
-  public static final Long schemaVersion = 1L;
+    Collection<EducationLevel> educationLevels,
+    Double extractionConfidence,
+    Collection<ReasonCode> qualityFlags,
+    int discoveredTargetCount) implements StageDocument<AnnotateDocument> {
 
-  public static AnnotateDocument deserialize(final @NotNull Map<String, AttributeValue> item) {
-    // Not yet implemented...
-    return null;
-  }
+  public static final long schemaVersion = 1L;
 
-  public static AnnotateDocument deserialize(final @NotNull Message item) {
-    // Not yet implemented...
-    return null;
+  @Override
+  public AnnotateDocument withDocumentHeader(DocumentHeader header) {
+    return new AnnotateDocument(
+        header,
+        requestHeader,
+        target,
+        trace,
+        snapshot,
+        organizationName,
+        scholarshipName,
+        openDate,
+        closeDate,
+        awardAmount,
+        location,
+        activities,
+        supplements,
+        pursuedDegrees,
+        educationLevels,
+        extractionConfidence,
+        qualityFlags,
+        discoveredTargetCount);
   }
 
   @Override
-  public Map<String, MessageAttributeValue> attribute() {
-    // Not yet implemented...
-    return null;
-  }
-
-  @Override
-  public Map<String, AttributeValue> itemize() {
-    // Not yet implemented...
-    return null;
-  }
-
-  @Override
-  public String json() {
-    // Not yet implemented...
-    return null;
-  }
-
-  @Override
-  public Builder<AnnotateDocument> toBuilder() {
-    // Not yet implemented...
-    return null;
+  public AnnotateDocument withRequestHeader(RequestHeader header) {
+    return new AnnotateDocument(
+        documentHeader,
+        header,
+        target,
+        trace,
+        snapshot,
+        organizationName,
+        scholarshipName,
+        openDate,
+        closeDate,
+        awardAmount,
+        location,
+        activities,
+        supplements,
+        pursuedDegrees,
+        educationLevels,
+        extractionConfidence,
+        qualityFlags,
+        discoveredTargetCount);
   }
 }

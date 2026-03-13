@@ -2,7 +2,7 @@ package com.github.scholarfind.task.score;
 
 import java.util.Map;
 
-import com.github.scholarfind.models.search.ClassificationType;
+import com.github.scholarfind.models.investigate.ClassificationType;
 
 public record ScoreRuleConfiguration(
 		Map<ClassificationType, ScoreRule> rules) {

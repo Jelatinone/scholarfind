@@ -6,21 +6,20 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import com.github.scholarfind.models.search.Classification;
-import com.github.scholarfind.models.search.ClassificationType;
-import com.github.scholarfind.models.search.SearchDocument;
+import com.github.scholarfind.models.investigate.Classification;
+import com.github.scholarfind.models.investigate.ClassificationType;
+import com.github.scholarfind.models.investigate.InvestigateDocument;
 import com.github.scholarfind.task.SearchContext;
 import com.github.scholarfind.task.evidence.EvidenceRule;
 import com.github.scholarfind.task.signal.SignalCost;
 import com.github.scholarfind.task.signal.SignalExtractionResult;
 import com.github.scholarfind.task.signal.SignalExtractor;
 import com.github.scholarfind.task.signal.SignalValue;
-import com.github.scholarfind.utility.Builder;
 import com.github.scholarfind.utility.Mutable;
 import com.github.scholarfind.validation.Capability;
 import com.github.scholarfind.validation.Mutator;
 
-public class ClassificationMutator implements Mutator<SearchDocument, SearchContext> {
+public class ClassificationMutator implements Mutator<InvestigateDocument, SearchContext> {
 
   @Override
   public Set<Capability> capabilities() {
@@ -28,7 +27,7 @@ public class ClassificationMutator implements Mutator<SearchDocument, SearchCont
   }
 
   @Override
-  public <Builds extends Builder<SearchDocument>> void mutate(Builds builder, SearchContext context) {
+  public InvestigateDocument mutate(InvestigateDocument document, SearchContext context) {
     ClassificationConfiguration configuration = context.classificationConfiguration();
 
     Map<ClassificationType, Double> contributions = new HashMap<>();
@@ -72,6 +71,6 @@ public class ClassificationMutator implements Mutator<SearchDocument, SearchCont
       });
     });
     Classification classification = new Classification(contributions);
-
+    return document.withClassification(classification);
   }
 }

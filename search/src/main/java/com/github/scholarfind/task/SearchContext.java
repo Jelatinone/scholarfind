@@ -1,22 +1,22 @@
 package com.github.scholarfind.task;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 
-import com.github.scholarfind.models.context.ContextDocument;
-import com.github.scholarfind.models.search.SearchDocument;
+import com.github.scholarfind.models.investigate.InvestigateDocument;
+import com.github.scholarfind.models.shared.ContextDocument;
 import com.github.scholarfind.task.validation.ClassificationConfiguration;
 import com.github.scholarfind.validation.ValidationContext;
 
 public record SearchContext(
-    SearchDocument document,
+    InvestigateDocument document,
 
     ClassificationConfiguration classificationConfiguration,
 
-    ZonedDateTime reviewedAt,
+    Instant reviewedAt,
 
-    SearchDocument retreivedSearch,
+    InvestigateDocument retrievedInvestigate,
     ContextDocument retrievedContext
 
-) implements ValidationContext<SearchDocument> {
+) implements ValidationContext<InvestigateDocument> {
 
 }
