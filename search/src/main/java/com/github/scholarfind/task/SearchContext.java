@@ -4,8 +4,8 @@ import java.time.Instant;
 
 import com.github.scholarfind.models.investigate.InvestigateDocument;
 import com.github.scholarfind.models.shared.ContextDocument;
-import com.github.scholarfind.task.validation.ClassificationConfiguration;
-import com.github.scholarfind.validation.ValidationContext;
+import com.github.scholarfind.policy.PolicyContext;
+import com.github.scholarfind.task.policy.ClassificationConfiguration;
 
 public record SearchContext(
     InvestigateDocument document,
@@ -17,6 +17,6 @@ public record SearchContext(
     InvestigateDocument retrievedInvestigate,
     ContextDocument retrievedContext
 
-) implements ValidationContext<InvestigateDocument> {
+) implements PolicyContext<InvestigateDocument> {
 
 }

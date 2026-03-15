@@ -1,19 +1,14 @@
-package com.github.scholarfind.validation;
+package com.github.scholarfind.policy;
 
 import com.github.scholarfind.models.shared.ReasonCode;
 
-public enum Reason implements ReasonCode {
+public enum PolicyReason implements ReasonCode {
   SCHEMA_MISMATCH,
-
   DOCUMENT_EXPIRED,
-
   ATTEMPTS_EXCEEDED,
-
-  DOCUMENT_ERROR,
-
   REQUEST_REJECTED,
-
-  REQUEST_DEAD_LETTERED;
+  RECENT_RESULT_REUSED,
+  OPERATION_EXCEPTION;
 
   @Override
   public String code() {

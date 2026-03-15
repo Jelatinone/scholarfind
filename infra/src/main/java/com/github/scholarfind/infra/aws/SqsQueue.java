@@ -12,10 +12,10 @@ import java.util.stream.Collectors;
 import org.slf4j.event.Level;
 
 import com.github.scholarfind.api.queue.Acknowledgement;
-import com.github.scholarfind.api.queue.Queue;
 import com.github.scholarfind.api.queue.QueueResult;
 import com.github.scholarfind.api.queue.QueueState;
 import com.github.scholarfind.api.queue.ReceivedMessage;
+import com.github.scholarfind.api.queue.RetryableQueue;
 import com.github.scholarfind.infra.aws.serial.SqsSerializer;
 
 import lombok.AccessLevel;
@@ -33,7 +33,7 @@ import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @AllArgsConstructor
-public class SqsQueue<T> implements Queue<T> {
+public class SqsQueue<T> implements RetryableQueue<T> {
   SqsClient client;
   String inputUrl;
   String retryUrl;
@@ -49,7 +49,7 @@ public class SqsQueue<T> implements Queue<T> {
             .maxNumberOfMessages(messageCount)
             .messageAttributeNames(".*")
             .build());
-    logHttp("Receive message", response.sdkHttpResponse());
+    log("Receive message", response.sdkHttpResponse());
     List<ReceivedMessage<T>> messages = response.messages().stream()
         .map(this::wrap)
         .filter(java.util.Objects::nonNull)
@@ -62,6 +62,22 @@ public class SqsQueue<T> implements Queue<T> {
     send(inputUrl, message);
   }
 
+  @Override
+  public void sendRetry(T message) {
+    if (retryUrl == null) {
+      throw new IllegalStateException("Retry queue URL is not configured");
+    }
+    send(retryUrl, message);
+  }
+
+  @Override
+  public void sendError(T message) {
+    if (errorUrl == null) {
+      throw new IllegalStateException("Error queue URL is not configured");
+    }
+    send(errorUrl, message);
+  }
+
   public void send(String queueUrl, T message) {
     try {
       String body = serializer.encodeBody(message);
@@ -70,7 +86,7 @@ public class SqsQueue<T> implements Queue<T> {
           .queueUrl(queueUrl)
           .messageBody(body)
           .messageAttributes(encodeAttributes(attributes)));
-      logHttp("Send message", response.sdkHttpResponse());
+      log("Send message", response.sdkHttpResponse());
     } catch (Exception exception) {
       throw new IllegalStateException("Failed to encode queue message", exception);
     }
@@ -113,7 +129,7 @@ public class SqsQueue<T> implements Queue<T> {
     DeleteMessageResponse response = client.deleteMessage(builder -> builder
         .queueUrl(inputUrl)
         .receiptHandle(receiptHandle));
-    logHttp("Delete message", response.sdkHttpResponse());
+    log("Delete message", response.sdkHttpResponse());
   }
 
   private QueueState resolve() {
@@ -123,7 +139,7 @@ public class SqsQueue<T> implements Queue<T> {
             APPROXIMATE_NUMBER_OF_MESSAGES,
             APPROXIMATE_NUMBER_OF_MESSAGES_NOT_VISIBLE,
             APPROXIMATE_NUMBER_OF_MESSAGES_DELAYED));
-    logHttp("Resolve queue state", response.sdkHttpResponse());
+    log("Resolve queue state", response.sdkHttpResponse());
     boolean queueAlive = response.attributes().values().stream()
         .mapToInt(Integer::parseInt)
         .anyMatch(value -> value > 0);
@@ -142,7 +158,7 @@ public class SqsQueue<T> implements Queue<T> {
             entry -> MessageAttributeValue.builder().dataType("String").stringValue(entry.getValue()).build()));
   }
 
-  private void logHttp(String action, SdkHttpResponse response) {
+  private void log(String action, SdkHttpResponse response) {
     if (response == null) {
       return;
     }

@@ -1,6 +1,6 @@
 package com.github.scholarfind.meta;
 
-import static com.github.scholarfind.meta.State.*;
+import static com.github.scholarfind.meta.transitory.State.*;
 import static org.slf4j.event.Level.*;
 
 import java.io.IOException;
@@ -24,6 +24,7 @@ import com.github.scholarfind.backoff.LinearBackoffScheduler;
 import com.github.scholarfind.meta.result.CollectionResult;
 import com.github.scholarfind.meta.result.OperationResult;
 import com.github.scholarfind.meta.result.PostResult;
+import com.github.scholarfind.meta.transitory.State;
 import com.github.scholarfind.utility.Locked;
 
 import java.util.concurrent.ThreadLocalRandom;

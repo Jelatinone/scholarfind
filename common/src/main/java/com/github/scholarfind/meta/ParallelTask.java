@@ -1,6 +1,6 @@
 package com.github.scholarfind.meta;
 
-import static com.github.scholarfind.meta.State.*;
+import static com.github.scholarfind.meta.transitory.State.*;
 import static java.util.concurrent.TimeUnit.*;
 import static org.slf4j.event.Level.*;
 
@@ -15,6 +15,7 @@ import java.util.concurrent.Semaphore;
 import com.github.scholarfind.meta.result.CollectionResult;
 import com.github.scholarfind.meta.result.OperationResult;
 import com.github.scholarfind.meta.result.PostResult;
+import com.github.scholarfind.meta.transitory.State;
 import com.github.scholarfind.utility.Locked;
 
 import lombok.AccessLevel;
@@ -49,13 +50,12 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * @param executor Service to execute parallel jobs with
    * @param config   Config to associate with this task
    */
-  protected ParallelTask(final @NonNull ExecutorService executor,
-      final @NonNull Configuration config) {
+  protected ParallelTask(final @NonNull ExecutorService executor, final @NonNull Configuration config) {
     super(config);
 
     _executor = executor;
     _threads = new Semaphore(_taskConfig.threadParallelism);
-    _jobs = new HashSet<>(_taskConfig.threadParallelism, 0f);
+    _jobs = new HashSet<>(_taskConfig.threadParallelism, 1f);
 
     operands = ConcurrentHashMap.newKeySet(_taskConfig.collectionSize);
     results = ConcurrentHashMap.newKeySet(_taskConfig.collectionSize);

@@ -1,4 +1,6 @@
-package com.github.scholarfind.meta;
+package com.github.scholarfind.meta.transitory;
+
+import com.github.scholarfind.meta.Task;
 
 /**
  * 
