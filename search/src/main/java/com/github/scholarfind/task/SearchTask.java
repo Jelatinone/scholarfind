@@ -1,7 +1,5 @@
 package com.github.scholarfind.task;
 
-import static org.slf4j.event.Level.INFO;
-
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -29,17 +27,11 @@ import com.github.scholarfind.models.shared.DocumentHeader;
 import com.github.scholarfind.models.shared.RequestHeader;
 import com.github.scholarfind.models.shared.StageEnvelope;
 import com.github.scholarfind.models.shared.TraceReference;
-import com.github.scholarfind.policy.AttemptsPolicy;
 import com.github.scholarfind.policy.EmissionIntent;
-import com.github.scholarfind.policy.ExpirationPolicy;
 import com.github.scholarfind.policy.PolicyDecision;
 import com.github.scholarfind.policy.PolicyPipeline;
-import com.github.scholarfind.policy.SchemaPolicy;
 import com.github.scholarfind.task.evidence.EvidenceIdentifierConfiguration;
 import com.github.scholarfind.task.policy.ClassificationConfiguration;
-import com.github.scholarfind.task.policy.ClassificationPolicy;
-import com.github.scholarfind.task.policy.RecentClassificationReusePolicy;
-import com.github.scholarfind.task.policy.SearchOutcomePolicy;
 import com.github.scholarfind.task.score.DominanceConfiguration;
 import com.github.scholarfind.task.score.ScoreRuleConfiguration;
 import com.github.scholarfind.task.signal.SignalCost;
