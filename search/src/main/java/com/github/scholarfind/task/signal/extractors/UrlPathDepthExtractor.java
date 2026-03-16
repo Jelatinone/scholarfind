@@ -2,7 +2,6 @@ package com.github.scholarfind.task.signal.extractors;
 
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.function.BiFunction;
 
 import com.github.scholarfind.models.shared.ContextDocument;
 import com.github.scholarfind.models.shared.TraceReference;
@@ -14,35 +13,20 @@ import com.github.scholarfind.task.signal.SignalValue;
 
 import lombok.NonNull;
 
-public enum UrlPathDepthExtractors {
+public class UrlPathDepthExtractor implements SignalExtractor {
 
-  STANDARD((trace, context) -> {
+  @Override
+  public @NonNull SignalIdentifier identifier() {
+    return SignalIdentifier.URL_PATH_DEPTH;
+  }
+
+  @Override
+  public SignalExtractionResult extract(@NonNull TraceReference trace, ContextDocument context) {
     int depth = (int) Arrays.stream(trace.normalizedUrl().getPath().split("/"))
         .filter(part -> !part.isEmpty())
         .count();
 
     return new SignalExtractionResult.Both(SignalCost.HEAD, Optional.of(new SignalValue.NumericSignal(depth)));
-  });
-
-  SignalExtractor _extractor;
-
-  UrlPathDepthExtractors(final BiFunction<TraceReference, ContextDocument, SignalExtractionResult> rawExtractor) {
-    _extractor = new SignalExtractor() {
-
-      @Override
-      public @NonNull SignalIdentifier identifier() {
-        return SignalIdentifier.URL_PATH_DEPTH;
-      }
-
-      @Override
-      public SignalExtractionResult extract(@NonNull TraceReference trace, ContextDocument context) {
-        return rawExtractor.apply(trace, context);
-      }
-
-    };
   }
 
-  public SignalExtractor extractor() {
-    return _extractor;
-  }
 }
