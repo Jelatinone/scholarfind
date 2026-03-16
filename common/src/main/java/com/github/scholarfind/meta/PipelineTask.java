@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
+import com.github.scholarfind.api.queue.Queue;
 import com.github.scholarfind.api.queue.RetryableQueue;
 import com.github.scholarfind.api.store.Store;
 import com.github.scholarfind.meta.result.PipelineResult;
@@ -28,6 +29,7 @@ import com.github.scholarfind.utility.Factory;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NonNull;
+import lombok.Builder.Default;
 import lombok.experimental.FieldDefaults;
 
 /**
@@ -35,7 +37,10 @@ import lombok.experimental.FieldDefaults;
  * <h1>PipelineTask</h1>
  *
  * Describes a {@link QueueTask QueueTask} that executes a stage-specific policy
- * pipeline over a queued {@link StageEnvelope stage envelope}.
+ * pipeline over a queued {@link StageEnvelope stage envelope}. This class owns
+ * the stable stage algorithm: build context, build state, execute policies,
+ * materialize the resulting stage document, persist control and audit records,
+ * and publish downstream emissions through a configured queue.
  *
  * @author Cody Washington
  */
@@ -48,18 +53,24 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
   Store<AttemptEvent, String> _eventStore;
   Store<StageExecution, String> _executionStore;
 
+  Queue<StageEnvelope<Out>> _outQueue;
+
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration<In extends Request, Out extends Request, Context, State, Persist extends StageDocument<Persist>> {
     PolicyPipeline<Context, State> policyPipeline;
 
-    Factory<RetryableQueue<StageEnvelope<In>>, QueueTask<StageEnvelope<In>, PipelineResult<Persist, In, Out>>> queueFactory;
-    Factory<Store<AttemptEvent, String>, PipelineTask<In, Out, Context, State, Persist>> eventStoreFactory;
-    Factory<Store<StageExecution, String>, PipelineTask<In, Out, Context, State, Persist>> executionStoreFactory;
+    Factory<RetryableQueue<StageEnvelope<In>>, Abstract> inQueueFactory;
+    Factory<Queue<StageEnvelope<Out>>, Abstract> outQueueFactory;
 
-    Duration retryDuration;
+    Factory<Store<AttemptEvent, String>, Abstract> eventStoreFactory;
+    Factory<Store<StageExecution, String>, Abstract> executionStoreFactory;
 
-    int transitionHistory;
+    @Default
+    Duration retryDuration = Duration.ofSeconds(30);
+
+    @Default
+    int transitionHistory = 25;
 
     ProcessingStage processingStage;
   }
@@ -68,18 +79,20 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
    * Creates a new pipeline task.
    *
    * @param executor       Service to execute parallel jobs with
-   * @param queue          Queue to pull stage envelopes from
    * @param taskConfig     Base task configuration
-   * @param pipelineConfig Stage-specific pipeline configuration
+   * @param pipelineConfig Stage-specific pipeline configuration including the
+   *                       input queue, policy pipeline, persistence stores, and
+   *                       downstream emission queue
    */
   protected PipelineTask(
       @NonNull ExecutorService executor,
       @NonNull Task.Configuration taskConfig,
       @NonNull PipelineTask.Configuration<In, Out, Context, State, Persist> pipelineConfig) {
-    super(executor, pipelineConfig.queueFactory, taskConfig);
+    super(executor, pipelineConfig.inQueueFactory, taskConfig);
     this._pipelineConfig = pipelineConfig;
-    this._eventStore = pipelineConfig.eventStoreFactory.create(this);
-    this._executionStore = pipelineConfig.executionStoreFactory.create(this);
+    this._eventStore = pipelineConfig.eventStoreFactory.create(_taskAbstract);
+    this._executionStore = pipelineConfig.executionStoreFactory.create(_taskAbstract);
+    this._outQueue = pipelineConfig.outQueueFactory.create(_taskAbstract);
   }
 
   @SuppressWarnings("unchecked")
@@ -134,20 +147,27 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 
   @Override
   protected final void onComplete(@NonNull PipelineResult<Persist, In, Out> output) throws Exception {
-    output.emissions().forEach(this::emit);
+    if (output.emissions().isEmpty()) {
+      return;
+    }
+    if (_outQueue == null) {
+      throw new IllegalStateException(
+          String.format("No emission queue configured for stage %s", _pipelineConfig.processingStage));
+    }
+    output.emissions().forEach(_outQueue::send);
   }
 
   @Override
   protected final void onRetry(@NonNull PipelineResult<Persist, In, Out> output) throws Exception {
     RetryDirective retryDirective = output.decision().retryDirective();
     StageEnvelope<In> retryEnvelope = retryEnvelope(output, retryDirective);
-    _queue.sendRetry(retryEnvelope);
+    _inQueue.sendRetry(retryEnvelope);
   }
 
   @Override
   protected final void onError(@NonNull PipelineResult<Persist, In, Out> output) throws Exception {
     StageEnvelope<In> errorEnvelope = errorEnvelope(output);
-    _queue.sendError(errorEnvelope);
+    _inQueue.sendError(errorEnvelope);
   }
 
   /**
@@ -242,13 +262,6 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
       @NonNull Context context,
       @NonNull PolicyDecision<State> decision,
       @NonNull Persist document);
-
-  /**
-   * Emit a finalized stage envelope to its downstream transport.
-   * 
-   * @param envelope Pipeline finalized stage envelope
-   */
-  protected abstract void emit(@NonNull StageEnvelope<Out> envelope);
 
   /**
    * Persist a successfully created document to the stage document store.

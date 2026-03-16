@@ -28,32 +28,34 @@ import lombok.experimental.FieldDefaults;
  *
  * <p>
  * Describes a {@link ParallelTask ParallelTask} whose consumed elements are
- * sourced from a {@link RetryableQueue retryable queue}.
+ * sourced from a {@link RetryableQueue retryable queue}. The queue is created
+ * by a factory that receives a narrow {@link Abstract runtime view}, so
+ * infrastructure resources can use task logging without depending on the full
+ * task instance during construction.
  *
  * @author Cody Washington
  */
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public abstract class QueueTask<Consumes, Produces> extends ParallelTask<Envelope<Consumes>, Envelope<Produces>> {
-
-  RetryableQueue<Consumes> _queue;
+  RetryableQueue<Consumes> _inQueue;
 
   /**
    * Creates a new queue Task
    * 
    * @param executor     Service to execute parallel jobs with
-   * @param queueFactory Factory that creates the queue using this task's logger
+   * @param queueFactory Factory that creates the queue using the task runtime
    * @param taskConfig   Config to associate with this task
    */
   protected QueueTask(@NonNull ExecutorService executor,
-      @NonNull Factory<RetryableQueue<Consumes>, QueueTask<Consumes, Produces>> queueFactory,
+      @NonNull Factory<RetryableQueue<Consumes>, Abstract> queueFactory,
       @NonNull Configuration taskConfig) {
     super(executor, taskConfig);
-    _queue = queueFactory.create(this);
+    _inQueue = queueFactory.create(_taskAbstract);
   }
 
   @Override
   protected final @NonNull CollectionResult<Envelope<Consumes>> collect() {
-    QueueResult<Consumes> receivedMessages = _queue.poll(_taskConfig.collectionSize);
+    QueueResult<Consumes> receivedMessages = _inQueue.poll(_taskConfig.collectionSize);
     List<Envelope<Consumes>> envelopes = receivedMessages.messages().stream()
         .map((message) -> new Envelope<>(message.message(), message.acknowledgement()))
         .toList();
@@ -133,7 +135,7 @@ public abstract class QueueTask<Consumes, Produces> extends ParallelTask<Envelop
    * original queue message is acknowledged.
    * 
    * @param output Output of the {@link #operate(Envelope) operation} stage
-   * @return Decision on action to take for this element within the queue
+   * @return Directive controlling completion behavior for the consumed message
    */
   protected abstract Directive elementDirective(@NonNull Produces output);
 

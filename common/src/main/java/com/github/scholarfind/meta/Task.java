@@ -57,6 +57,43 @@ import lombok.experimental.NonFinal;
 public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implements Runnable, AutoCloseable
     permits ParallelTask, SequentialTask {
 
+  /**
+   *
+   * <h1>Abstract</h1>
+   *
+   * <p>
+   * A narrow runtime view exposed to resource factories during task construction.
+   * This avoids leaking the concrete task instance while still allowing factories
+   * to use task logging and configuration.
+   *
+   * @author Cody Washington
+   */
+  public static interface Abstract {
+
+    /**
+     * Returns the base configuration associated with the owning task.
+     * 
+     * @return Task configuration
+     */
+    Task.Configuration taskConfiguration();
+
+    /**
+     * Publish a message through the owning task logger.
+     * 
+     * @param message   Log message
+     * @param level     Log level
+     * @param arguments Optional log arguments
+     */
+    void useMessage(String message, Level level, Object... arguments);
+
+    /**
+     * Add a listener device through the owning task listeners
+     * 
+     * @param listener Log update listeners
+     */
+    void useListener(final @NonNull Runnable listener);
+  }
+
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration {
@@ -97,6 +134,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
 
   Configuration _taskConfig;
   Statistics _taskStats;
+  Abstract _taskAbstract;
 
   AtomicReference<State> _state;
 
@@ -117,6 +155,22 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   protected Task(final @NonNull Configuration config) {
     _taskConfig = config;
     _taskStats = new Statistics();
+    _taskAbstract = new Abstract() {
+      @Override
+      public Task.Configuration taskConfiguration() {
+        return _taskConfig;
+      }
+
+      @Override
+      public void useMessage(String message, Level level, Object... arguments) {
+        this.useMessage(message, level, arguments);
+      }
+
+      @Override
+      public void useListener(@NonNull Runnable listener) {
+        this.useListener(listener);
+      }
+    };
 
     _state = new AtomicReference<State>();
 

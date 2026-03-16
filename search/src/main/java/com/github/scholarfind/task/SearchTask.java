@@ -9,6 +9,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 
+import org.slf4j.event.Level;
+
 import com.github.scholarfind.infra.queue.StageEnvelopeQueue;
 import com.github.scholarfind.infra.repository.AttemptEventStore;
 import com.github.scholarfind.infra.repository.ContextDocumentStore;
@@ -55,36 +57,22 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 
-@FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public final class SearchTask
     extends PipelineTask<InvestigateRequest, AnnotateRequest, SearchContext, SearchState, InvestigateDocument> {
 
+  @Builder
   @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
   private static final class Resources {
     MetricPublisher metrics;
+
     SqsClient sqsClient;
     DynamoDbClient dynamoClient;
+
     String inQueueUrl;
     String outQueueUrl;
     String retryQueueUrl;
     String errorQueueUrl;
-
-    private Resources(
-        MetricPublisher metrics,
-        SqsClient sqsClient,
-        DynamoDbClient dynamoClient,
-        String inQueueUrl,
-        String outQueueUrl,
-        String retryQueueUrl,
-        String errorQueueUrl) {
-      this.metrics = metrics;
-      this.sqsClient = sqsClient;
-      this.dynamoClient = dynamoClient;
-      this.inQueueUrl = inQueueUrl;
-      this.outQueueUrl = outQueueUrl;
-      this.retryQueueUrl = retryQueueUrl;
-      this.errorQueueUrl = errorQueueUrl;
-    }
   }
 
   @Builder
@@ -130,14 +118,13 @@ public final class SearchTask
   }
 
   Configuration _searchConfig;
-  MetricPublisher _metrics;
+  Resources _resources;
 
-  StageEnvelopeQueue<AnnotateRequest> _outQueue;
   InvestigateDocumentStore _investigateStore;
   ContextDocumentStore _contextStore;
 
   public SearchTask(
-      final Task.Configuration taskConfig,
+      final @NonNull Task.Configuration taskConfig,
       final @NonNull SearchTask.Configuration searchConfig,
       final @NonNull ExecutorService executor) {
     this(taskConfig, searchConfig, executor, buildResources(searchConfig));
@@ -153,35 +140,57 @@ public final class SearchTask
         taskConfig,
         PipelineTask.Configuration
             .<InvestigateRequest, AnnotateRequest, SearchContext, SearchState, InvestigateDocument>builder()
-            .policyPipeline(policyPipeline(searchConfig))
-            .queueFactory(instance -> new StageEnvelopeQueue<>(
-                resources.sqsClient,
-                resources.inQueueUrl,
-                resources.retryQueueUrl,
-                resources.errorQueueUrl,
-                InvestigateRequest.class,
-                instance::useMessage))
-            .eventStoreFactory(instance -> new AttemptEventStore(
-                resources.dynamoClient,
-                searchConfig.attemptEventStoreName,
-                instance::useMessage))
-            .executionStoreFactory(instance -> new StageExecutionRecordStore(
-                resources.dynamoClient,
-                searchConfig.executionStoreName,
-                instance::useMessage))
+            .policyPipeline(new PolicyPipeline<>(List.of(
+                new SchemaPolicy<InvestigateDocument, SearchContext, SearchState>(InvestigateDocument.schemaVersion),
+                new AttemptsPolicy<InvestigateDocument, SearchContext, SearchState>(searchConfig.maxAttempts),
+                new ExpirationPolicy<InvestigateDocument, SearchContext, SearchState>(searchConfig.expirationDays),
+                new RecentClassificationReusePolicy(),
+                new ClassificationPolicy(),
+                new SearchOutcomePolicy(searchConfig.classificationConfiguration))))
+            .inQueueFactory(runtime -> {
+              var inQueue = new StageEnvelopeQueue<>(
+                  resources.sqsClient,
+                  resources.inQueueUrl,
+                  resources.retryQueueUrl,
+                  resources.errorQueueUrl,
+                  InvestigateRequest.class,
+                  runtime::useMessage);
+              runtime.useMessage("Resolved resource : ingestion queue", Level.INFO);
+              return inQueue;
+            })
+            .outQueueFactory(runtime -> {
+              var outQueue = new StageEnvelopeQueue<>(
+                  resources.sqsClient,
+                  resources.outQueueUrl,
+                  null,
+                  null,
+                  AnnotateRequest.class,
+                  runtime::useMessage);
+              runtime.useMessage("Resolved resource : emmission queue", Level.INFO);
+              return outQueue;
+            })
+            .eventStoreFactory(runtime -> {
+              var eventStore = new AttemptEventStore(
+                  resources.dynamoClient,
+                  searchConfig.attemptEventStoreName,
+                  runtime::useMessage);
+              runtime.useMessage("Resolved resource : attempt event store", Level.INFO);
+              return eventStore;
+            })
+            .executionStoreFactory(runtime -> {
+              var executionStore = new StageExecutionRecordStore(
+                  resources.dynamoClient,
+                  searchConfig.executionStoreName,
+                  runtime::useMessage);
+              runtime.useMessage("Resolved resource : execution store", Level.INFO);
+              return executionStore;
+            })
             .retryDuration(searchConfig.retryTimeout)
             .transitionHistory(searchConfig.transitionHistory)
             .processingStage(ProcessingStage.INVESTIGATE)
             .build());
     _searchConfig = searchConfig;
-    _metrics = resources.metrics;
-    _outQueue = new StageEnvelopeQueue<>(
-        resources.sqsClient,
-        resources.outQueueUrl,
-        null,
-        null,
-        AnnotateRequest.class,
-        this::useMessage);
+    _resources = resources;
     _investigateStore = new InvestigateDocumentStore(
         resources.dynamoClient,
         searchConfig.investigateStoreName,
@@ -195,13 +204,9 @@ public final class SearchTask
   @Override
   public void close() throws IOException {
     try {
-      _metrics.close();
-      _queue.close();
-      _outQueue.close();
-      _investigateStore.close();
-      _contextStore.close();
-      _eventStore.close();
-      _executionStore.close();
+      _resources.metrics.close();
+      _resources.sqsClient.close();
+      _resources.dynamoClient.close();
     } catch (Exception exception) {
       throw new IOException("Failed to close SearchTask resources", exception);
     }
@@ -288,11 +293,6 @@ public final class SearchTask
   }
 
   @Override
-  protected void emit(@NonNull StageEnvelope<AnnotateRequest> envelope) {
-    _outQueue.send(envelope);
-  }
-
-  @Override
   protected InvestigateRequest buildRequest(InvestigateRequest request, RequestHeader nextHeader) {
     return new InvestigateRequest(nextHeader, request.target());
   }
@@ -315,34 +315,24 @@ public final class SearchTask
             .apiCallAttemptTimeout(config.callTimeout))
         .build();
 
-    return new Resources(
-        metrics,
-        sqsClient,
-        dynamoClient,
-        resolveQueueUrl(sqsClient, config.inQueueName),
-        resolveQueueUrl(sqsClient, config.outQueueName),
-        resolveQueueUrl(sqsClient, config.retryQueueName),
-        resolveQueueUrl(sqsClient, config.errorQueueName));
+    Resources resources = Resources.builder()
+        .metrics(metrics)
+        .sqsClient(sqsClient)
+        .dynamoClient(dynamoClient)
+        .inQueueUrl(resolveQueueUrl(sqsClient, config.inQueueName))
+        .outQueueUrl(resolveQueueUrl(sqsClient, config.outQueueName))
+        .retryQueueUrl(resolveQueueUrl(sqsClient, config.retryQueueName))
+        .errorQueueUrl(resolveQueueUrl(sqsClient, config.errorQueueName))
+        .build();
+
+    return resources;
   }
 
-  private static String resolveQueueUrl(SqsClient sqsClient, String queueName) {
+  private static String resolveQueueUrl(final @NonNull SqsClient sqsClient, final @NonNull String canonicalName) {
     return sqsClient.getQueueUrl(
         GetQueueUrlRequest.builder()
-            .queueName(queueName)
+            .queueName(canonicalName)
             .build())
         .queueUrl();
-  }
-
-  private static PolicyPipeline<SearchContext, SearchState> policyPipeline(Configuration config) {
-    if (config.policyPipeline != null) {
-      return config.policyPipeline;
-    }
-    return new PolicyPipeline<>(List.of(
-        new SchemaPolicy<InvestigateDocument, SearchContext, SearchState>(InvestigateDocument.schemaVersion),
-        new AttemptsPolicy<InvestigateDocument, SearchContext, SearchState>(config.maxAttempts),
-        new ExpirationPolicy<InvestigateDocument, SearchContext, SearchState>(config.expirationDays),
-        new RecentClassificationReusePolicy(),
-        new ClassificationPolicy(),
-        new SearchOutcomePolicy(config.classificationConfiguration)));
   }
 }

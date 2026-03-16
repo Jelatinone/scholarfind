@@ -21,7 +21,6 @@ import com.github.scholarfind.utility.Locked;
 import lombok.AccessLevel;
 import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
-import lombok.experimental.NonFinal;
 
 /**
  * 
@@ -39,10 +38,8 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
   Semaphore _threads;
   Collection<CompletableFuture<Void>> _jobs;
 
-  @NonFinal
-  Collection<Consumes> operands;
-  @NonFinal
-  Collection<OperationResult<Produces>> results;
+  Collection<Consumes> _operands;
+  Collection<OperationResult<Produces>> _results;
 
   /**
    * Creates a new parallel Task
@@ -57,8 +54,8 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
     _threads = new Semaphore(_taskConfig.threadParallelism);
     _jobs = new HashSet<>(_taskConfig.threadParallelism, 1f);
 
-    operands = ConcurrentHashMap.newKeySet(_taskConfig.collectionSize);
-    results = ConcurrentHashMap.newKeySet(_taskConfig.collectionSize);
+    _operands = ConcurrentHashMap.newKeySet(_taskConfig.collectionSize);
+    _results = ConcurrentHashMap.newKeySet(_taskConfig.collectionSize);
   }
 
   /**
@@ -74,9 +71,9 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
     _threads.acquire();
     CompletableFuture<Void> product = CompletableFuture
         .supplyAsync(() -> {
-          operands.add(element);
+          _operands.add(element);
           OperationResult<Produces> result = operate(element);
-          results.add(result);
+          _results.add(result);
 
           return result;
         }, _executor)
@@ -217,8 +214,8 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           }
 
           case DISPATCHING -> {
-            operands.clear();
-            results.clear();
+            _operands.clear();
+            _results.clear();
 
             while (_threads.tryAcquire()) {
               Consumes element = _collected.poll();
@@ -276,7 +273,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * @return Previous consumed operand
    */
   public Collection<Consumes> getConsumed() {
-    return operands;
+    return _operands;
   }
 
   /**
@@ -285,6 +282,6 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
    * @return Previous produced operand
    */
   public Collection<OperationResult<Produces>> getProduced() {
-    return results;
+    return _results;
   }
 }

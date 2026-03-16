@@ -1,7 +1,13 @@
 package com.github.scholarfind.utility;
 
 @FunctionalInterface
-public interface Factory<Create, Resource> {
+public interface Factory<Create, Context> {
 
-  Create create(Resource logger);
+  /**
+   * Create a given resource using a factory method from a context
+   * 
+   * @param context Resource context
+   * @return Created resource
+   */
+  Create create(Context context);
 }
