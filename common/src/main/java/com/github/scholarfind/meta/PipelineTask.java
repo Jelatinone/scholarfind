@@ -7,7 +7,9 @@ import java.util.concurrent.ExecutorService;
 
 import com.github.scholarfind.api.queue.RetryableQueue;
 import com.github.scholarfind.api.store.Store;
+import com.github.scholarfind.meta.result.PipelineResult;
 import com.github.scholarfind.meta.transitory.Disposition;
+import com.github.scholarfind.meta.transitory.Directive;
 import com.github.scholarfind.models.audit.AttemptEvent;
 import com.github.scholarfind.models.audit.ProcessingStage;
 import com.github.scholarfind.models.audit.StageExecution;
@@ -21,6 +23,7 @@ import com.github.scholarfind.policy.PolicyPipeline;
 import com.github.scholarfind.policy.PolicyReason;
 import com.github.scholarfind.policy.RetryDirective;
 import com.github.scholarfind.policy.StageOutcome;
+import com.github.scholarfind.utility.Factory;
 
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -38,18 +41,21 @@ import lombok.experimental.FieldDefaults;
  */
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public abstract class PipelineTask<In extends Request, Out extends Request, Context, State, Persist extends StageDocument<Persist>>
-    extends QueueTask<StageEnvelope<In>, PipelineDispatch<Persist, In, Out>> {
+    extends QueueTask<StageEnvelope<In>, PipelineResult<Persist, In, Out>> {
 
-  PipelineTask.Configuration<Out, Context, State> _pipelineConfig;
+  PipelineTask.Configuration<In, Out, Context, State, Persist> _pipelineConfig;
+
+  Store<AttemptEvent, String> _eventStore;
+  Store<StageExecution, String> _executionStore;
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
-  public static final class Configuration<Out extends Request, Context, State> {
+  public static final class Configuration<In extends Request, Out extends Request, Context, State, Persist extends StageDocument<Persist>> {
     PolicyPipeline<Context, State> policyPipeline;
 
-    Store<AttemptEvent, String> eventStore;
-
-    Store<StageExecution, String> executionStore;
+    Factory<RetryableQueue<StageEnvelope<In>>, QueueTask<StageEnvelope<In>, PipelineResult<Persist, In, Out>>> queueFactory;
+    Factory<Store<AttemptEvent, String>, PipelineTask<In, Out, Context, State, Persist>> eventStoreFactory;
+    Factory<Store<StageExecution, String>, PipelineTask<In, Out, Context, State, Persist>> executionStoreFactory;
 
     Duration retryDuration;
 
@@ -68,16 +74,17 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
    */
   protected PipelineTask(
       @NonNull ExecutorService executor,
-      @NonNull RetryableQueue<StageEnvelope<In>> queue,
       @NonNull Task.Configuration taskConfig,
-      @NonNull PipelineTask.Configuration<Out, Context, State> pipelineConfig) {
-    super(executor, queue, taskConfig);
+      @NonNull PipelineTask.Configuration<In, Out, Context, State, Persist> pipelineConfig) {
+    super(executor, pipelineConfig.queueFactory, taskConfig);
     this._pipelineConfig = pipelineConfig;
+    this._eventStore = pipelineConfig.eventStoreFactory.create(this);
+    this._executionStore = pipelineConfig.executionStoreFactory.create(this);
   }
 
   @SuppressWarnings("unchecked")
   @Override
-  protected final PipelineDispatch<Persist, In, Out> elementProcess(@NonNull StageEnvelope<In> input) {
+  protected final PipelineResult<Persist, In, Out> elementProcess(@NonNull StageEnvelope<In> input) {
     Instant startedAt = Instant.now();
 
     Context context = buildContext(input, startedAt);
@@ -95,11 +102,11 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
         .map((emission) -> buildEnvelope((EmissionIntent<? extends Out>) emission, input, context, decision, document))
         .toList();
 
-    return new PipelineDispatch<>(input, document, decision, emissions);
+    return new PipelineResult<>(input, document, decision, emissions);
   }
 
   @Override
-  protected final PipelineDispatch<Persist, In, Out> elementFailure(@NonNull StageEnvelope<In> input,
+  protected final PipelineResult<Persist, In, Out> elementFailure(@NonNull StageEnvelope<In> input,
       @NonNull Throwable throwable) {
     Instant startedAt = Instant.now();
 
@@ -113,32 +120,32 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 
     persistExecution(input, decision, occurredAt);
     persistAttempt(input, decision, startedAt, occurredAt, throwable);
-    return new PipelineDispatch<>(input, null, decision, List.of());
+    return new PipelineResult<>(input, null, decision, List.of());
   }
 
   @Override
-  protected final QueueDirective elementDirective(@NonNull PipelineDispatch<Persist, In, Out> output) {
+  protected final Directive elementDirective(@NonNull PipelineResult<Persist, In, Out> output) {
     return switch (output.decision().outcome()) {
-      case NEXT, DROP -> QueueDirective.COMPLETE;
-      case RETRY -> QueueDirective.RETRY;
-      case ERROR -> QueueDirective.ERROR;
+      case NEXT, DROP -> Directive.COMPLETE;
+      case RETRY -> Directive.RETRY;
+      case ERROR -> Directive.ERROR;
     };
   }
 
   @Override
-  protected final void onComplete(@NonNull PipelineDispatch<Persist, In, Out> output) throws Exception {
+  protected final void onComplete(@NonNull PipelineResult<Persist, In, Out> output) throws Exception {
     output.emissions().forEach(this::emit);
   }
 
   @Override
-  protected final void onRetry(@NonNull PipelineDispatch<Persist, In, Out> output) throws Exception {
+  protected final void onRetry(@NonNull PipelineResult<Persist, In, Out> output) throws Exception {
     RetryDirective retryDirective = output.decision().retryDirective();
     StageEnvelope<In> retryEnvelope = retryEnvelope(output, retryDirective);
     _queue.sendRetry(retryEnvelope);
   }
 
   @Override
-  protected final void onError(@NonNull PipelineDispatch<Persist, In, Out> output) throws Exception {
+  protected final void onError(@NonNull PipelineResult<Persist, In, Out> output) throws Exception {
     StageEnvelope<In> errorEnvelope = errorEnvelope(output);
     _queue.sendError(errorEnvelope);
   }
@@ -150,7 +157,7 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
    * @param retryDirective Retry directive returned by the policy decision
    * @return Retryable envelope
    */
-  protected StageEnvelope<In> retryEnvelope(PipelineDispatch<Persist, In, Out> output, RetryDirective retryDirective) {
+  protected StageEnvelope<In> retryEnvelope(PipelineResult<Persist, In, Out> output, RetryDirective retryDirective) {
     In payload = output.input().payload();
     RequestHeader header = new RequestHeader(
         payload.requestHeader().schemaVersion(),
@@ -174,7 +181,7 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
    * @param output Pipeline dispatch result
    * @return Failed envelope
    */
-  protected StageEnvelope<In> errorEnvelope(PipelineDispatch<Persist, In, Out> output) {
+  protected StageEnvelope<In> errorEnvelope(PipelineResult<Persist, In, Out> output) {
     return output.input();
   }
 
@@ -261,7 +268,7 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
       StageEnvelope<In> input,
       PolicyDecision<?> decision,
       Instant occurredAt) {
-    StageExecution current = _pipelineConfig.executionStore
+    StageExecution current = _executionStore
         .get(StageExecution.key(input.targetId(), _pipelineConfig.processingStage));
     if (current == null) {
       current = StageExecution.initial(input.targetId(), _pipelineConfig.processingStage, occurredAt);
@@ -274,7 +281,7 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
         nextAttemptAt,
         _pipelineConfig.transitionHistory,
         decision.outcome() == StageOutcome.RETRY);
-    _pipelineConfig.executionStore.put(updated);
+    _executionStore.put(updated);
   }
 
   /**
@@ -321,6 +328,6 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
         String.valueOf(input.payload().target().normalizedUrl()),
         input.payload().target().depth(),
         input.payload().requestHeader().idempotencyKey());
-    _pipelineConfig.eventStore.put(event);
+    _eventStore.put(event);
   }
 }

@@ -32,7 +32,7 @@ public class DynamoStore<T, K> implements Store<T, K> {
           .tableName(table)
           .item(item)
           .build());
-      logHttp("Put item", response.sdkHttpResponse());
+      log("Put item", response.sdkHttpResponse());
     } catch (Exception exception) {
       throw new IllegalStateException("Failed to encode store item", exception);
     }
@@ -45,7 +45,7 @@ public class DynamoStore<T, K> implements Store<T, K> {
           .tableName(table)
           .key(serializer.key(key))
           .build());
-      logHttp("Get item", response.sdkHttpResponse());
+      log("Get item", response.sdkHttpResponse());
       return serializer.decode(response.item());
     } catch (Exception exception) {
       throw new IllegalStateException("Failed to decode store item", exception);
@@ -58,10 +58,10 @@ public class DynamoStore<T, K> implements Store<T, K> {
         .tableName(table)
         .key(serializer.key(key))
         .build());
-    logHttp("Delete item", response.sdkHttpResponse());
+    log("Delete item", response.sdkHttpResponse());
   }
 
-  private void logHttp(String action, SdkHttpResponse response) {
+  private void log(String action, SdkHttpResponse response) {
     if (response == null) {
       return;
     }

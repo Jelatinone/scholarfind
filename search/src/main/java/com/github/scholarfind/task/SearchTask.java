@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
-import java.util.function.BiConsumer;
 
 import com.github.scholarfind.infra.queue.StageEnvelopeQueue;
 import com.github.scholarfind.infra.repository.AttemptEventStore;
@@ -27,11 +26,17 @@ import com.github.scholarfind.models.shared.DocumentHeader;
 import com.github.scholarfind.models.shared.RequestHeader;
 import com.github.scholarfind.models.shared.StageEnvelope;
 import com.github.scholarfind.models.shared.TraceReference;
+import com.github.scholarfind.policy.AttemptsPolicy;
 import com.github.scholarfind.policy.EmissionIntent;
+import com.github.scholarfind.policy.ExpirationPolicy;
 import com.github.scholarfind.policy.PolicyDecision;
 import com.github.scholarfind.policy.PolicyPipeline;
+import com.github.scholarfind.policy.SchemaPolicy;
 import com.github.scholarfind.task.evidence.EvidenceIdentifierConfiguration;
 import com.github.scholarfind.task.policy.ClassificationConfiguration;
+import com.github.scholarfind.task.policy.ClassificationPolicy;
+import com.github.scholarfind.task.policy.RecentClassificationReusePolicy;
+import com.github.scholarfind.task.policy.SearchOutcomePolicy;
 import com.github.scholarfind.task.score.DominanceConfiguration;
 import com.github.scholarfind.task.score.ScoreRuleConfiguration;
 import com.github.scholarfind.task.signal.SignalCost;
@@ -42,7 +47,6 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
-import org.slf4j.event.Level;
 import software.amazon.awssdk.core.metrics.CoreMetric;
 import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.metrics.publishers.cloudwatch.CloudWatchMetricPublisher;
@@ -55,19 +59,32 @@ import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 public final class SearchTask
     extends PipelineTask<InvestigateRequest, AnnotateRequest, SearchContext, SearchState, InvestigateDocument> {
 
-  static final BiConsumer<String, Level> NOOP_LOGGER = (message, level) -> {
-  };
-
   @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-  @Builder
   private static final class Resources {
     MetricPublisher metrics;
-    StageEnvelopeQueue<InvestigateRequest> inQueue;
-    StageEnvelopeQueue<AnnotateRequest> outQueue;
-    InvestigateDocumentStore investigateStore;
-    ContextDocumentStore contextStore;
-    AttemptEventStore attemptEventStore;
-    StageExecutionRecordStore executionStore;
+    SqsClient sqsClient;
+    DynamoDbClient dynamoClient;
+    String inQueueUrl;
+    String outQueueUrl;
+    String retryQueueUrl;
+    String errorQueueUrl;
+
+    private Resources(
+        MetricPublisher metrics,
+        SqsClient sqsClient,
+        DynamoDbClient dynamoClient,
+        String inQueueUrl,
+        String outQueueUrl,
+        String retryQueueUrl,
+        String errorQueueUrl) {
+      this.metrics = metrics;
+      this.sqsClient = sqsClient;
+      this.dynamoClient = dynamoClient;
+      this.inQueueUrl = inQueueUrl;
+      this.outQueueUrl = outQueueUrl;
+      this.retryQueueUrl = retryQueueUrl;
+      this.errorQueueUrl = errorQueueUrl;
+    }
   }
 
   @Builder
@@ -86,7 +103,10 @@ public final class SearchTask
         executionStoreName = "store_stage_execution";
 
     @Builder.Default
-    int callTimeoutSeconds = 30;
+    Duration callTimeout = Duration.ofSeconds(30);
+
+    @Builder.Default
+    Duration retryTimeout = Duration.ofMinutes(5);
 
     @Builder.Default
     int maxAttempts = 5;
@@ -95,10 +115,7 @@ public final class SearchTask
     int expirationDays = 30;
 
     @Builder.Default
-    int retryDelaySeconds = 300;
-
-    @Builder.Default
-    int executionHistoryLimit = 25;
+    int transitionHistory = 25;
 
     @Builder.Default
     ClassificationConfiguration classificationConfiguration = new ClassificationConfiguration(
@@ -112,27 +129,12 @@ public final class SearchTask
     PolicyPipeline<SearchContext, SearchState> policyPipeline;
   }
 
-  Configuration searchConfig;
-  Resources resources;
+  Configuration _searchConfig;
+  MetricPublisher _metrics;
 
-  public SearchTask(
-      final Task.Configuration taskConfig,
-      final @NonNull SearchTask.Configuration searchConfig,
-      final @NonNull ExecutorService executor, final @NonNull Resources resources) {
-    super(
-        executor,
-        resources.inQueue,
-        taskConfig,
-        PipelineTask.Configuration.<AnnotateRequest, SearchContext, SearchState>builder()
-            .eventStore(resources.attemptEventStore)
-            .executionStore(resources.executionStore)
-            .retryDuration(Duration.ofSeconds(searchConfig.retryDelaySeconds))
-            .transitionHistory(searchConfig.executionHistoryLimit)
-            .processingStage(ProcessingStage.INVESTIGATE)
-            .build());
-    this.searchConfig = searchConfig;
-    this.resources = resources;
-  }
+  StageEnvelopeQueue<AnnotateRequest> _outQueue;
+  InvestigateDocumentStore _investigateStore;
+  ContextDocumentStore _contextStore;
 
   public SearchTask(
       final Task.Configuration taskConfig,
@@ -141,15 +143,68 @@ public final class SearchTask
     this(taskConfig, searchConfig, executor, buildResources(searchConfig));
   }
 
+  private SearchTask(
+      final @NonNull Task.Configuration taskConfig,
+      final @NonNull SearchTask.Configuration searchConfig,
+      final @NonNull ExecutorService executor,
+      final @NonNull Resources resources) {
+    super(
+        executor,
+        taskConfig,
+        PipelineTask.Configuration
+            .<InvestigateRequest, AnnotateRequest, SearchContext, SearchState, InvestigateDocument>builder()
+            .policyPipeline(policyPipeline(searchConfig))
+            .queueFactory(instance -> new StageEnvelopeQueue<>(
+                resources.sqsClient,
+                resources.inQueueUrl,
+                resources.retryQueueUrl,
+                resources.errorQueueUrl,
+                InvestigateRequest.class,
+                instance::useMessage))
+            .eventStoreFactory(instance -> new AttemptEventStore(
+                resources.dynamoClient,
+                searchConfig.attemptEventStoreName,
+                instance::useMessage))
+            .executionStoreFactory(instance -> new StageExecutionRecordStore(
+                resources.dynamoClient,
+                searchConfig.executionStoreName,
+                instance::useMessage))
+            .retryDuration(searchConfig.retryTimeout)
+            .transitionHistory(searchConfig.transitionHistory)
+            .processingStage(ProcessingStage.INVESTIGATE)
+            .build());
+    _searchConfig = searchConfig;
+    _metrics = resources.metrics;
+    _outQueue = new StageEnvelopeQueue<>(
+        resources.sqsClient,
+        resources.outQueueUrl,
+        null,
+        null,
+        AnnotateRequest.class,
+        this::useMessage);
+    _investigateStore = new InvestigateDocumentStore(
+        resources.dynamoClient,
+        searchConfig.investigateStoreName,
+        this::useMessage);
+    _contextStore = new ContextDocumentStore(
+        resources.dynamoClient,
+        searchConfig.contextStoreName,
+        this::useMessage);
+  }
+
   @Override
   public void close() throws IOException {
-    resources.metrics.close();
-    resources.inQueue.close();
-    resources.outQueue.close();
-    resources.investigateStore.close();
-    resources.contextStore.close();
-    resources.attemptEventStore.close();
-    resources.executionStore.close();
+    try {
+      _metrics.close();
+      _queue.close();
+      _outQueue.close();
+      _investigateStore.close();
+      _contextStore.close();
+      _eventStore.close();
+      _executionStore.close();
+    } catch (Exception exception) {
+      throw new IOException("Failed to close SearchTask resources", exception);
+    }
   }
 
   @Override
@@ -175,12 +230,12 @@ public final class SearchTask
         .discoveredTargetCount(0)
         .build();
 
-    InvestigateDocument retrievedInvestigate = resources.investigateStore.get(request.target().targetId());
-    ContextDocument retrievedContext = resources.contextStore.get(request.target().targetId());
+    InvestigateDocument retrievedInvestigate = _investigateStore.get(request.target().targetId());
+    ContextDocument retrievedContext = _contextStore.get(request.target().targetId());
 
     return new SearchContext(
         currentDocument,
-        searchConfig.classificationConfiguration,
+        _searchConfig.classificationConfiguration,
         startedAt,
         retrievedInvestigate,
         retrievedContext);
@@ -203,15 +258,20 @@ public final class SearchTask
         context.document().target(),
         context.document().trace(),
         occurredAt,
-        decision.state() == null ? context.document().classification() : decision.state().classification(),
-        decision.state() == null ? context.document().confidence() : decision.state().confidence(),
-        decision.state() == null ? context.document().discoveredTargetCount()
+        decision.state() == null
+            ? context.document().classification()
+            : decision.state().classification(),
+        decision.state() == null
+            ? context.document().confidence()
+            : decision.state().confidence(),
+        decision.state() == null
+            ? context.document().discoveredTargetCount()
             : decision.state().discoveredTargetCount());
   }
 
   @Override
   protected void persistDocument(@NonNull InvestigateDocument document) {
-    resources.investigateStore.put(document);
+    _investigateStore.put(document);
   }
 
   @Override
@@ -227,6 +287,16 @@ public final class SearchTask
         emission.request());
   }
 
+  @Override
+  protected void emit(@NonNull StageEnvelope<AnnotateRequest> envelope) {
+    _outQueue.send(envelope);
+  }
+
+  @Override
+  protected InvestigateRequest buildRequest(InvestigateRequest request, RequestHeader nextHeader) {
+    return new InvestigateRequest(nextHeader, request.target());
+  }
+
   private static Resources buildResources(final Configuration config) {
     MetricPublisher metrics = CloudWatchMetricPublisher.builder()
         .cloudWatchClient(CloudWatchAsyncClient.create())
@@ -236,49 +306,43 @@ public final class SearchTask
     SqsClient sqsClient = SqsClient.builder()
         .overrideConfiguration(overrides -> overrides
             .addMetricPublisher(metrics)
-            .apiCallAttemptTimeout(Duration.ofSeconds(config.callTimeoutSeconds)))
+            .apiCallAttemptTimeout(config.callTimeout))
         .build();
 
     DynamoDbClient dynamoClient = DynamoDbClient.builder()
         .overrideConfiguration(overrides -> overrides
             .addMetricPublisher(metrics)
-            .apiCallAttemptTimeout(Duration.ofSeconds(config.callTimeoutSeconds)))
+            .apiCallAttemptTimeout(config.callTimeout))
         .build();
 
-    String inQueueUrl = resolveQueueUrl(sqsClient, config.inQueueName);
-    String outQueueUrl = resolveQueueUrl(sqsClient, config.outQueueName);
-    String retryQueueUrl = resolveQueueUrl(sqsClient, config.retryQueueName);
-    String errorQueueUrl = resolveQueueUrl(sqsClient, config.errorQueueName);
-
-    Resources resources = Resources.builder()
-        .metrics(metrics)
-        .inQueue(new StageEnvelopeQueue<>(sqsClient, inQueueUrl, retryQueueUrl, errorQueueUrl, InvestigateRequest.class,
-            NOOP_LOGGER))
-        .outQueue(new StageEnvelopeQueue<>(sqsClient, outQueueUrl, null, null, AnnotateRequest.class, NOOP_LOGGER))
-        .investigateStore(new InvestigateDocumentStore(dynamoClient, config.investigateStoreName, NOOP_LOGGER))
-        .contextStore(new ContextDocumentStore(dynamoClient, config.contextStoreName, NOOP_LOGGER))
-        .attemptEventStore(new AttemptEventStore(dynamoClient, config.attemptEventStoreName, NOOP_LOGGER))
-        .executionStore(new StageExecutionRecordStore(dynamoClient, config.executionStoreName, NOOP_LOGGER))
-        .build();
-    return resources;
-  }
-
-  @Override
-  protected void emit(@NonNull StageEnvelope<AnnotateRequest> envelope) {
-    resources.outQueue.send(envelope);
-  }
-
-  @Override
-  protected InvestigateRequest buildRequest(InvestigateRequest request, RequestHeader nextHeader) {
-    return new InvestigateRequest(nextHeader, request.target());
+    return new Resources(
+        metrics,
+        sqsClient,
+        dynamoClient,
+        resolveQueueUrl(sqsClient, config.inQueueName),
+        resolveQueueUrl(sqsClient, config.outQueueName),
+        resolveQueueUrl(sqsClient, config.retryQueueName),
+        resolveQueueUrl(sqsClient, config.errorQueueName));
   }
 
   private static String resolveQueueUrl(SqsClient sqsClient, String queueName) {
-    String queueUrl = sqsClient.getQueueUrl(
+    return sqsClient.getQueueUrl(
         GetQueueUrlRequest.builder()
             .queueName(queueName)
             .build())
         .queueUrl();
-    return queueUrl;
+  }
+
+  private static PolicyPipeline<SearchContext, SearchState> policyPipeline(Configuration config) {
+    if (config.policyPipeline != null) {
+      return config.policyPipeline;
+    }
+    return new PolicyPipeline<>(List.of(
+        new SchemaPolicy<InvestigateDocument, SearchContext, SearchState>(InvestigateDocument.schemaVersion),
+        new AttemptsPolicy<InvestigateDocument, SearchContext, SearchState>(config.maxAttempts),
+        new ExpirationPolicy<InvestigateDocument, SearchContext, SearchState>(config.expirationDays),
+        new RecentClassificationReusePolicy(),
+        new ClassificationPolicy(),
+        new SearchOutcomePolicy(config.classificationConfiguration)));
   }
 }

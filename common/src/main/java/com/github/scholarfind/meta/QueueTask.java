@@ -14,7 +14,9 @@ import com.github.scholarfind.api.queue.RetryableQueue;
 import com.github.scholarfind.meta.result.CollectionResult;
 import com.github.scholarfind.meta.result.OperationResult;
 import com.github.scholarfind.meta.result.PostResult;
+import com.github.scholarfind.meta.transitory.Directive;
 import com.github.scholarfind.utility.Envelope;
+import com.github.scholarfind.utility.Factory;
 
 import lombok.AccessLevel;
 import lombok.NonNull;
@@ -38,14 +40,15 @@ public abstract class QueueTask<Consumes, Produces> extends ParallelTask<Envelop
   /**
    * Creates a new queue Task
    * 
-   * @param executor   Service to execute parallel jobs with
-   * @param taskConfig Config to associate with this task
-   * @param queue      Queue to pull elements from
+   * @param executor     Service to execute parallel jobs with
+   * @param queueFactory Factory that creates the queue using this task's logger
+   * @param taskConfig   Config to associate with this task
    */
-  protected QueueTask(@NonNull ExecutorService executor, @NonNull RetryableQueue<Consumes> queue,
+  protected QueueTask(@NonNull ExecutorService executor,
+      @NonNull Factory<RetryableQueue<Consumes>, QueueTask<Consumes, Produces>> queueFactory,
       @NonNull Configuration taskConfig) {
     super(executor, taskConfig);
-    _queue = queue;
+    _queue = queueFactory.create(this);
   }
 
   @Override
@@ -132,11 +135,11 @@ public abstract class QueueTask<Consumes, Produces> extends ParallelTask<Envelop
    * @param output Output of the {@link #operate(Envelope) operation} stage
    * @return Decision on action to take for this element within the queue
    */
-  protected abstract QueueDirective elementDirective(@NonNull Produces output);
+  protected abstract Directive elementDirective(@NonNull Produces output);
 
   /**
    * Handle the completion path for an element whose directive resolved to
-   * {@link QueueDirective#COMPLETE}.
+   * {@link Directive#COMPLETE}.
    * 
    * @param output Output of the {@link #operate(Envelope) operation} stage
    * @throws Exception When an exception has occurred during completion processing
@@ -146,7 +149,7 @@ public abstract class QueueTask<Consumes, Produces> extends ParallelTask<Envelop
 
   /**
    * Handle the retry path for an element whose directive resolved to
-   * {@link QueueDirective#RETRY}. Implementations should explicitly publish the
+   * {@link Directive#RETRY}. Implementations should explicitly publish the
    * next retry message here when needed.
    * 
    * @param output Output of the {@link #operate(Envelope) operation} stage
@@ -157,7 +160,7 @@ public abstract class QueueTask<Consumes, Produces> extends ParallelTask<Envelop
 
   /**
    * Handle the terminal error path for an element whose directive resolved to
-   * {@link QueueDirective#ERROR}. Implementations should explicitly publish any
+   * {@link Directive#ERROR}. Implementations should explicitly publish any
    * dead-letter or quarantine message here when needed.
    * 
    * @param output Output of the {@link #operate(Envelope) operation} stage
