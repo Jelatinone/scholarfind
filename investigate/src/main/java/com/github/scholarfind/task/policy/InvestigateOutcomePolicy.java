@@ -12,18 +12,18 @@ import com.github.scholarfind.policy.PolicyDecision;
 import com.github.scholarfind.policy.Policy;
 import com.github.scholarfind.policy.PolicyReason;
 import com.github.scholarfind.policy.PolicyStep;
-import com.github.scholarfind.task.SearchContext;
-import com.github.scholarfind.task.SearchState;
+import com.github.scholarfind.task.InvestigateContext;
+import com.github.scholarfind.task.InvestigateState;
 
-public final class SearchOutcomePolicy implements Policy<SearchContext, SearchState> {
+public final class InvestigateOutcomePolicy implements Policy<InvestigateContext, InvestigateState> {
   private final ClassificationConfiguration configuration;
 
-  public SearchOutcomePolicy(ClassificationConfiguration configuration) {
+  public InvestigateOutcomePolicy(ClassificationConfiguration configuration) {
     this.configuration = configuration;
   }
 
   @Override
-  public PolicyStep<SearchState> apply(SearchContext context, SearchState state) {
+  public PolicyStep<InvestigateState> apply(InvestigateContext context, InvestigateState state) {
     Classification classification = state.classification();
     Map<ClassificationType, Double> contributions = classification == null ? Map.of() : classification.contributions();
     if (contributions.isEmpty()) {

@@ -38,7 +38,7 @@ import com.github.scholarfind.task.evidence.EvidenceIdentifierConfiguration;
 import com.github.scholarfind.task.policy.ClassificationConfiguration;
 import com.github.scholarfind.task.policy.ClassificationPolicy;
 import com.github.scholarfind.task.policy.RecentClassificationReusePolicy;
-import com.github.scholarfind.task.policy.SearchOutcomePolicy;
+import com.github.scholarfind.task.policy.InvestigateOutcomePolicy;
 import com.github.scholarfind.task.score.DominanceConfiguration;
 import com.github.scholarfind.task.score.ScoreRuleConfiguration;
 import com.github.scholarfind.task.signal.SignalCost;
@@ -58,8 +58,9 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class SearchTask
-    extends PipelineTask<InvestigateRequest, AnnotateRequest, SearchContext, SearchState, InvestigateDocument> {
+public final class InvestigateTask
+    extends
+    PipelineTask<InvestigateRequest, AnnotateRequest, InvestigateContext, InvestigateState, InvestigateDocument> {
 
   @Builder
   @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -114,39 +115,42 @@ public final class SearchTask
         new DominanceConfiguration(0D, 0D),
         30);
 
-    PolicyPipeline<SearchContext, SearchState> policyPipeline;
+    PolicyPipeline<InvestigateContext, InvestigateState> policyPipeline;
   }
 
-  Configuration _searchConfig;
+  Configuration _investigateConfig;
   Resources _resources;
 
   InvestigateDocumentStore _investigateStore;
   ContextDocumentStore _contextStore;
 
-  public SearchTask(
+  public InvestigateTask(
       final @NonNull Task.Configuration taskConfig,
-      final @NonNull SearchTask.Configuration searchConfig,
+      final @NonNull InvestigateTask.Configuration investigateConfig,
       final @NonNull ExecutorService executor) {
-    this(taskConfig, searchConfig, executor, buildResources(searchConfig));
+    this(taskConfig, investigateConfig, executor, buildResources(investigateConfig));
   }
 
-  private SearchTask(
+  private InvestigateTask(
       final @NonNull Task.Configuration taskConfig,
-      final @NonNull SearchTask.Configuration searchConfig,
+      final @NonNull InvestigateTask.Configuration investigateConfig,
       final @NonNull ExecutorService executor,
       final @NonNull Resources resources) {
     super(
         executor,
         taskConfig,
         PipelineTask.Configuration
-            .<InvestigateRequest, AnnotateRequest, SearchContext, SearchState, InvestigateDocument>builder()
+            .<InvestigateRequest, AnnotateRequest, InvestigateContext, InvestigateState, InvestigateDocument>builder()
             .policyPipeline(new PolicyPipeline<>(List.of(
-                new SchemaPolicy<InvestigateDocument, SearchContext, SearchState>(InvestigateDocument.schemaVersion),
-                new AttemptsPolicy<InvestigateDocument, SearchContext, SearchState>(searchConfig.maxAttempts),
-                new ExpirationPolicy<InvestigateDocument, SearchContext, SearchState>(searchConfig.expirationDays),
+                new SchemaPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(
+                    InvestigateDocument.schemaVersion),
+                new AttemptsPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(
+                    investigateConfig.maxAttempts),
+                new ExpirationPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(
+                    investigateConfig.expirationDays),
                 new RecentClassificationReusePolicy(),
                 new ClassificationPolicy(),
-                new SearchOutcomePolicy(searchConfig.classificationConfiguration))))
+                new InvestigateOutcomePolicy(investigateConfig.classificationConfiguration))))
             .inQueueFactory(runtime -> {
               var inQueue = new StageEnvelopeQueue<>(
                   resources.sqsClient,
@@ -172,7 +176,7 @@ public final class SearchTask
             .eventStoreFactory(runtime -> {
               var eventStore = new AttemptEventStore(
                   resources.dynamoClient,
-                  searchConfig.attemptEventStoreName,
+                  investigateConfig.attemptEventStoreName,
                   runtime::useMessage);
               runtime.useMessage("Resolved resource : attempt event store", Level.INFO);
               return eventStore;
@@ -180,24 +184,24 @@ public final class SearchTask
             .executionStoreFactory(runtime -> {
               var executionStore = new StageExecutionRecordStore(
                   resources.dynamoClient,
-                  searchConfig.executionStoreName,
+                  investigateConfig.executionStoreName,
                   runtime::useMessage);
               runtime.useMessage("Resolved resource : execution store", Level.INFO);
               return executionStore;
             })
-            .retryDuration(searchConfig.retryTimeout)
-            .transitionHistory(searchConfig.transitionHistory)
+            .retryDuration(investigateConfig.retryTimeout)
+            .transitionHistory(investigateConfig.transitionHistory)
             .processingStage(ProcessingStage.INVESTIGATE)
             .build());
-    _searchConfig = searchConfig;
+    _investigateConfig = investigateConfig;
     _resources = resources;
     _investigateStore = new InvestigateDocumentStore(
         resources.dynamoClient,
-        searchConfig.investigateStoreName,
+        investigateConfig.investigateStoreName,
         this::useMessage);
     _contextStore = new ContextDocumentStore(
         resources.dynamoClient,
-        searchConfig.contextStoreName,
+        investigateConfig.contextStoreName,
         this::useMessage);
   }
 
@@ -208,12 +212,13 @@ public final class SearchTask
       _resources.sqsClient.close();
       _resources.dynamoClient.close();
     } catch (Exception exception) {
-      throw new IOException("Failed to close SearchTask resources", exception);
+      throw new IOException("Failed to close InvestigateTask resources", exception);
     }
   }
 
   @Override
-  protected SearchContext buildContext(@NonNull StageEnvelope<InvestigateRequest> input, @NonNull Instant startedAt) {
+  protected InvestigateContext buildContext(@NonNull StageEnvelope<InvestigateRequest> input,
+      @NonNull Instant startedAt) {
     InvestigateRequest request = input.payload();
     InvestigateDocument currentDocument = InvestigateDocument.builder()
         .documentHeader(new DocumentHeader(
@@ -227,7 +232,7 @@ public final class SearchTask
         .trace(new TraceReference(
             request.target().normalizedUrl(),
             null,
-            SearchTask.class.getSimpleName(),
+            InvestigateTask.class.getSimpleName(),
             request.target().depth()))
         .reviewedAt(startedAt)
         .classification(new Classification(Map.of()))
@@ -238,24 +243,24 @@ public final class SearchTask
     InvestigateDocument retrievedInvestigate = _investigateStore.get(request.target().targetId());
     ContextDocument retrievedContext = _contextStore.get(request.target().targetId());
 
-    return new SearchContext(
+    return new InvestigateContext(
         currentDocument,
-        _searchConfig.classificationConfiguration,
+        _investigateConfig.classificationConfiguration,
         startedAt,
         retrievedInvestigate,
         retrievedContext);
   }
 
   @Override
-  protected SearchState buildState(@NonNull SearchContext context) {
-    return SearchState.initial(context.reviewedAt());
+  protected InvestigateState buildState(@NonNull InvestigateContext context) {
+    return InvestigateState.initial(context.reviewedAt());
   }
 
   @Override
   protected InvestigateDocument buildDocument(
       @NonNull StageEnvelope<InvestigateRequest> input,
-      @NonNull SearchContext context,
-      @NonNull PolicyDecision<SearchState> decision,
+      @NonNull InvestigateContext context,
+      @NonNull PolicyDecision<InvestigateState> decision,
       @NonNull Instant occurredAt) {
     return new InvestigateDocument(
         context.document().documentHeader(),
@@ -283,8 +288,8 @@ public final class SearchTask
   protected StageEnvelope<AnnotateRequest> buildEnvelope(
       @NonNull EmissionIntent<? extends AnnotateRequest> emission,
       @NonNull StageEnvelope<InvestigateRequest> input,
-      @NonNull SearchContext context,
-      @NonNull PolicyDecision<SearchState> decision,
+      @NonNull InvestigateContext context,
+      @NonNull PolicyDecision<InvestigateState> decision,
       @NonNull InvestigateDocument document) {
     return StageEnvelope.of(
         ProcessingStage.ANNOTATE,

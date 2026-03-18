@@ -3,5 +3,8 @@ rootProject.name = "scholarfind"
 include(
     'common',
     'infra',
-    'search'
+
+    'ingest',
+    'investigate',
+
     )

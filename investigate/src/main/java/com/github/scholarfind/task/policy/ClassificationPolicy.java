@@ -9,8 +9,8 @@ import com.github.scholarfind.models.investigate.Classification;
 import com.github.scholarfind.models.investigate.ClassificationType;
 import com.github.scholarfind.policy.Policy;
 import com.github.scholarfind.policy.PolicyStep;
-import com.github.scholarfind.task.SearchContext;
-import com.github.scholarfind.task.SearchState;
+import com.github.scholarfind.task.InvestigateContext;
+import com.github.scholarfind.task.InvestigateState;
 import com.github.scholarfind.task.evidence.EvidenceRule;
 import com.github.scholarfind.task.signal.SignalCost;
 import com.github.scholarfind.task.signal.SignalExtractionResult;
@@ -18,10 +18,10 @@ import com.github.scholarfind.task.signal.SignalExtractor;
 import com.github.scholarfind.task.signal.SignalValue;
 import com.github.scholarfind.utility.Mutable;
 
-public final class ClassificationPolicy implements Policy<SearchContext, SearchState> {
+public final class ClassificationPolicy implements Policy<InvestigateContext, InvestigateState> {
 
   @Override
-  public PolicyStep<SearchState> apply(SearchContext context, SearchState state) {
+  public PolicyStep<InvestigateState> apply(InvestigateContext context, InvestigateState state) {
     if (state.classificationResolved()) {
       return new PolicyStep.Continue<>(state);
     }

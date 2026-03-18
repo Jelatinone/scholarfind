@@ -5,7 +5,7 @@ import java.util.Map;
 
 import com.github.scholarfind.models.investigate.Classification;
 
-public record SearchState(
+public record InvestigateState(
     Instant reviewedAt,
     Classification classification,
     double confidence,
@@ -13,12 +13,12 @@ public record SearchState(
     boolean classificationResolved,
     boolean reusedRecentClassification) {
 
-  public static SearchState initial(Instant reviewedAt) {
-    return new SearchState(reviewedAt, new Classification(Map.of()), 0D, 0, false, false);
+  public static InvestigateState initial(Instant reviewedAt) {
+    return new InvestigateState(reviewedAt, new Classification(Map.of()), 0D, 0, false, false);
   }
 
-  public SearchState withClassification(Classification nextClassification, double nextConfidence, boolean reused) {
-    return new SearchState(
+  public InvestigateState withClassification(Classification nextClassification, double nextConfidence, boolean reused) {
+    return new InvestigateState(
         reviewedAt,
         nextClassification,
         nextConfidence,
@@ -27,8 +27,8 @@ public record SearchState(
         reused);
   }
 
-  public SearchState withDiscoveredTargetCount(int nextDiscoveredTargetCount) {
-    return new SearchState(
+  public InvestigateState withDiscoveredTargetCount(int nextDiscoveredTargetCount) {
+    return new InvestigateState(
         reviewedAt,
         classification,
         confidence,

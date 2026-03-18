@@ -7,7 +7,7 @@ import com.github.scholarfind.models.shared.ContextDocument;
 import com.github.scholarfind.policy.PolicyContext;
 import com.github.scholarfind.task.policy.ClassificationConfiguration;
 
-public record SearchContext(
+public record InvestigateContext(
     InvestigateDocument document,
 
     ClassificationConfiguration classificationConfiguration,

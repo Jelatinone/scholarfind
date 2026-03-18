@@ -4,13 +4,13 @@ import com.github.scholarfind.models.investigate.Classification;
 import com.github.scholarfind.models.investigate.InvestigateDocument;
 import com.github.scholarfind.policy.Policy;
 import com.github.scholarfind.policy.PolicyStep;
-import com.github.scholarfind.task.SearchContext;
-import com.github.scholarfind.task.SearchState;
+import com.github.scholarfind.task.InvestigateContext;
+import com.github.scholarfind.task.InvestigateState;
 
-public final class RecentClassificationReusePolicy implements Policy<SearchContext, SearchState> {
+public final class RecentClassificationReusePolicy implements Policy<InvestigateContext, InvestigateState> {
 
   @Override
-  public PolicyStep<SearchState> apply(SearchContext context, SearchState state) {
+  public PolicyStep<InvestigateState> apply(InvestigateContext context, InvestigateState state) {
     InvestigateDocument retrieved = context.retrievedInvestigate();
     if (retrieved == null || retrieved.classification() == null || retrieved.reviewedAt() == null) {
       return new PolicyStep.Continue<>(state);
@@ -34,7 +34,7 @@ public final class RecentClassificationReusePolicy implements Policy<SearchConte
       return new PolicyStep.Continue<>(state);
     }
 
-    SearchState nextState = state
+    InvestigateState nextState = state
         .withClassification(classification, confidence, true)
         .withDiscoveredTargetCount(retrieved.discoveredTargetCount());
     return new PolicyStep.Continue<>(nextState);
