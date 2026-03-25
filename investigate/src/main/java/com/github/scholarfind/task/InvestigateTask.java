@@ -1,6 +1,5 @@
 package com.github.scholarfind.task;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -9,13 +8,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 
-import org.slf4j.event.Level;
-
-import com.github.scholarfind.infra.queue.StageEnvelopeQueue;
-import com.github.scholarfind.infra.repository.AttemptEventStore;
-import com.github.scholarfind.infra.repository.ContextDocumentStore;
-import com.github.scholarfind.infra.repository.InvestigateDocumentStore;
-import com.github.scholarfind.infra.repository.StageExecutionRecordStore;
 import com.github.scholarfind.meta.PipelineTask;
 import com.github.scholarfind.meta.Task;
 import com.github.scholarfind.models.annotate.AnnotateRequest;
@@ -37,8 +29,8 @@ import com.github.scholarfind.policy.SchemaPolicy;
 import com.github.scholarfind.task.evidence.EvidenceIdentifierConfiguration;
 import com.github.scholarfind.task.policy.ClassificationConfiguration;
 import com.github.scholarfind.task.policy.ClassificationPolicy;
-import com.github.scholarfind.task.policy.RecentClassificationReusePolicy;
 import com.github.scholarfind.task.policy.InvestigateOutcomePolicy;
+import com.github.scholarfind.task.policy.RecentClassificationReusePolicy;
 import com.github.scholarfind.task.score.DominanceConfiguration;
 import com.github.scholarfind.task.score.ScoreRuleConfiguration;
 import com.github.scholarfind.task.signal.SignalCost;
@@ -49,51 +41,19 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
-import software.amazon.awssdk.core.metrics.CoreMetric;
-import software.amazon.awssdk.metrics.MetricPublisher;
-import software.amazon.awssdk.metrics.publishers.cloudwatch.CloudWatchMetricPublisher;
-import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.sqs.SqsClient;
-import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class InvestigateTask
-    extends
-    PipelineTask<InvestigateRequest, AnnotateRequest, InvestigateContext, InvestigateState, InvestigateDocument> {
-
-  @Builder
-  @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-  private static final class Resources {
-    MetricPublisher metrics;
-
-    SqsClient sqsClient;
-    DynamoDbClient dynamoClient;
-
-    String inQueueUrl;
-    String outQueueUrl;
-    String retryQueueUrl;
-    String errorQueueUrl;
-  }
+public final class InvestigateTask extends PipelineTask<
+    InvestigateRequest,
+    AnnotateRequest,
+    InvestigateContext,
+    InvestigateState,
+    InvestigateDocument,
+    InvestigateInfrastructure> {
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration {
-    @Builder.Default
-    String inQueueName = "queue_investigate",
-        outQueueName = "queue_annotate",
-        retryQueueName = "queue_investigate_retry",
-        errorQueueName = "queue_investigate_error";
-
-    @Builder.Default
-    String investigateStoreName = "store_investigate",
-        contextStoreName = "store_context",
-        attemptEventStoreName = "store_attempt_event",
-        executionStoreName = "store_stage_execution";
-
-    @Builder.Default
-    Duration callTimeout = Duration.ofSeconds(30);
-
     @Builder.Default
     Duration retryTimeout = Duration.ofMinutes(5);
 
@@ -119,105 +79,29 @@ public final class InvestigateTask
   }
 
   Configuration _investigateConfig;
-  Resources _resources;
-
-  InvestigateDocumentStore _investigateStore;
-  ContextDocumentStore _contextStore;
 
   public InvestigateTask(
       final @NonNull Task.Configuration taskConfig,
-      final @NonNull InvestigateTask.Configuration investigateConfig,
+      final @NonNull Configuration investigateConfig,
+      final @NonNull InvestigateInfrastructure infrastructure,
       final @NonNull ExecutorService executor) {
-    this(taskConfig, investigateConfig, executor, buildResources(investigateConfig));
-  }
-
-  private InvestigateTask(
-      final @NonNull Task.Configuration taskConfig,
-      final @NonNull InvestigateTask.Configuration investigateConfig,
-      final @NonNull ExecutorService executor,
-      final @NonNull Resources resources) {
     super(
         executor,
         taskConfig,
         PipelineTask.Configuration
-            .<InvestigateRequest, AnnotateRequest, InvestigateContext, InvestigateState, InvestigateDocument>builder()
-            .policyPipeline(new PolicyPipeline<>(List.of(
-                new SchemaPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(
-                    InvestigateDocument.schemaVersion),
-                new AttemptsPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(
-                    investigateConfig.maxAttempts),
-                new ExpirationPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(
-                    investigateConfig.expirationDays),
-                new RecentClassificationReusePolicy(),
-                new ClassificationPolicy(),
-                new InvestigateOutcomePolicy(investigateConfig.classificationConfiguration))))
-            .inQueueFactory(runtime -> {
-              var inQueue = new StageEnvelopeQueue<>(
-                  resources.sqsClient,
-                  resources.inQueueUrl,
-                  resources.retryQueueUrl,
-                  resources.errorQueueUrl,
-                  InvestigateRequest.class,
-                  runtime::useMessage);
-              runtime.useMessage("Resolved resource : ingestion queue", Level.INFO);
-              return inQueue;
-            })
-            .outQueueFactory(runtime -> {
-              var outQueue = new StageEnvelopeQueue<>(
-                  resources.sqsClient,
-                  resources.outQueueUrl,
-                  null,
-                  null,
-                  AnnotateRequest.class,
-                  runtime::useMessage);
-              runtime.useMessage("Resolved resource : emmission queue", Level.INFO);
-              return outQueue;
-            })
-            .eventStoreFactory(runtime -> {
-              var eventStore = new AttemptEventStore(
-                  resources.dynamoClient,
-                  investigateConfig.attemptEventStoreName,
-                  runtime::useMessage);
-              runtime.useMessage("Resolved resource : attempt event store", Level.INFO);
-              return eventStore;
-            })
-            .executionStoreFactory(runtime -> {
-              var executionStore = new StageExecutionRecordStore(
-                  resources.dynamoClient,
-                  investigateConfig.executionStoreName,
-                  runtime::useMessage);
-              runtime.useMessage("Resolved resource : execution store", Level.INFO);
-              return executionStore;
-            })
+            .<InvestigateRequest, AnnotateRequest, InvestigateContext, InvestigateState, InvestigateDocument, InvestigateInfrastructure>builder()
+            .policyPipeline(policyPipeline(investigateConfig))
+            .infrastructure(infrastructure)
             .retryDuration(investigateConfig.retryTimeout)
             .transitionHistory(investigateConfig.transitionHistory)
             .processingStage(ProcessingStage.INVESTIGATE)
             .build());
     _investigateConfig = investigateConfig;
-    _resources = resources;
-    _investigateStore = new InvestigateDocumentStore(
-        resources.dynamoClient,
-        investigateConfig.investigateStoreName,
-        this::useMessage);
-    _contextStore = new ContextDocumentStore(
-        resources.dynamoClient,
-        investigateConfig.contextStoreName,
-        this::useMessage);
   }
 
   @Override
-  public void close() throws IOException {
-    try {
-      _resources.metrics.close();
-      _resources.sqsClient.close();
-      _resources.dynamoClient.close();
-    } catch (Exception exception) {
-      throw new IOException("Failed to close InvestigateTask resources", exception);
-    }
-  }
-
-  @Override
-  protected InvestigateContext buildContext(@NonNull StageEnvelope<InvestigateRequest> input,
+  protected InvestigateContext buildContext(
+      @NonNull StageEnvelope<InvestigateRequest> input,
       @NonNull Instant startedAt) {
     InvestigateRequest request = input.payload();
     InvestigateDocument currentDocument = InvestigateDocument.builder()
@@ -240,8 +124,8 @@ public final class InvestigateTask
         .discoveredTargetCount(0)
         .build();
 
-    InvestigateDocument retrievedInvestigate = _investigateStore.get(request.target().targetId());
-    ContextDocument retrievedContext = _contextStore.get(request.target().targetId());
+    InvestigateDocument retrievedInvestigate = _infrastructure.investigateStore().get(request.target().targetId());
+    ContextDocument retrievedContext = _infrastructure.contextStore().get(request.target().targetId());
 
     return new InvestigateContext(
         currentDocument,
@@ -281,7 +165,7 @@ public final class InvestigateTask
 
   @Override
   protected void persistDocument(@NonNull InvestigateDocument document) {
-    _investigateStore.put(document);
+    _infrastructure.investigateStore().put(document);
   }
 
   @Override
@@ -302,42 +186,16 @@ public final class InvestigateTask
     return new InvestigateRequest(nextHeader, request.target());
   }
 
-  private static Resources buildResources(final Configuration config) {
-    MetricPublisher metrics = CloudWatchMetricPublisher.builder()
-        .cloudWatchClient(CloudWatchAsyncClient.create())
-        .detailedMetrics(CoreMetric.API_CALL_DURATION, CoreMetric.API_CALL_SUCCESSFUL)
-        .build();
-
-    SqsClient sqsClient = SqsClient.builder()
-        .overrideConfiguration(overrides -> overrides
-            .addMetricPublisher(metrics)
-            .apiCallAttemptTimeout(config.callTimeout))
-        .build();
-
-    DynamoDbClient dynamoClient = DynamoDbClient.builder()
-        .overrideConfiguration(overrides -> overrides
-            .addMetricPublisher(metrics)
-            .apiCallAttemptTimeout(config.callTimeout))
-        .build();
-
-    Resources resources = Resources.builder()
-        .metrics(metrics)
-        .sqsClient(sqsClient)
-        .dynamoClient(dynamoClient)
-        .inQueueUrl(resolveQueueUrl(sqsClient, config.inQueueName))
-        .outQueueUrl(resolveQueueUrl(sqsClient, config.outQueueName))
-        .retryQueueUrl(resolveQueueUrl(sqsClient, config.retryQueueName))
-        .errorQueueUrl(resolveQueueUrl(sqsClient, config.errorQueueName))
-        .build();
-
-    return resources;
-  }
-
-  private static String resolveQueueUrl(final @NonNull SqsClient sqsClient, final @NonNull String canonicalName) {
-    return sqsClient.getQueueUrl(
-        GetQueueUrlRequest.builder()
-            .queueName(canonicalName)
-            .build())
-        .queueUrl();
+  private static PolicyPipeline<InvestigateContext, InvestigateState> policyPipeline(@NonNull Configuration config) {
+    if (config.policyPipeline != null) {
+      return config.policyPipeline;
+    }
+    return new PolicyPipeline<>(List.of(
+        new SchemaPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(InvestigateDocument.schemaVersion),
+        new AttemptsPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(config.maxAttempts),
+        new ExpirationPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(config.expirationDays),
+        new RecentClassificationReusePolicy(),
+        new ClassificationPolicy(),
+        new InvestigateOutcomePolicy(config.classificationConfiguration)));
   }
 }

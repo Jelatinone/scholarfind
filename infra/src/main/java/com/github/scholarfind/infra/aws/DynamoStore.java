@@ -1,8 +1,7 @@
 package com.github.scholarfind.infra.aws;
 
-import java.util.function.BiConsumer;
-
-import org.slf4j.event.Level;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.github.scholarfind.api.store.Store;
 import com.github.scholarfind.infra.aws.serial.DynamoSerializer;
@@ -22,7 +21,8 @@ public class DynamoStore<T, K> implements Store<T, K> {
   DynamoDbClient client;
   String table;
   DynamoSerializer<T, K> serializer;
-  BiConsumer<String, Level> logger;
+
+  static Logger _logger = LoggerFactory.getLogger(DynamoStore.class);
 
   @Override
   public void put(T body) {
@@ -32,7 +32,7 @@ public class DynamoStore<T, K> implements Store<T, K> {
           .tableName(table)
           .item(item)
           .build());
-      log("Put item", response.sdkHttpResponse());
+      logResponse("Put item", response.sdkHttpResponse());
     } catch (Exception exception) {
       throw new IllegalStateException("Failed to encode store item", exception);
     }
@@ -45,7 +45,7 @@ public class DynamoStore<T, K> implements Store<T, K> {
           .tableName(table)
           .key(serializer.key(key))
           .build());
-      log("Get item", response.sdkHttpResponse());
+      logResponse("Get item", response.sdkHttpResponse());
       return serializer.decode(response.item());
     } catch (Exception exception) {
       throw new IllegalStateException("Failed to decode store item", exception);
@@ -58,17 +58,19 @@ public class DynamoStore<T, K> implements Store<T, K> {
         .tableName(table)
         .key(serializer.key(key))
         .build());
-    log("Delete item", response.sdkHttpResponse());
+    logResponse("Delete item", response.sdkHttpResponse());
   }
 
-  private void log(String action, SdkHttpResponse response) {
+  private void logResponse(String action, SdkHttpResponse response) {
     if (response == null) {
       return;
     }
-    Level level = response.isSuccessful() ? Level.INFO : Level.ERROR;
-    logger.accept(
-        String.format("%s completed : [%d] %s", action, response.statusCode(), response.statusText()),
-        level);
+    String message = String.format("%s completed : [%d] %s", action, response.statusCode(), response.statusText());
+    if (response.isSuccessful()) {
+      _logger.info(message);
+      return;
+    }
+    _logger.error(message);
   }
 
   @Override

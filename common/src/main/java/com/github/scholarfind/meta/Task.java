@@ -54,7 +54,8 @@ import lombok.experimental.NonFinal;
  * @author Cody Washington
  */
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
-public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implements Runnable, AutoCloseable
+public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
+    implements Runnable, AutoCloseable
     permits ParallelTask, SequentialTask {
 
   /**
@@ -70,28 +71,12 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    */
   public static interface Abstract {
 
-    /**
-     * Returns the base configuration associated with the owning task.
-     * 
-     * @return Task configuration
-     */
     Task.Configuration taskConfiguration();
 
-    /**
-     * Publish a message through the owning task logger.
-     * 
-     * @param message   Log message
-     * @param level     Log level
-     * @param arguments Optional log arguments
-     */
-    void useMessage(String message, Level level, Object... arguments);
-
-    /**
-     * Add a listener device through the owning task listeners
-     * 
-     * @param listener Log update listeners
-     */
     void useListener(final @NonNull Runnable listener);
+
+    void useMessage(final @NonNull String message, final @NonNull Level level, final @NonNull Object... arguments);
+
   }
 
   @Builder
@@ -294,7 +279,8 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
    * 
    * @param message   Descriptive message of current operation of this Task
    * @param level     Level of logging to attribute to this message
-   * @param arguments Additional arguments to include in this log
+   * @param arguments Additional arguments to include in this log, such as
+   *                  exceptions
    */
   public synchronized void useMessage(final @NonNull String message, final @NonNull Level level,
       final @NonNull Object... arguments) {
@@ -304,9 +290,14 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces> implemen
   }
 
   /**
-   * Modifies (safely) the current state of this instance.
    * 
-   * @param state New state of task
+   * Safely modifies the internal runtime state of this instance
+   * 
+   * @param State next state of this task instance
+   * 
+   * @apiNote Unexpected modifications to state during {@link #run() runtime} can
+   *          cause unexpected side-affects
+   * 
    */
   protected synchronized void useState(final @NonNull State state) {
     final State currentState = _state.get();

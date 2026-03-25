@@ -16,7 +16,6 @@ import com.github.scholarfind.meta.result.OperationResult;
 import com.github.scholarfind.meta.result.PostResult;
 import com.github.scholarfind.meta.transitory.Directive;
 import com.github.scholarfind.utility.Envelope;
-import com.github.scholarfind.utility.Factory;
 
 import lombok.AccessLevel;
 import lombok.NonNull;
@@ -28,10 +27,9 @@ import lombok.experimental.FieldDefaults;
  *
  * <p>
  * Describes a {@link ParallelTask ParallelTask} whose consumed elements are
- * sourced from a {@link RetryableQueue retryable queue}. The queue is created
- * by a factory that receives a narrow {@link Abstract runtime view}, so
- * infrastructure resources can use task logging without depending on the full
- * task instance during construction.
+ * sourced from a {@link RetryableQueue retryable queue}. The concrete queue is
+ * injected directly, allowing the task to remain agnostic of how the transport
+ * layer was assembled.
  *
  * @author Cody Washington
  */
@@ -42,15 +40,17 @@ public abstract class QueueTask<Consumes, Produces> extends ParallelTask<Envelop
   /**
    * Creates a new queue Task
    * 
-   * @param executor     Service to execute parallel jobs with
-   * @param queueFactory Factory that creates the queue using the task runtime
-   * @param taskConfig   Config to associate with this task
+   * 
+   * @param queue      Queue to consume elements from
+   * @param executor   Service to execute parallel jobs with
+   * @param taskConfig Config to associate with this task
+   * 
    */
-  protected QueueTask(@NonNull ExecutorService executor,
-      @NonNull Factory<RetryableQueue<Consumes>, Abstract> queueFactory,
+  protected QueueTask(@NonNull RetryableQueue<Consumes> queue,
+      @NonNull ExecutorService executor,
       @NonNull Configuration taskConfig) {
     super(executor, taskConfig);
-    _inQueue = queueFactory.create(_taskAbstract);
+    _inQueue = queue;
   }
 
   @Override

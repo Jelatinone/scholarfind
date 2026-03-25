@@ -1,8 +1,6 @@
 package com.github.scholarfind.infra.queue;
 
-import java.util.function.BiConsumer;
 
-import org.slf4j.event.Level;
 
 import com.github.scholarfind.infra.aws.JacksonMapper;
 import com.github.scholarfind.infra.aws.SqsQueue;
@@ -18,15 +16,13 @@ public final class StageEnvelopeQueue<T extends Request> extends SqsQueue<StageE
       String inputUrl,
       String retryUrl,
       String errorUrl,
-      Class<T> payloadType,
-      BiConsumer<String, Level> logger) {
+      Class<T> payloadType) {
     super(
         client,
         inputUrl,
         retryUrl,
         errorUrl,
         new JacksonSqsSerializer<>(
-            JacksonMapper.mapper.getTypeFactory().constructParametricType(StageEnvelope.class, payloadType)),
-        logger);
+            JacksonMapper.mapper.getTypeFactory().constructParametricType(StageEnvelope.class, payloadType)));
   }
 }

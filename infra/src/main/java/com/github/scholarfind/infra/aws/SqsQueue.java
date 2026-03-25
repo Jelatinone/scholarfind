@@ -6,10 +6,10 @@ import static software.amazon.awssdk.services.sqs.model.QueueAttributeName.APPRO
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import org.slf4j.event.Level;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.github.scholarfind.api.queue.Acknowledgement;
 import com.github.scholarfind.api.queue.QueueResult;
@@ -39,7 +39,8 @@ public class SqsQueue<T> implements RetryableQueue<T> {
   String retryUrl;
   String errorUrl;
   SqsSerializer<T> serializer;
-  BiConsumer<String, Level> logger;
+
+  static Logger _logger = LoggerFactory.getLogger(SqsQueue.class);
 
   @Override
   public QueueResult<T> poll(int messageCount) {
@@ -49,7 +50,7 @@ public class SqsQueue<T> implements RetryableQueue<T> {
             .maxNumberOfMessages(messageCount)
             .messageAttributeNames(".*")
             .build());
-    log("Receive message", response.sdkHttpResponse());
+    logResponse("Receive message", response.sdkHttpResponse());
     List<ReceivedMessage<T>> messages = response.messages().stream()
         .map(this::wrap)
         .filter(java.util.Objects::nonNull)
@@ -86,7 +87,7 @@ public class SqsQueue<T> implements RetryableQueue<T> {
           .queueUrl(queueUrl)
           .messageBody(body)
           .messageAttributes(encodeAttributes(attributes)));
-      log("Send message", response.sdkHttpResponse());
+      logResponse("Send message", response.sdkHttpResponse());
     } catch (Exception exception) {
       throw new IllegalStateException("Failed to encode queue message", exception);
     }
@@ -119,7 +120,7 @@ public class SqsQueue<T> implements RetryableQueue<T> {
       };
       return new ReceivedMessage<>(decoded, acknowledgement);
     } catch (Exception exception) {
-      logger.accept(String.format("Decode queue message failed : %s", exception.getMessage()), Level.ERROR);
+      _logger.error(String.format("Decode queue message failed : %s", exception.getMessage()));
       delete(message.receiptHandle());
       return null;
     }
@@ -129,7 +130,7 @@ public class SqsQueue<T> implements RetryableQueue<T> {
     DeleteMessageResponse response = client.deleteMessage(builder -> builder
         .queueUrl(inputUrl)
         .receiptHandle(receiptHandle));
-    log("Delete message", response.sdkHttpResponse());
+    logResponse("Delete message", response.sdkHttpResponse());
   }
 
   private QueueState resolve() {
@@ -139,7 +140,7 @@ public class SqsQueue<T> implements RetryableQueue<T> {
             APPROXIMATE_NUMBER_OF_MESSAGES,
             APPROXIMATE_NUMBER_OF_MESSAGES_NOT_VISIBLE,
             APPROXIMATE_NUMBER_OF_MESSAGES_DELAYED));
-    log("Resolve queue state", response.sdkHttpResponse());
+    logResponse("Resolve queue state", response.sdkHttpResponse());
     boolean queueAlive = response.attributes().values().stream()
         .mapToInt(Integer::parseInt)
         .anyMatch(value -> value > 0);
@@ -158,14 +159,16 @@ public class SqsQueue<T> implements RetryableQueue<T> {
             entry -> MessageAttributeValue.builder().dataType("String").stringValue(entry.getValue()).build()));
   }
 
-  private void log(String action, SdkHttpResponse response) {
+  private void logResponse(String action, SdkHttpResponse response) {
     if (response == null) {
       return;
     }
-    Level level = response.isSuccessful() ? Level.INFO : Level.ERROR;
-    logger.accept(
-        String.format("%s completed : [%d] %s", action, response.statusCode(), response.statusText()),
-        level);
+    String message = String.format("%s completed : [%d] %s", action, response.statusCode(), response.statusText());
+    if (response.isSuccessful()) {
+      _logger.info(message);
+      return;
+    }
+    _logger.error(message);
   }
 
   @Override

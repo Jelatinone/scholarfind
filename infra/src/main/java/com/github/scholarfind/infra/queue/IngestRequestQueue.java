@@ -1,8 +1,6 @@
 package com.github.scholarfind.infra.queue;
 
-import java.util.function.BiConsumer;
 
-import org.slf4j.event.Level;
 
 import com.github.scholarfind.infra.aws.SqsQueue;
 import com.github.scholarfind.infra.aws.serial.JacksonSqsSerializer;
@@ -15,8 +13,7 @@ public final class IngestRequestQueue extends SqsQueue<IngestRequest> {
       SqsClient client,
       String inputUrl,
       String retryUrl,
-      String errorUrl,
-      BiConsumer<String, Level> logger) {
-    super(client, inputUrl, retryUrl, errorUrl, new JacksonSqsSerializer<>(IngestRequest.class), logger);
+      String errorUrl) {
+    super(client, inputUrl, retryUrl, errorUrl, new JacksonSqsSerializer<>(IngestRequest.class));
   }
 }

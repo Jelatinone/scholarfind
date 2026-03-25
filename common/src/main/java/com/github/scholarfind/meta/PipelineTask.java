@@ -1,5 +1,6 @@
 package com.github.scholarfind.meta;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -24,12 +25,11 @@ import com.github.scholarfind.policy.PolicyPipeline;
 import com.github.scholarfind.policy.PolicyReason;
 import com.github.scholarfind.policy.RetryDirective;
 import com.github.scholarfind.policy.StageOutcome;
-import com.github.scholarfind.utility.Factory;
 
 import lombok.AccessLevel;
 import lombok.Builder;
-import lombok.NonNull;
 import lombok.Builder.Default;
+import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 
 /**
@@ -40,31 +40,22 @@ import lombok.experimental.FieldDefaults;
  * pipeline over a queued {@link StageEnvelope stage envelope}. This class owns
  * the stable stage algorithm: build context, build state, execute policies,
  * materialize the resulting stage document, persist control and audit records,
- * and publish downstream emissions through a configured queue.
+ * and publish downstream emissions through injected infrastructure bindings.
  *
  * @author Cody Washington
  */
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
-public abstract class PipelineTask<In extends Request, Out extends Request, Context, State, Persist extends StageDocument<Persist>>
+public abstract class PipelineTask<In extends Request, Out extends Request, Context, State, Persist extends StageDocument<Persist>, Infra extends PipelineTask.Infrastructure<In, Out>>
     extends QueueTask<StageEnvelope<In>, PipelineResult<Persist, In, Out>> {
 
-  PipelineTask.Configuration<In, Out, Context, State, Persist> _pipelineConfig;
-
-  Store<AttemptEvent, String> _eventStore;
-  Store<StageExecution, String> _executionStore;
-
-  Queue<StageEnvelope<Out>> _outQueue;
+  PipelineTask.Configuration<In, Out, Context, State, Persist, Infra> _pipelineConfig;
+  Infra _infrastructure;
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
-  public static final class Configuration<In extends Request, Out extends Request, Context, State, Persist extends StageDocument<Persist>> {
+  public static final class Configuration<In extends Request, Out extends Request, Context, State, Persist extends StageDocument<Persist>, Infra extends Infrastructure<In, Out>> {
     PolicyPipeline<Context, State> policyPipeline;
-
-    Factory<RetryableQueue<StageEnvelope<In>>, Abstract> inQueueFactory;
-    Factory<Queue<StageEnvelope<Out>>, Abstract> outQueueFactory;
-
-    Factory<Store<AttemptEvent, String>, Abstract> eventStoreFactory;
-    Factory<Store<StageExecution, String>, Abstract> executionStoreFactory;
+    Infra infrastructure;
 
     @Default
     Duration retryDuration = Duration.ofSeconds(30);
@@ -75,24 +66,33 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
     ProcessingStage processingStage;
   }
 
+  public static interface Infrastructure<In extends Request, Out extends Request> extends AutoCloseable {
+
+    RetryableQueue<StageEnvelope<In>> inQueue();
+
+    Queue<StageEnvelope<Out>> outQueue();
+
+    Store<AttemptEvent, String> eventStore();
+
+    Store<StageExecution, String> executionStore();
+  }
+
   /**
    * Creates a new pipeline task.
    *
    * @param executor       Service to execute parallel jobs with
    * @param taskConfig     Base task configuration
    * @param pipelineConfig Stage-specific pipeline configuration including the
-   *                       input queue, policy pipeline, persistence stores, and
-   *                       downstream emission queue
+   *                       injected infrastructure, policy pipeline, and stage
+   *                       control options
    */
   protected PipelineTask(
       @NonNull ExecutorService executor,
       @NonNull Task.Configuration taskConfig,
-      @NonNull PipelineTask.Configuration<In, Out, Context, State, Persist> pipelineConfig) {
-    super(executor, pipelineConfig.inQueueFactory, taskConfig);
+      @NonNull PipelineTask.Configuration<In, Out, Context, State, Persist, Infra> pipelineConfig) {
+    super(pipelineConfig.infrastructure.inQueue(), executor, taskConfig);
     this._pipelineConfig = pipelineConfig;
-    this._eventStore = pipelineConfig.eventStoreFactory.create(_taskAbstract);
-    this._executionStore = pipelineConfig.executionStoreFactory.create(_taskAbstract);
-    this._outQueue = pipelineConfig.outQueueFactory.create(_taskAbstract);
+    this._infrastructure = pipelineConfig.infrastructure;
   }
 
   @SuppressWarnings("unchecked")
@@ -150,11 +150,11 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
     if (output.emissions().isEmpty()) {
       return;
     }
-    if (_outQueue == null) {
+    if (_infrastructure.outQueue() == null) {
       throw new IllegalStateException(
           String.format("No emission queue configured for stage %s", _pipelineConfig.processingStage));
     }
-    output.emissions().forEach(_outQueue::send);
+    output.emissions().forEach(_infrastructure.outQueue()::send);
   }
 
   @Override
@@ -281,7 +281,7 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
       StageEnvelope<In> input,
       PolicyDecision<?> decision,
       Instant occurredAt) {
-    StageExecution current = _executionStore
+    StageExecution current = _infrastructure.executionStore()
         .get(StageExecution.key(input.targetId(), _pipelineConfig.processingStage));
     if (current == null) {
       current = StageExecution.initial(input.targetId(), _pipelineConfig.processingStage, occurredAt);
@@ -294,7 +294,7 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
         nextAttemptAt,
         _pipelineConfig.transitionHistory,
         decision.outcome() == StageOutcome.RETRY);
-    _executionStore.put(updated);
+    _infrastructure.executionStore().put(updated);
   }
 
   /**
@@ -341,6 +341,15 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
         String.valueOf(input.payload().target().normalizedUrl()),
         input.payload().target().depth(),
         input.payload().requestHeader().idempotencyKey());
-    _eventStore.put(event);
+    _infrastructure.eventStore().put(event);
+  }
+
+  @Override
+  public void close() throws IOException {
+    try {
+      _infrastructure.close();
+    } catch (Exception exception) {
+      throw new IOException("Failed to close pipeline infrastructure", exception);
+    }
   }
 }
