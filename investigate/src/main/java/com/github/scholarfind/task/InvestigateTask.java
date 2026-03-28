@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 
@@ -26,16 +25,10 @@ import com.github.scholarfind.policy.ExpirationPolicy;
 import com.github.scholarfind.policy.PolicyDecision;
 import com.github.scholarfind.policy.PolicyPipeline;
 import com.github.scholarfind.policy.SchemaPolicy;
-import com.github.scholarfind.task.evidence.EvidenceIdentifierConfiguration;
 import com.github.scholarfind.task.policy.ClassificationConfiguration;
 import com.github.scholarfind.task.policy.ClassificationPolicy;
 import com.github.scholarfind.task.policy.InvestigateOutcomePolicy;
 import com.github.scholarfind.task.policy.RecentClassificationReusePolicy;
-import com.github.scholarfind.task.score.DominanceConfiguration;
-import com.github.scholarfind.task.score.ScoreRuleConfiguration;
-import com.github.scholarfind.task.signal.SignalCost;
-import com.github.scholarfind.task.signal.SignalCostConfiguration;
-import com.github.scholarfind.task.signal.SignalExtractorConfiguration;
 
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -43,13 +36,8 @@ import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class InvestigateTask extends PipelineTask<
-    InvestigateRequest,
-    AnnotateRequest,
-    InvestigateContext,
-    InvestigateState,
-    InvestigateDocument,
-    InvestigateInfrastructure> {
+public final class InvestigateTask extends
+    PipelineTask<InvestigateRequest, AnnotateRequest, InvestigateContext, InvestigateState, InvestigateDocument, InvestigateInfrastructure> {
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
@@ -66,15 +54,7 @@ public final class InvestigateTask extends PipelineTask<
     @Builder.Default
     int transitionHistory = 25;
 
-    @Builder.Default
-    ClassificationConfiguration classificationConfiguration = new ClassificationConfiguration(
-        new SignalCostConfiguration(Map.of(), SignalCost.FREE),
-        new SignalExtractorConfiguration(Set.of()),
-        new EvidenceIdentifierConfiguration(List.of()),
-        new ScoreRuleConfiguration(Map.of()),
-        new DominanceConfiguration(0D, 0D),
-        30);
-
+    ClassificationConfiguration classificationConfiguration;
     PolicyPipeline<InvestigateContext, InvestigateState> policyPipeline;
   }
 
@@ -90,7 +70,16 @@ public final class InvestigateTask extends PipelineTask<
         taskConfig,
         PipelineTask.Configuration
             .<InvestigateRequest, AnnotateRequest, InvestigateContext, InvestigateState, InvestigateDocument, InvestigateInfrastructure>builder()
-            .policyPipeline(policyPipeline(investigateConfig))
+            .policyPipeline(new PolicyPipeline<>(List.of(
+                new SchemaPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(
+                    InvestigateDocument.schemaVersion),
+                new AttemptsPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(
+                    investigateConfig.maxAttempts),
+                new ExpirationPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(
+                    investigateConfig.expirationDays),
+                new RecentClassificationReusePolicy(),
+                new ClassificationPolicy(),
+                new InvestigateOutcomePolicy(investigateConfig.classificationConfiguration))))
             .infrastructure(infrastructure)
             .retryDuration(investigateConfig.retryTimeout)
             .transitionHistory(investigateConfig.transitionHistory)
@@ -184,18 +173,5 @@ public final class InvestigateTask extends PipelineTask<
   @Override
   protected InvestigateRequest buildRequest(InvestigateRequest request, RequestHeader nextHeader) {
     return new InvestigateRequest(nextHeader, request.target());
-  }
-
-  private static PolicyPipeline<InvestigateContext, InvestigateState> policyPipeline(@NonNull Configuration config) {
-    if (config.policyPipeline != null) {
-      return config.policyPipeline;
-    }
-    return new PolicyPipeline<>(List.of(
-        new SchemaPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(InvestigateDocument.schemaVersion),
-        new AttemptsPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(config.maxAttempts),
-        new ExpirationPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(config.expirationDays),
-        new RecentClassificationReusePolicy(),
-        new ClassificationPolicy(),
-        new InvestigateOutcomePolicy(config.classificationConfiguration)));
   }
 }

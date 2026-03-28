@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.scholarfind.api.queue.Acknowledgement;
+import com.github.scholarfind.api.Acknowledgement;
 import com.github.scholarfind.api.queue.QueueResult;
 import com.github.scholarfind.api.queue.QueueState;
 import com.github.scholarfind.api.queue.ReceivedMessage;

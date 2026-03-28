@@ -9,13 +9,13 @@ import static org.slf4j.event.Level.ERROR;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
+import com.github.scholarfind.api.Envelope;
 import com.github.scholarfind.api.queue.QueueResult;
 import com.github.scholarfind.api.queue.RetryableQueue;
 import com.github.scholarfind.meta.result.CollectionResult;
 import com.github.scholarfind.meta.result.OperationResult;
 import com.github.scholarfind.meta.result.PostResult;
 import com.github.scholarfind.meta.transitory.Directive;
-import com.github.scholarfind.utility.Envelope;
 
 import lombok.AccessLevel;
 import lombok.NonNull;
