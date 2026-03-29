@@ -8,17 +8,15 @@ import com.github.scholarfind.api.queue.RetryableQueue;
 import com.github.scholarfind.api.store.Store;
 import com.github.scholarfind.infra.queue.StageEnvelopeQueue;
 import com.github.scholarfind.infra.repository.AttemptEventStore;
-import com.github.scholarfind.infra.repository.ContextDocumentStore;
-import com.github.scholarfind.infra.repository.InvestigateDocumentStore;
+import com.github.scholarfind.infra.repository.IngestDocumentStore;
 import com.github.scholarfind.infra.repository.StageExecutionRecordStore;
-import com.github.scholarfind.models.annotate.AnnotateRequest;
 import com.github.scholarfind.models.audit.AttemptEvent;
 import com.github.scholarfind.models.audit.StageExecution;
-import com.github.scholarfind.models.investigate.InvestigateDocument;
+import com.github.scholarfind.models.ingest.IngestDocument;
+import com.github.scholarfind.models.ingest.IngestRequest;
 import com.github.scholarfind.models.investigate.InvestigateRequest;
-import com.github.scholarfind.models.shared.ContextDocument;
 import com.github.scholarfind.models.shared.StageEnvelope;
-import com.github.scholarfind.task.InvestigateInfrastructure;
+import com.github.scholarfind.task.IngestInfrastructure;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -35,31 +33,29 @@ import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class AWSInvestigateInfrastructure implements InvestigateInfrastructure {
+public final class AWSIngestInfrastructure implements IngestInfrastructure {
   MetricPublisher metrics;
   SqsClient sqsClient;
   DynamoDbClient dynamoClient;
 
-  RetryableQueue<StageEnvelope<InvestigateRequest>> inQueue;
-  Queue<StageEnvelope<AnnotateRequest>> outQueue;
+  RetryableQueue<StageEnvelope<IngestRequest>> inQueue;
+  Queue<StageEnvelope<InvestigateRequest>> outQueue;
 
   Store<AttemptEvent, String> eventStore;
   Store<StageExecution, String> executionStore;
-  Store<InvestigateDocument, UUID> investigateStore;
-  Store<ContextDocument, UUID> contextStore;
+  Store<IngestDocument, UUID> ingestStore;
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration {
     @Builder.Default
-    String inQueueName = "queue_investigate",
-        outQueueName = "queue_annotate",
-        retryQueueName = "queue_investigate_retry",
-        errorQueueName = "queue_investigate_error";
+    String inQueueName = "queue_ingest",
+        outQueueName = "queue_investigate",
+        retryQueueName = "queue_ingest_retry",
+        errorQueueName = "queue_ingest_error";
 
     @Builder.Default
-    String investigateStoreName = "store_investigate",
-        contextStoreName = "store_context",
+    String ingestStoreName = "store_ingest",
         attemptEventStoreName = "store_attempt_event",
         executionStoreName = "store_stage_execution";
 
@@ -68,12 +64,12 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
   }
 
   @Override
-  public RetryableQueue<StageEnvelope<InvestigateRequest>> inQueue() {
+  public RetryableQueue<StageEnvelope<IngestRequest>> inQueue() {
     return inQueue;
   }
 
   @Override
-  public Queue<StageEnvelope<AnnotateRequest>> outQueue() {
+  public Queue<StageEnvelope<InvestigateRequest>> outQueue() {
     return outQueue;
   }
 
@@ -88,16 +84,11 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
   }
 
   @Override
-  public Store<InvestigateDocument, UUID> investigateStore() {
-    return investigateStore;
+  public Store<IngestDocument, UUID> ingestStore() {
+    return ingestStore;
   }
 
-  @Override
-  public Store<ContextDocument, UUID> contextStore() {
-    return contextStore;
-  }
-
-  public static AWSInvestigateInfrastructure create(final @NonNull Configuration config) {
+  public static AWSIngestInfrastructure create(final @NonNull Configuration config) {
     MetricPublisher metrics = CloudWatchMetricPublisher.builder()
         .cloudWatchClient(CloudWatchAsyncClient.create())
         .detailedMetrics(CoreMetric.API_CALL_DURATION, CoreMetric.API_CALL_SUCCESSFUL)
@@ -115,7 +106,7 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
             .apiCallAttemptTimeout(config.callTimeout))
         .build();
 
-    return new AWSInvestigateInfrastructure(
+    return new AWSIngestInfrastructure(
         metrics,
         sqsClient,
         dynamoClient,
@@ -124,17 +115,16 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
             resolveQueueUrl(sqsClient, config.inQueueName),
             resolveQueueUrl(sqsClient, config.retryQueueName),
             resolveQueueUrl(sqsClient, config.errorQueueName),
-            InvestigateRequest.class),
+            IngestRequest.class),
         new StageEnvelopeQueue<>(
             sqsClient,
             resolveQueueUrl(sqsClient, config.outQueueName),
             null,
             null,
-            AnnotateRequest.class),
+            InvestigateRequest.class),
         new AttemptEventStore(dynamoClient, config.attemptEventStoreName),
         new StageExecutionRecordStore(dynamoClient, config.executionStoreName),
-        new InvestigateDocumentStore(dynamoClient, config.investigateStoreName),
-        new ContextDocumentStore(dynamoClient, config.contextStoreName));
+        new IngestDocumentStore(dynamoClient, config.ingestStoreName));
   }
 
   private static String resolveQueueUrl(final @NonNull SqsClient sqsClient, final @NonNull String canonicalName) {

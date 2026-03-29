@@ -35,11 +35,10 @@ public final class InvestigateTask extends
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration {
-    @Builder.Default
-    Duration retryTimeout = Duration.ofMinutes(5);
+    PolicyPipeline<InvestigateContext, InvestigateState> policyPipeline;
 
     @Builder.Default
-    int maxAttempts = 5;
+    Duration retryTimeout = Duration.ofMinutes(5);
 
     @Builder.Default
     int expirationDays = 30;
@@ -48,7 +47,6 @@ public final class InvestigateTask extends
     int transitionHistory = 25;
 
     ClassificationConfiguration classificationConfiguration;
-    PolicyPipeline<InvestigateContext, InvestigateState> policyPipeline;
   }
 
   Configuration _investigateConfig;

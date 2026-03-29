@@ -10,19 +10,22 @@ public record IngestDocument(
     RequestHeader requestHeader,
     TargetReference target,
     IngestOrigin origin,
-    boolean admitted,
-    String schedulingDecision,
+    IngestDecision decision,
     Integer depthBudget) implements StageDocument<IngestDocument> {
 
   public static final long schemaVersion = 1L;
 
   @Override
   public IngestDocument withDocumentHeader(DocumentHeader header) {
-    return new IngestDocument(header, requestHeader, target, origin, admitted, schedulingDecision, depthBudget);
+    return new IngestDocument(header, requestHeader, target, origin, decision, depthBudget);
   }
 
   @Override
   public IngestDocument withRequestHeader(RequestHeader header) {
-    return new IngestDocument(documentHeader, header, target, origin, admitted, schedulingDecision, depthBudget);
+    return new IngestDocument(documentHeader, header, target, origin, decision, depthBudget);
+  }
+
+  public boolean admitted() {
+    return decision == IngestDecision.ADMITTED;
   }
 }
