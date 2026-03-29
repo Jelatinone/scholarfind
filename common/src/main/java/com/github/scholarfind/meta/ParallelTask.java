@@ -98,22 +98,18 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 
     switch (currentStatus) {
       case SUCCESS -> {
-        _taskStats.successOccurrences++;
 
         _attempts.remove(operand);
         useMessage(String.format("Completed job : %s", operand), INFO);
       }
 
       case FAILURE_FATAL -> {
-        _taskStats.failureFatalOccurrences++;
 
         _attempts.remove(operand);
         useMessage(String.format("Failed job : %s", operand), ERROR);
       }
 
       case FAILURE_RETRY -> {
-        _taskStats.failureRetryOccurrences++;
-
         int attempt = _attempts.getOrDefault(operand, 0) + 1;
 
         if (attempt < _taskConfig.logicalRetries) {
@@ -226,8 +222,6 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
               _jobs.add(dispatch(element));
             }
             CompletableFuture.allOf(_jobs.toArray(CompletableFuture[]::new)).thenRun(() -> {
-              _taskStats.logicalCycleOccurrences++;
-
               _jobs.clear();
               useState(COLLECTING);
             });
@@ -262,7 +256,6 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
         useMessage(String.format("Operation interrupted : %s", throwable.getCause()), ERROR, throwable);
         _completable.completeExceptionally(throwable);
       }
-      _taskStats.executiveCycleOccurrences++;
     }
     useMessage(String.format("Operation ended : %s", _taskConfig.name), DEBUG);
   }

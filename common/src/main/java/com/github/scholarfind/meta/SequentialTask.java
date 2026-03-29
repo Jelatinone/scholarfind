@@ -109,7 +109,6 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
           case OPERATING -> {
             operand = _collected.poll();
             if (operand == null) {
-              _taskStats.logicalCycleOccurrences++;
               useState(COLLECTING);
               break;
             }
@@ -124,21 +123,18 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 
             switch (currentStatus) {
               case SUCCESS -> {
-                _taskStats.successOccurrences++;
 
                 _attempts.remove(operand);
                 useMessage(String.format("Completed work : %s", operand), INFO);
               }
 
               case FAILURE_FATAL -> {
-                _taskStats.failureFatalOccurrences++;
 
                 _attempts.remove(operand);
                 useMessage(String.format("Failed work : %s", operand), ERROR);
               }
 
               case FAILURE_RETRY -> {
-                _taskStats.failureRetryOccurrences++;
 
                 int attempt = _attempts.getOrDefault(operand, 0) + 1;
                 if (attempt < _taskConfig.logicalRetries) {
@@ -178,7 +174,6 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
         useMessage(String.format("Operation interrupted : %s", throwable.getCause()), ERROR, throwable);
         _completable.completeExceptionally(throwable);
       }
-      _taskStats.executiveCycleOccurrences++;
     }
     useMessage(String.format("Operation ended : %s", _taskConfig.name), DEBUG);
   }

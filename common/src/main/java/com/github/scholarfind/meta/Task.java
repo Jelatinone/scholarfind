@@ -58,27 +58,6 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
     implements Runnable, AutoCloseable
     permits ParallelTask, SequentialTask {
 
-  /**
-   *
-   * <h1>Abstract</h1>
-   *
-   * <p>
-   * A narrow runtime view exposed to resource factories during task construction.
-   * This avoids leaking the concrete task instance while still allowing factories
-   * to use task logging and configuration.
-   *
-   * @author Cody Washington
-   */
-  public static interface Abstract {
-
-    Task.Configuration taskConfiguration();
-
-    void useListener(final @NonNull Runnable listener);
-
-    void useMessage(final @NonNull String message, final @NonNull Level level, final @NonNull Object... arguments);
-
-  }
-
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration {
@@ -102,24 +81,9 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
         retryScheduler = new LinearBackoffScheduler(10L, 1000L, 1L);
   }
 
-  @FieldDefaults(level = AccessLevel.PUBLIC)
-  public static final class Statistics {
-    int failureFatalOccurrences = 0;
-
-    int failureRetryOccurrences = 0;
-
-    int successOccurrences = 0;
-
-    int logicalCycleOccurrences = 0;
-
-    int executiveCycleOccurrences = 0;
-  }
-
   static Logger _logger = LoggerFactory.getLogger(Task.class);
 
   Configuration _taskConfig;
-  Statistics _taskStats;
-  Abstract _taskAbstract;
 
   AtomicReference<State> _state;
 
@@ -139,23 +103,6 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
    */
   protected Task(final @NonNull Configuration config) {
     _taskConfig = config;
-    _taskStats = new Statistics();
-    _taskAbstract = new Abstract() {
-      @Override
-      public Task.Configuration taskConfiguration() {
-        return _taskConfig;
-      }
-
-      @Override
-      public void useMessage(String message, Level level, Object... arguments) {
-        this.useMessage(message, level, arguments);
-      }
-
-      @Override
-      public void useListener(@NonNull Runnable listener) {
-        this.useListener(listener);
-      }
-    };
 
     _state = new AtomicReference<State>();
 

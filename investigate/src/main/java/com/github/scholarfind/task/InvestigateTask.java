@@ -2,7 +2,6 @@ package com.github.scholarfind.task;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -19,16 +18,10 @@ import com.github.scholarfind.models.shared.DocumentHeader;
 import com.github.scholarfind.models.shared.RequestHeader;
 import com.github.scholarfind.models.shared.StageEnvelope;
 import com.github.scholarfind.models.shared.TraceReference;
-import com.github.scholarfind.policy.AttemptsPolicy;
 import com.github.scholarfind.policy.EmissionIntent;
-import com.github.scholarfind.policy.ExpirationPolicy;
 import com.github.scholarfind.policy.PolicyDecision;
 import com.github.scholarfind.policy.PolicyPipeline;
-import com.github.scholarfind.policy.SchemaPolicy;
 import com.github.scholarfind.task.policy.ClassificationConfiguration;
-import com.github.scholarfind.task.policy.ClassificationPolicy;
-import com.github.scholarfind.task.policy.InvestigateOutcomePolicy;
-import com.github.scholarfind.task.policy.RecentClassificationReusePolicy;
 
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -70,16 +63,7 @@ public final class InvestigateTask extends
         taskConfig,
         PipelineTask.Configuration
             .<InvestigateRequest, AnnotateRequest, InvestigateContext, InvestigateState, InvestigateDocument, InvestigateInfrastructure>builder()
-            .policyPipeline(new PolicyPipeline<>(List.of(
-                new SchemaPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(
-                    InvestigateDocument.schemaVersion),
-                new AttemptsPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(
-                    investigateConfig.maxAttempts),
-                new ExpirationPolicy<InvestigateDocument, InvestigateContext, InvestigateState>(
-                    investigateConfig.expirationDays),
-                new RecentClassificationReusePolicy(),
-                new ClassificationPolicy(),
-                new InvestigateOutcomePolicy(investigateConfig.classificationConfiguration))))
+            .policyPipeline(investigateConfig.policyPipeline)
             .infrastructure(infrastructure)
             .retryDuration(investigateConfig.retryTimeout)
             .transitionHistory(investigateConfig.transitionHistory)
