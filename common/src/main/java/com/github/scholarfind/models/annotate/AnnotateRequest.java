@@ -10,5 +10,5 @@ public record AnnotateRequest(
     TargetReference target,
     Classification classification) implements Request {
 
-  public static final long schemaVersion = 1L;
+  public static final long SCHEMA_VERSION = 1L;
 }

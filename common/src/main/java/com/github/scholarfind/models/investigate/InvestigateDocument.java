@@ -19,7 +19,7 @@ public record InvestigateDocument(
     Double confidence,
     int discoveredTargetCount) implements StageDocument<InvestigateDocument> {
 
-  public static final long schemaVersion = 1L;
+  public static final long SCHEMA_VERSION = 1L;
 
   @Override
   public InvestigateDocument withDocumentHeader(DocumentHeader header) {

@@ -1,7 +1,5 @@
 package com.github.scholarfind.infra.repository;
 
-
-
 import com.github.scholarfind.infra.aws.DynamoStore;
 import com.github.scholarfind.infra.aws.serial.JacksonDynamoSerializer;
 import com.github.scholarfind.models.scholarship.ScholarshipDocument;
@@ -16,6 +14,6 @@ public final class ScholarshipDocumentStore extends DynamoStore<ScholarshipDocum
         new JacksonDynamoSerializer<>(
             ScholarshipDocument.class,
             key -> key,
-            value -> String.format("%s:%d", value.scholarshipId(), value.version())));
+            value -> String.format("%s:%d", value.scholarshipId(), value.schemaVersion())));
   }
 }

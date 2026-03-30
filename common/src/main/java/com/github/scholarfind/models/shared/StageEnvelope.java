@@ -12,14 +12,14 @@ public record StageEnvelope<R extends Request>(
     UUID targetId,
     R payload) {
 
-  public static final long schemaVersionValue = 1L;
+  public static final long SCHEMA_VERSION = 1L;
 
   public static <T extends Request> StageEnvelope<T> of(
       ProcessingStage stage,
       String executionRef,
       T payload) {
     return new StageEnvelope<>(
-        schemaVersionValue,
+        SCHEMA_VERSION,
         stage,
         executionRef,
         payload.requestHeader().requestId(),

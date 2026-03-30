@@ -328,19 +328,37 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
       fingerprint = String.format("%s:%s", type, message);
     }
 
+    In payload = input.payload();
+    RequestHeader header = payload == null
+        ? null
+        : payload.requestHeader();
+    var target = payload == null
+        ? null
+        : payload.target();
+    String normalizedUrl = target == null || target.normalizedUrl() == null
+        ? null
+        : target.normalizedUrl().toExternalForm();
+    int depth = target == null
+        ? -1
+        : target.depth();
+
     AttemptEvent event = new AttemptEvent(
         input.requestId(),
         _pipelineConfig.processingStage,
         input.targetId(),
-        input.payload().requestHeader().attempt(),
+        header == null
+            ? -1
+            : header.attempt(),
         disposition,
         decision.reasonCodes(),
         fingerprint,
         Duration.between(startedAt, occurredAt),
         occurredAt,
-        String.valueOf(input.payload().target().normalizedUrl()),
-        input.payload().target().depth(),
-        input.payload().requestHeader().idempotencyKey());
+        normalizedUrl,
+        depth,
+        header == null
+            ? null
+            : header.idempotencyKey());
     _infrastructure.eventStore().put(event);
   }
 

@@ -2,7 +2,6 @@ package com.github.scholarfind.infra.repository;
 
 import java.util.UUID;
 
-
 import com.github.scholarfind.infra.aws.DynamoStore;
 import com.github.scholarfind.infra.aws.serial.JacksonDynamoSerializer;
 import com.github.scholarfind.models.ingest.IngestDocument;
@@ -15,6 +14,16 @@ public final class IngestDocumentStore extends DynamoStore<IngestDocument, UUID>
         client,
         table,
         new JacksonDynamoSerializer<>(IngestDocument.class, UUID::toString,
-            value -> value.target().targetId().toString()));
+            IngestDocumentStore::documentKey));
+  }
+
+  private static String documentKey(IngestDocument document) {
+    if (document.target() != null && document.target().targetId() != null) {
+      return document.target().targetId().toString();
+    }
+    if (document.documentHeader() != null && document.documentHeader().targetId() != null) {
+      return document.documentHeader().targetId().toString();
+    }
+    return document.documentHeader().documentId().toString();
   }
 }

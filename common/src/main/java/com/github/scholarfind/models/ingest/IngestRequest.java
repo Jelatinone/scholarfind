@@ -11,10 +11,10 @@ import com.github.scholarfind.models.shared.TargetReference;
 public record IngestRequest(
     RequestHeader requestHeader,
     TargetReference target,
-    IngestOrigin origin,
+    IngestProvenance provenance,
     Integer priority) implements Request {
 
-  public static final long schemaVersion = 1L;
+  public static final long SCHEMA_VERSION = 1L;
 
   public static IngestRequest canonical(
       RequestHeader requestHeader,
@@ -22,12 +22,12 @@ public record IngestRequest(
       UUID parentTargetId,
       int depth,
       Instant discoveredAt,
-      IngestOrigin origin,
+      IngestProvenance provenance,
       Integer priority) {
     return new IngestRequest(
         requestHeader,
         TargetReference.canonical(url, parentTargetId, depth, discoveredAt),
-        origin,
+        provenance,
         priority);
   }
 }

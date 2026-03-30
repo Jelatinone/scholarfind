@@ -36,7 +36,7 @@ public record AnnotateDocument(
     Collection<ReasonCode> qualityFlags,
     int discoveredTargetCount) implements StageDocument<AnnotateDocument> {
 
-  public static final long schemaVersion = 1L;
+  public static final long SCHEMA_VERSION = 1L;
 
   @Override
   public AnnotateDocument withDocumentHeader(DocumentHeader header) {

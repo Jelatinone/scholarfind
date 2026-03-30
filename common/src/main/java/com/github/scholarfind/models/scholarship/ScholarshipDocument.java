@@ -12,7 +12,7 @@ import com.github.scholarfind.models.dossier.Location;
 
 public record ScholarshipDocument(
     UUID scholarshipId,
-    long version,
+    long schemaVersion,
     String organizationName,
     String scholarshipName,
     LocalDate openDate,
@@ -24,4 +24,5 @@ public record ScholarshipDocument(
     Collection<PursuedDegreeLevel> pursuedDegrees,
     Collection<EducationLevel> educationLevels,
     String applicationUrl) {
+  public static final long SCHEMA_VERSION = 1L;
 }

@@ -7,7 +7,7 @@ import com.github.scholarfind.policy.PolicyStep;
 import com.github.scholarfind.task.InvestigateContext;
 import com.github.scholarfind.task.InvestigateState;
 
-public final class RecentClassificationReusePolicy implements Policy<InvestigateContext, InvestigateState> {
+public final class ClassificationReusePolicy implements Policy<InvestigateContext, InvestigateState> {
 
   @Override
   public PolicyStep<InvestigateState> apply(InvestigateContext context, InvestigateState state) {
@@ -16,12 +16,12 @@ public final class RecentClassificationReusePolicy implements Policy<Investigate
       return new PolicyStep.Continue<>(state);
     }
 
-    if (retrieved.documentHeader().schemaVersion() != InvestigateDocument.schemaVersion) {
+    if (retrieved.documentHeader().schemaVersion() != InvestigateDocument.SCHEMA_VERSION) {
       return new PolicyStep.Continue<>(state);
     }
 
-    long reuseWindowSeconds = (long) context.classificationConfiguration().reuseWindowDays() * 24 * 60 * 60;
-    if (retrieved.reviewedAt().isBefore(context.reviewedAt().minusSeconds(reuseWindowSeconds))) {
+    if (retrieved.reviewedAt()
+        .isBefore(context.reviewedAt().minus(context.classificationConfiguration().reuseWindowDays()))) {
       return new PolicyStep.Continue<>(state);
     }
 

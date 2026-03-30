@@ -7,7 +7,7 @@ public record ContextDocument(
     String rawContext,
     String fingerprint) implements StageDocument<ContextDocument> {
 
-  public static final long schemaVersion = 1L;
+  public static final long SCHEMA_VERSION = 1L;
 
   @Override
   public ContextDocument withDocumentHeader(DocumentHeader header) {

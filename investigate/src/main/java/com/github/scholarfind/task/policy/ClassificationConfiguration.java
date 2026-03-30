@@ -1,5 +1,7 @@
 package com.github.scholarfind.task.policy;
 
+import java.time.Duration;
+
 import com.github.scholarfind.task.evidence.EvidenceIdentifierConfiguration;
 import com.github.scholarfind.task.score.DominanceConfiguration;
 import com.github.scholarfind.task.score.ScoreRuleConfiguration;
@@ -12,5 +14,5 @@ public record ClassificationConfiguration(
     EvidenceIdentifierConfiguration evidenceConfiguration,
     ScoreRuleConfiguration scoreConfiguration,
     DominanceConfiguration dominanceConfiguration,
-    int reuseWindowDays) {
+    Duration reuseWindowDays) {
 }

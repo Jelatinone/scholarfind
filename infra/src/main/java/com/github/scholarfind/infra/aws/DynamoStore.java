@@ -9,11 +9,17 @@ import com.github.scholarfind.infra.aws.serial.DynamoSerializer;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
+
 import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.Delete;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.Get;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.Put;
 import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.TransactGetItem;
+import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @AllArgsConstructor
@@ -38,6 +44,21 @@ public class DynamoStore<T, K> implements Store<T, K> {
     }
   }
 
+  public TransactWriteItem transactPut(T body) {
+    try {
+      var item = serializer.encode(body);
+      TransactWriteItem transact = TransactWriteItem.builder()
+          .put(Put.builder()
+              .tableName(table)
+              .item(item)
+              .build())
+          .build();
+      return transact;
+    } catch (Exception exception) {
+      throw new IllegalStateException("Failed to transact store get item", exception);
+    }
+  }
+
   @Override
   public T get(K key) {
     try {
@@ -52,13 +73,47 @@ public class DynamoStore<T, K> implements Store<T, K> {
     }
   }
 
+  public TransactGetItem transactGet(K key) {
+    try {
+      var item = serializer.key(key);
+      TransactGetItem transact = TransactGetItem.builder()
+          .get(Get.builder()
+              .tableName(table)
+              .key(item)
+              .build())
+          .build();
+      return transact;
+    } catch (Exception exception) {
+      throw new IllegalStateException("Failed to transact get store item", exception);
+    }
+  }
+
   @Override
   public void delete(K key) {
-    DeleteItemResponse response = client.deleteItem(builder -> builder
-        .tableName(table)
-        .key(serializer.key(key))
-        .build());
-    logResponse("Delete item", response.sdkHttpResponse());
+    try {
+      DeleteItemResponse response = client.deleteItem(builder -> builder
+          .tableName(table)
+          .key(serializer.key(key))
+          .build());
+      logResponse("Delete item", response.sdkHttpResponse());
+    } catch (Exception exception) {
+      throw new IllegalStateException("Failed to delete store item", exception);
+    }
+  }
+
+  public TransactWriteItem transactDelete(K key) {
+    try {
+      var item = serializer.key(key);
+      TransactWriteItem transact = TransactWriteItem.builder()
+          .delete(Delete.builder()
+              .tableName(table)
+              .key(item)
+              .build())
+          .build();
+      return transact;
+    } catch (Exception exception) {
+      throw new IllegalStateException("Failed to transact delete store item", exception);
+    }
   }
 
   private void logResponse(String action, SdkHttpResponse response) {

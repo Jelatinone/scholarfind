@@ -17,7 +17,7 @@ public record PublishDocument(
     String canonicalMatchKey,
     UUID sourceDocumentId) implements StageDocument<PublishDocument> {
 
-  public static final long schemaVersion = 1L;
+  public static final long SCHEMA_VERSION = 1L;
 
   @Override
   public PublishDocument withDocumentHeader(DocumentHeader header) {

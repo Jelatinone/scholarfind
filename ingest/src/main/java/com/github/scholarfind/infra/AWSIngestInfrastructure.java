@@ -6,14 +6,18 @@ import java.util.UUID;
 import com.github.scholarfind.api.queue.Queue;
 import com.github.scholarfind.api.queue.RetryableQueue;
 import com.github.scholarfind.api.store.Store;
+import com.github.scholarfind.infra.aws.DynamoStore;
+import com.github.scholarfind.infra.aws.SqsQueue;
 import com.github.scholarfind.infra.queue.StageEnvelopeQueue;
 import com.github.scholarfind.infra.repository.AttemptEventStore;
 import com.github.scholarfind.infra.repository.IngestDocumentStore;
 import com.github.scholarfind.infra.repository.StageExecutionRecordStore;
+import com.github.scholarfind.infra.repository.TargetRecordStore;
 import com.github.scholarfind.models.audit.AttemptEvent;
 import com.github.scholarfind.models.audit.StageExecution;
 import com.github.scholarfind.models.ingest.IngestDocument;
 import com.github.scholarfind.models.ingest.IngestRequest;
+import com.github.scholarfind.models.ingest.TargetRecord;
 import com.github.scholarfind.models.investigate.InvestigateRequest;
 import com.github.scholarfind.models.shared.StageEnvelope;
 import com.github.scholarfind.task.IngestInfrastructure;
@@ -38,12 +42,13 @@ public final class AWSIngestInfrastructure implements IngestInfrastructure {
   SqsClient sqsClient;
   DynamoDbClient dynamoClient;
 
-  RetryableQueue<StageEnvelope<IngestRequest>> inQueue;
-  Queue<StageEnvelope<InvestigateRequest>> outQueue;
+  SqsQueue<StageEnvelope<IngestRequest>> inQueue;
+  SqsQueue<StageEnvelope<InvestigateRequest>> outQueue;
 
-  Store<AttemptEvent, String> eventStore;
-  Store<StageExecution, String> executionStore;
-  Store<IngestDocument, UUID> ingestStore;
+  DynamoStore<AttemptEvent, String> eventStore;
+  DynamoStore<StageExecution, String> executionStore;
+  DynamoStore<IngestDocument, UUID> ingestStore;
+  DynamoStore<TargetRecord, String> targetStore;
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
@@ -56,6 +61,7 @@ public final class AWSIngestInfrastructure implements IngestInfrastructure {
 
     @Builder.Default
     String ingestStoreName = "store_ingest",
+        targetStoreName = "store_target",
         attemptEventStoreName = "store_attempt_event",
         executionStoreName = "store_stage_execution";
 
@@ -86,6 +92,11 @@ public final class AWSIngestInfrastructure implements IngestInfrastructure {
   @Override
   public Store<IngestDocument, UUID> ingestStore() {
     return ingestStore;
+  }
+
+  @Override
+  public Store<TargetRecord, String> targetStore() {
+    return targetStore;
   }
 
   public static AWSIngestInfrastructure create(final @NonNull Configuration config) {
@@ -124,7 +135,8 @@ public final class AWSIngestInfrastructure implements IngestInfrastructure {
             InvestigateRequest.class),
         new AttemptEventStore(dynamoClient, config.attemptEventStoreName),
         new StageExecutionRecordStore(dynamoClient, config.executionStoreName),
-        new IngestDocumentStore(dynamoClient, config.ingestStoreName));
+        new IngestDocumentStore(dynamoClient, config.ingestStoreName),
+        new TargetRecordStore(dynamoClient, config.targetStoreName));
   }
 
   private static String resolveQueueUrl(final @NonNull SqsClient sqsClient, final @NonNull String canonicalName) {
@@ -140,5 +152,19 @@ public final class AWSIngestInfrastructure implements IngestInfrastructure {
     metrics.close();
     sqsClient.close();
     dynamoClient.close();
+  }
+
+  @Override
+  public void persist(IngestDocument document, TargetRecord record) {
+    if (record == null) {
+      ingestStore.put(document);
+      return;
+    }
+
+    dynamoClient.transactWriteItems(builder -> builder
+        .transactItems(
+            ingestStore.transactPut(document),
+            targetStore.transactPut(record))
+        .build());
   }
 }

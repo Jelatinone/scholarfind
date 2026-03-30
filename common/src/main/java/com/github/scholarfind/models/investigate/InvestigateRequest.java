@@ -8,5 +8,5 @@ public record InvestigateRequest(
     RequestHeader requestHeader,
     TargetReference target) implements Request {
 
-  public static final long schemaVersion = 1L;
+  public static final long SCHEMA_VERSION = 1L;
 }

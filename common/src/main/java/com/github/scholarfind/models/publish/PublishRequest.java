@@ -12,5 +12,5 @@ public record PublishRequest(
     FetchReference snapshot,
     ScholarshipDocument scholarship) implements Request {
 
-  public static final long schemaVersion = 1L;
+  public static final long SCHEMA_VERSION = 1L;
 }

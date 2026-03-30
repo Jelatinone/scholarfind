@@ -21,11 +21,11 @@ public record StageExecution(
     Instant updatedAt,
     List<StageTransition> transitions) {
 
-  public static final long schemaVersionValue = 1L;
+  public static final long SCHEMA_VERSION = 1L;
 
   public static StageExecution initial(UUID targetId, ProcessingStage stage, Instant now) {
     return new StageExecution(
-        schemaVersionValue,
+        SCHEMA_VERSION,
         targetId,
         stage,
         0,

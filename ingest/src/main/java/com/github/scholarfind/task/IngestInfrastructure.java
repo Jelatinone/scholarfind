@@ -6,9 +6,14 @@ import com.github.scholarfind.api.store.Store;
 import com.github.scholarfind.meta.PipelineTask.Infrastructure;
 import com.github.scholarfind.models.ingest.IngestDocument;
 import com.github.scholarfind.models.ingest.IngestRequest;
+import com.github.scholarfind.models.ingest.TargetRecord;
 import com.github.scholarfind.models.investigate.InvestigateRequest;
 
 public interface IngestInfrastructure extends Infrastructure<IngestRequest, InvestigateRequest> {
 
   Store<IngestDocument, UUID> ingestStore();
+
+  Store<TargetRecord, String> targetStore();
+
+  void persist(IngestDocument document, TargetRecord record);
 }

@@ -77,7 +77,7 @@ public final class InvestigateTask extends
     InvestigateRequest request = input.payload();
     InvestigateDocument currentDocument = InvestigateDocument.builder()
         .documentHeader(new DocumentHeader(
-            InvestigateDocument.schemaVersion,
+            InvestigateDocument.SCHEMA_VERSION,
             UUID.randomUUID(),
             request.requestHeader().requestId(),
             request.target().targetId(),

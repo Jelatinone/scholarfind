@@ -10,11 +10,14 @@ import com.github.scholarfind.meta.Task;
 import com.github.scholarfind.models.audit.ProcessingStage;
 import com.github.scholarfind.models.ingest.IngestDecision;
 import com.github.scholarfind.models.ingest.IngestDocument;
+import com.github.scholarfind.models.ingest.IngestProvenance;
 import com.github.scholarfind.models.ingest.IngestRequest;
+import com.github.scholarfind.models.ingest.TargetRecord;
 import com.github.scholarfind.models.investigate.InvestigateRequest;
 import com.github.scholarfind.models.shared.DocumentHeader;
 import com.github.scholarfind.models.shared.RequestHeader;
 import com.github.scholarfind.models.shared.StageEnvelope;
+import com.github.scholarfind.models.shared.TargetReference;
 import com.github.scholarfind.policy.EmissionIntent;
 import com.github.scholarfind.policy.PolicyDecision;
 import com.github.scholarfind.policy.PolicyPipeline;
@@ -75,26 +78,53 @@ public final class IngestTask extends
       @NonNull StageEnvelope<IngestRequest> input,
       @NonNull Instant startedAt) {
     IngestRequest request = input.payload();
+    RequestHeader requestHeader = request == null
+        ? null
+        : request.requestHeader();
+    TargetReference target = request == null
+        ? null
+        : request.target();
+    IngestProvenance provenance = request == null
+        ? null
+        : request.provenance();
+    Integer priority = request == null
+        ? null
+        : request.priority();
+    UUID requestId = requestHeader != null
+        ? requestHeader.requestId()
+        : input.requestId();
+    UUID targetId = target != null
+        ? target.targetId()
+        : input.targetId();
+    Integer depthBudget = target == null
+        ? _ingestConfig.maxDepth
+        : Math.max(0, _ingestConfig.maxDepth - target.depth());
+
     IngestDocument currentDocument = new IngestDocument(
         new DocumentHeader(
-            IngestDocument.schemaVersion,
+            IngestDocument.SCHEMA_VERSION,
             UUID.randomUUID(),
-            request.requestHeader().requestId(),
-            request.target().targetId(),
+            requestId,
+            targetId,
             startedAt),
-        request.requestHeader(),
-        request.target(),
-        request.origin(),
+        requestHeader,
+        target,
+        provenance,
+        priority,
         IngestDecision.PENDING,
-        Math.max(0, _ingestConfig.maxDepth - request.target().depth()));
+        depthBudget);
 
-    IngestDocument retrievedIngest = _infrastructure.ingestStore().get(request.target().targetId());
+    TargetRecord targetRecord = retrieveTarget(target);
     return new IngestContext(
         currentDocument,
         startedAt,
-        retrievedIngest,
+        targetRecord,
         _ingestConfig.maxDepth,
-        _ingestConfig.rescheduleCooldown);
+        _ingestConfig.rescheduleCooldown,
+        input.schemaVersion(),
+        input.stage(),
+        input.requestId(),
+        input.targetId());
   }
 
   @Override
@@ -108,22 +138,33 @@ public final class IngestTask extends
       @NonNull IngestContext context,
       @NonNull PolicyDecision<IngestState> decision,
       @NonNull Instant occurredAt) {
-    IngestState finalState = decision.state() == null
+
+    IngestState state = decision.state() == null
         ? IngestState.initial(context.reviewedAt(), context.document().depthBudget())
         : decision.state();
 
+    DocumentHeader header = context.document().documentHeader();
+    DocumentHeader nextHeader = new DocumentHeader(
+        header.schemaVersion(),
+        header.documentId(),
+        header.requestId(),
+        header.targetId(),
+        occurredAt);
+
     return new IngestDocument(
-        context.document().documentHeader(),
+        nextHeader,
         context.document().requestHeader(),
         context.document().target(),
-        context.document().origin(),
-        finalState.decision(),
-        finalState.depthBudget());
+        context.document().provenance(),
+        context.document().priority(),
+        state.decision(),
+        state.depthBudget());
   }
 
   @Override
   protected void persistDocument(@NonNull IngestDocument document) {
-    _infrastructure.ingestStore().put(document);
+    TargetRecord target = buildTarget(document);
+    _infrastructure.persist(document, target);
   }
 
   @Override
@@ -141,6 +182,24 @@ public final class IngestTask extends
 
   @Override
   protected IngestRequest buildRequest(IngestRequest request, RequestHeader nextHeader) {
-    return new IngestRequest(nextHeader, request.target(), request.origin(), request.priority());
+    return new IngestRequest(nextHeader, request.target(), request.provenance(), request.priority());
+  }
+
+  private TargetRecord retrieveTarget(TargetReference target) {
+    if (target == null || target.normalizedUrl() == null) {
+      return null;
+    }
+    return _infrastructure.targetStore().get(TargetRecord.key(target));
+  }
+
+  private TargetRecord buildTarget(IngestDocument document) {
+    if (document.decision() == IngestDecision.INVALID_TARGET
+        || document.target() == null
+        || document.target().normalizedUrl() == null) {
+      return null;
+    }
+
+    TargetRecord current = _infrastructure.targetStore().get(TargetRecord.key(document.target()));
+    return TargetRecord.upsert(current, document);
   }
 }
