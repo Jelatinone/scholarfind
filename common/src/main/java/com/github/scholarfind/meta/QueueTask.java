@@ -35,6 +35,7 @@ import lombok.experimental.FieldDefaults;
  */
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public abstract class QueueTask<Consumes, Produces> extends ParallelTask<Envelope<Consumes>, Envelope<Produces>> {
+
   RetryableQueue<Consumes> _inQueue;
 
   /**

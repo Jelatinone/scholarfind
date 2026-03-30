@@ -3,7 +3,7 @@ package com.github.scholarfind.infra.aws.serial;
 import java.util.Map;
 import java.util.function.Function;
 
-import com.github.scholarfind.infra.aws.JacksonMapper;
+import com.github.scholarfind.infra.JacksonMapper;
 
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 

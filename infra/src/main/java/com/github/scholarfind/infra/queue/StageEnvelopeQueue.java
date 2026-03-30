@@ -1,8 +1,6 @@
 package com.github.scholarfind.infra.queue;
 
-
-
-import com.github.scholarfind.infra.aws.JacksonMapper;
+import com.github.scholarfind.infra.JacksonMapper;
 import com.github.scholarfind.infra.aws.SqsQueue;
 import com.github.scholarfind.infra.aws.serial.JacksonSqsSerializer;
 import com.github.scholarfind.models.shared.Request;

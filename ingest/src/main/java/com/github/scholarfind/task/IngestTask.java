@@ -49,6 +49,9 @@ public final class IngestTask extends
     int maxDepth = 5;
 
     @Builder.Default
+    int maxAttempts = 5;
+
+    @Builder.Default
     Duration rescheduleCooldown = Duration.ofHours(24);
   }
 

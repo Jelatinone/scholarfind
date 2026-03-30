@@ -35,6 +35,7 @@ public final class InvestigateTask extends
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration {
+    @NonNull
     PolicyPipeline<InvestigateContext, InvestigateState> policyPipeline;
 
     @Builder.Default
@@ -46,6 +47,10 @@ public final class InvestigateTask extends
     @Builder.Default
     int transitionHistory = 25;
 
+    @Builder.Default
+    int maxAttempts = 5;
+
+    @NonNull
     ClassificationConfiguration classificationConfiguration;
   }
 

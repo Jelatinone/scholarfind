@@ -62,9 +62,11 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration {
     @Builder.Default
+    @NonNull
     String name = String.format("Task-[%d]", ThreadLocalRandom.current().nextLong());
 
     @Builder.Default
+    @NonNull
     Level logLevel = DEBUG;
 
     @Builder.Default
@@ -77,6 +79,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
     int collectionSize = 10;
 
     @Builder.Default
+    @NonNull
     BackoffScheduler awaitScheduler = new LinearBackoffScheduler(10L, 1000L, 1L),
         retryScheduler = new LinearBackoffScheduler(10L, 1000L, 1L);
   }

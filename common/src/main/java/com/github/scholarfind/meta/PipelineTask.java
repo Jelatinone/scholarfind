@@ -54,7 +54,10 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
   public static final class Configuration<In extends Request, Out extends Request, Context, State, Persist extends StageDocument<Persist>, Infra extends Infrastructure<In, Out>> {
+    @NonNull
     PolicyPipeline<Context, State> policyPipeline;
+
+    @NonNull
     Infra infrastructure;
 
     @Default
@@ -63,6 +66,7 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
     @Default
     int transitionHistory = 25;
 
+    @NonNull
     ProcessingStage processingStage;
   }
 

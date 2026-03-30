@@ -1,4 +1,4 @@
-package com.github.scholarfind.infra.aws;
+package com.github.scholarfind.infra;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;

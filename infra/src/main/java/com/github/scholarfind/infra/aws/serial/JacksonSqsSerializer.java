@@ -1,9 +1,9 @@
 package com.github.scholarfind.infra.aws.serial;
 
 import com.fasterxml.jackson.databind.JavaType;
-import java.util.Map;
+import com.github.scholarfind.infra.JacksonMapper;
 
-import com.github.scholarfind.infra.aws.JacksonMapper;
+import java.util.Map;
 
 public final class JacksonSqsSerializer<T> implements SqsSerializer<T> {
   private final JavaType type;
