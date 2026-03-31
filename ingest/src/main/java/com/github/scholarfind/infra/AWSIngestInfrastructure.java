@@ -1,6 +1,7 @@
 package com.github.scholarfind.infra;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 
 import com.github.scholarfind.api.queue.Queue;
@@ -21,6 +22,7 @@ import com.github.scholarfind.models.ingest.TargetRecord;
 import com.github.scholarfind.models.investigate.InvestigateRequest;
 import com.github.scholarfind.models.shared.StageEnvelope;
 import com.github.scholarfind.task.IngestInfrastructure;
+import com.github.scholarfind.task.IngestPersistResult;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -32,8 +34,11 @@ import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.metrics.publishers.cloudwatch.CloudWatchMetricPublisher;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
+import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
+import software.amazon.awssdk.services.sqs.SqsClient;
 
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -155,16 +160,54 @@ public final class AWSIngestInfrastructure implements IngestInfrastructure {
   }
 
   @Override
-  public void persist(IngestDocument document, TargetRecord record) {
-    if (record == null) {
+  public IngestPersistResult persist(@NonNull IngestDocument document, TargetRecord currentRecord,
+      TargetRecord nextRecord) {
+    if (nextRecord == null) {
       ingestStore.put(document);
-      return;
+      return IngestPersistResult.APPLIED;
     }
 
-    dynamoClient.transactWriteItems(builder -> builder
-        .transactItems(
-            ingestStore.transactPut(document),
-            targetStore.transactPut(record))
-        .build());
+    if (!document.admitted()) {
+      dynamoClient.transactWriteItems(builder -> builder
+          .transactItems(
+              ingestStore.transactPut(document),
+              targetStore.transactPut(nextRecord))
+          .build());
+      return IngestPersistResult.APPLIED;
+    }
+
+    try {
+      dynamoClient.transactWriteItems(builder -> builder
+          .transactItems(
+              ingestStore.transactPut(document),
+              putConditionally(currentRecord, nextRecord))
+          .build());
+      return IngestPersistResult.APPLIED;
+    } catch (TransactionCanceledException exception) {
+      boolean admissionConflictOccured = exception.cancellationReasons() != null
+          && exception.cancellationReasons().stream()
+              .anyMatch(reason -> "ConditionalCheckFailed".equals(reason.code()));
+      if (admissionConflictOccured) {
+        return IngestPersistResult.ADMISSION_CONFLICT;
+      }
+      throw exception;
+    }
+  }
+
+  private TransactWriteItem putConditionally(
+      TargetRecord currentRecord,
+      TargetRecord nextRecord) {
+    if (currentRecord == null) {
+      return targetStore.transactPut(
+          nextRecord,
+          builder -> builder.conditionExpression("attribute_not_exists(id)"));
+    }
+
+    AttributeValue expectedPayload = targetStore.encode(currentRecord).get("payload");
+    return targetStore.transactPut(
+        nextRecord,
+        builder -> builder
+            .conditionExpression("payload = :expectedPayload")
+            .expressionAttributeValues(Map.of(":expectedPayload", expectedPayload)));
   }
 }

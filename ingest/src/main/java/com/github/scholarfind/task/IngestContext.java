@@ -7,7 +7,7 @@ import java.util.UUID;
 import com.github.scholarfind.models.audit.ProcessingStage;
 import com.github.scholarfind.models.ingest.IngestDocument;
 import com.github.scholarfind.models.ingest.TargetRecord;
-import com.github.scholarfind.policy.PolicyContext;
+import com.github.scholarfind.policy.RequestPolicyContext;
 
 public record IngestContext(
     IngestDocument document,
@@ -18,5 +18,5 @@ public record IngestContext(
     long envelopeSchemaVersion,
     ProcessingStage envelopeStage,
     UUID envelopeRequestId,
-    UUID envelopeTargetId) implements PolicyContext<IngestDocument> {
+    UUID envelopeTargetId) implements RequestPolicyContext<IngestDocument> {
 }

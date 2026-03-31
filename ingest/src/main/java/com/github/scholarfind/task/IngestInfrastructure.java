@@ -15,5 +15,5 @@ public interface IngestInfrastructure extends Infrastructure<IngestRequest, Inve
 
   Store<TargetRecord, String> targetStore();
 
-  void persist(IngestDocument document, TargetRecord record);
+  IngestPersistResult persist(IngestDocument document, TargetRecord currentRecord, TargetRecord nextRecord);
 }

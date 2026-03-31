@@ -1,5 +1,8 @@
 package com.github.scholarfind.infra.aws;
 
+import java.util.Map;
+import java.util.function.Consumer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,9 +12,9 @@ import com.github.scholarfind.infra.aws.serial.DynamoSerializer;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
-
 import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.Delete;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.Get;
@@ -33,10 +36,9 @@ public class DynamoStore<T, K> implements Store<T, K> {
   @Override
   public void put(T body) {
     try {
-      var item = serializer.encode(body);
       PutItemResponse response = client.putItem(builder -> builder
           .tableName(table)
-          .item(item)
+          .item(encode(body))
           .build());
       logResponse("Put item", response.sdkHttpResponse());
     } catch (Exception exception) {
@@ -45,15 +47,22 @@ public class DynamoStore<T, K> implements Store<T, K> {
   }
 
   public TransactWriteItem transactPut(T body) {
+    return transactPut(body, (builder) -> {
+      // Do nothing ;)
+    });
+  }
+
+  public TransactWriteItem transactPut(
+      T body,
+      Consumer<Put.Builder> mutator) {
     try {
-      var item = serializer.encode(body);
-      TransactWriteItem transact = TransactWriteItem.builder()
+      return TransactWriteItem.builder()
           .put(Put.builder()
               .tableName(table)
-              .item(item)
+              .item(encode(body))
+              .applyMutation(mutator)
               .build())
           .build();
-      return transact;
     } catch (Exception exception) {
       throw new IllegalStateException("Failed to transact store get item", exception);
     }
@@ -74,12 +83,19 @@ public class DynamoStore<T, K> implements Store<T, K> {
   }
 
   public TransactGetItem transactGet(K key) {
+    return transactGet(key, (builder) -> {
+      // Do nothing ;)
+    });
+  }
+
+  public TransactGetItem transactGet(K key, Consumer<Get.Builder> mutator) {
     try {
       var item = serializer.key(key);
       TransactGetItem transact = TransactGetItem.builder()
           .get(Get.builder()
               .tableName(table)
               .key(item)
+              .applyMutation(mutator)
               .build())
           .build();
       return transact;
@@ -102,17 +118,32 @@ public class DynamoStore<T, K> implements Store<T, K> {
   }
 
   public TransactWriteItem transactDelete(K key) {
+    return transactDelete(key, (builder) -> {
+      // Do nothing ;)
+    });
+  }
+
+  public TransactWriteItem transactDelete(K key, Consumer<Delete.Builder> mutator) {
     try {
       var item = serializer.key(key);
       TransactWriteItem transact = TransactWriteItem.builder()
           .delete(Delete.builder()
               .tableName(table)
               .key(item)
+              .applyMutation(mutator)
               .build())
           .build();
       return transact;
     } catch (Exception exception) {
       throw new IllegalStateException("Failed to transact delete store item", exception);
+    }
+  }
+
+  public Map<String, AttributeValue> encode(T body) {
+    try {
+      return serializer.encode(body);
+    } catch (Exception exception) {
+      throw new IllegalStateException("Failed to encode store item", exception);
     }
   }
 

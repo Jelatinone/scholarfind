@@ -13,10 +13,10 @@ import com.github.scholarfind.models.audit.ProcessingStage;
 import com.github.scholarfind.models.investigate.Classification;
 import com.github.scholarfind.models.investigate.InvestigateDocument;
 import com.github.scholarfind.models.investigate.InvestigateRequest;
-import com.github.scholarfind.models.shared.ContextDocument;
 import com.github.scholarfind.models.shared.DocumentHeader;
 import com.github.scholarfind.models.shared.RequestHeader;
 import com.github.scholarfind.models.shared.StageEnvelope;
+import com.github.scholarfind.models.shared.TargetReference;
 import com.github.scholarfind.models.shared.TraceReference;
 import com.github.scholarfind.policy.EmissionIntent;
 import com.github.scholarfind.policy.PolicyDecision;
@@ -57,10 +57,10 @@ public final class InvestigateTask extends
   Configuration _investigateConfig;
 
   public InvestigateTask(
-      final @NonNull Task.Configuration taskConfig,
-      final @NonNull Configuration investigateConfig,
-      final @NonNull InvestigateInfrastructure infrastructure,
-      final @NonNull ExecutorService executor) {
+      final Task.Configuration taskConfig,
+      final Configuration investigateConfig,
+      final InvestigateInfrastructure infrastructure,
+      final ExecutorService executor) {
     super(
         executor,
         taskConfig,
@@ -80,35 +80,53 @@ public final class InvestigateTask extends
       @NonNull StageEnvelope<InvestigateRequest> input,
       @NonNull Instant startedAt) {
     InvestigateRequest request = input.payload();
+    RequestHeader requestHeader = request == null
+        ? null
+        : request.requestHeader();
+    TargetReference target = request == null
+        ? null
+        : request.target();
+    UUID requestId = requestHeader == null
+        ? input.requestId()
+        : requestHeader.requestId();
+    UUID targetId = target == null
+        ? input.targetId()
+        : target.targetId();
+
     InvestigateDocument currentDocument = InvestigateDocument.builder()
         .documentHeader(new DocumentHeader(
             InvestigateDocument.SCHEMA_VERSION,
             UUID.randomUUID(),
-            request.requestHeader().requestId(),
-            request.target().targetId(),
+            requestId,
+            targetId,
             startedAt))
-        .requestHeader(request.requestHeader())
-        .target(request.target())
+        .requestHeader(requestHeader)
+        .target(target)
         .trace(new TraceReference(
-            request.target().normalizedUrl(),
+            target == null ? null : target.normalizedUrl(),
             null,
-            InvestigateTask.class.getSimpleName(),
-            request.target().depth()))
+            _taskConfig.name,
+            target == null ? null : target.depth()))
         .reviewedAt(startedAt)
         .classification(new Classification(Map.of()))
         .confidence(0D)
         .discoveredTargetCount(0)
         .build();
 
-    InvestigateDocument retrievedInvestigate = _infrastructure.investigateStore().get(request.target().targetId());
-    ContextDocument retrievedContext = _infrastructure.contextStore().get(request.target().targetId());
-
     return new InvestigateContext(
         currentDocument,
         _investigateConfig.classificationConfiguration,
         startedAt,
-        retrievedInvestigate,
-        retrievedContext);
+        targetId == null
+            ? null
+            : _infrastructure.investigateStore().get(targetId),
+        targetId == null
+            ? null
+            : _infrastructure.contextStore().get(targetId),
+        input.schemaVersion(),
+        input.stage(),
+        input.requestId(),
+        input.targetId());
   }
 
   @Override
@@ -122,8 +140,15 @@ public final class InvestigateTask extends
       @NonNull InvestigateContext context,
       @NonNull PolicyDecision<InvestigateState> decision,
       @NonNull Instant occurredAt) {
+    DocumentHeader header = context.document().documentHeader();
+    DocumentHeader nextHeader = new DocumentHeader(
+        header.schemaVersion(),
+        header.documentId(),
+        header.requestId(),
+        header.targetId(),
+        occurredAt);
     return new InvestigateDocument(
-        context.document().documentHeader(),
+        nextHeader,
         context.document().requestHeader(),
         context.document().target(),
         context.document().trace(),
@@ -140,7 +165,7 @@ public final class InvestigateTask extends
   }
 
   @Override
-  protected void persistDocument(@NonNull InvestigateDocument document) {
+  protected void persistStageDocument(@NonNull InvestigateDocument document) {
     _infrastructure.investigateStore().put(document);
   }
 
@@ -151,10 +176,17 @@ public final class InvestigateTask extends
       @NonNull InvestigateContext context,
       @NonNull PolicyDecision<InvestigateState> decision,
       @NonNull InvestigateDocument document) {
+    Instant emittedAt = Instant.now();
+    RequestHeader nextHeader = RequestHeader.next(
+        document.requestHeader(),
+        AnnotateRequest.SCHEMA_VERSION,
+        emittedAt);
+    AnnotateRequest request = new AnnotateRequest(nextHeader, emission.request().target(),
+        emission.request().classification());
     return StageEnvelope.of(
         ProcessingStage.ANNOTATE,
         document.documentHeader().documentId().toString(),
-        emission.request());
+        request);
   }
 
   @Override

@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutorService;
 
 import com.github.scholarfind.meta.PipelineTask;
 import com.github.scholarfind.meta.Task;
+import com.github.scholarfind.meta.result.PersistResult;
 import com.github.scholarfind.models.audit.ProcessingStage;
 import com.github.scholarfind.models.ingest.IngestDecision;
 import com.github.scholarfind.models.ingest.IngestDocument;
@@ -21,6 +22,7 @@ import com.github.scholarfind.models.shared.TargetReference;
 import com.github.scholarfind.policy.EmissionIntent;
 import com.github.scholarfind.policy.PolicyDecision;
 import com.github.scholarfind.policy.PolicyPipeline;
+import com.github.scholarfind.task.policy.IngestPolicyReason;
 
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -57,11 +59,11 @@ public final class IngestTask extends
 
   Configuration _ingestConfig;
 
-  public IngestTask(
-      final @NonNull Task.Configuration taskConfig,
-      final @NonNull Configuration ingestConfig,
-      final @NonNull IngestInfrastructure infrastructure,
-      final @NonNull ExecutorService executor) {
+  private IngestTask(
+      final Task.Configuration taskConfig,
+      final Configuration ingestConfig,
+      final IngestInfrastructure infrastructure,
+      final ExecutorService executor) {
     super(
         executor,
         taskConfig,
@@ -165,9 +167,22 @@ public final class IngestTask extends
   }
 
   @Override
-  protected void persistDocument(@NonNull IngestDocument document) {
-    TargetRecord target = buildTarget(document);
-    _infrastructure.persist(document, target);
+  protected PersistResult<IngestState, IngestDocument> persistDocument(
+      @NonNull StageEnvelope<IngestRequest> input,
+      @NonNull IngestContext context,
+      @NonNull PolicyDecision<IngestState> decision,
+      @NonNull IngestDocument document) {
+    TargetRecord nextTarget = buildTarget(context.targetRecord(), document);
+    IngestPersistResult result = _infrastructure.persist(document, context.targetRecord(), nextTarget);
+    return switch (result) {
+      case APPLIED -> new PersistResult<>(document, decision);
+      case ADMISSION_CONFLICT -> suppressConflict(context, decision, document);
+    };
+  }
+
+  @Override
+  protected void persistStageDocument(@NonNull IngestDocument document) {
+    throw new UnsupportedOperationException("Ingest persistence requires contextual target-record coordination");
   }
 
   @Override
@@ -177,15 +192,54 @@ public final class IngestTask extends
       @NonNull IngestContext context,
       @NonNull PolicyDecision<IngestState> decision,
       @NonNull IngestDocument document) {
+    Instant emittedAt = Instant.now();
+    RequestHeader nextHeader = RequestHeader.next(
+        document.requestHeader(),
+        InvestigateRequest.SCHEMA_VERSION,
+        emittedAt);
+    InvestigateRequest request = new InvestigateRequest(nextHeader, emission.request().target());
     return StageEnvelope.of(
         ProcessingStage.INVESTIGATE,
         document.documentHeader().documentId().toString(),
-        emission.request());
+        request);
   }
 
   @Override
   protected IngestRequest buildRequest(IngestRequest request, RequestHeader nextHeader) {
     return new IngestRequest(nextHeader, request.target(), request.provenance(), request.priority());
+  }
+
+  private PersistResult<IngestState, IngestDocument> suppressConflict(
+      IngestContext context,
+      PolicyDecision<IngestState> decision,
+      IngestDocument document) {
+    TargetRecord refreshedTarget = retrieveTarget(document.target());
+    IngestState suppressedState = decision.state() == null
+        ? IngestState.initial(context.reviewedAt(), document.depthBudget())
+        : decision.state();
+    suppressedState = suppressedState.withDecision(IngestDecision.DUPLICATE_SUPPRESSED);
+
+    IngestDocument suppressedDocument = new IngestDocument(
+        document.documentHeader(),
+        document.requestHeader(),
+        document.target(),
+        document.provenance(),
+        document.priority(),
+        IngestDecision.DUPLICATE_SUPPRESSED,
+        document.depthBudget());
+
+    TargetRecord suppressedTarget = buildTarget(refreshedTarget, suppressedDocument);
+    IngestPersistResult persistResult = _infrastructure.persist(suppressedDocument, refreshedTarget, suppressedTarget);
+    if (persistResult != IngestPersistResult.APPLIED) {
+      throw new IllegalStateException(
+          "Failed to persist duplicate-suppressed ingest document after admission conflict");
+    }
+
+    PolicyDecision<IngestState> suppressedDecision = PolicyDecision.drop(
+        suppressedState,
+        IngestPolicyReason.TARGET_DUPLICATE_SUPPRESSED,
+        "Concurrent ingest admission conflict suppressed a duplicate target");
+    return new PersistResult<>(suppressedDocument, suppressedDecision);
   }
 
   private TargetRecord retrieveTarget(TargetReference target) {
@@ -195,14 +249,12 @@ public final class IngestTask extends
     return _infrastructure.targetStore().get(TargetRecord.key(target));
   }
 
-  private TargetRecord buildTarget(IngestDocument document) {
+  private TargetRecord buildTarget(TargetRecord current, IngestDocument document) {
     if (document.decision() == IngestDecision.INVALID_TARGET
         || document.target() == null
         || document.target().normalizedUrl() == null) {
       return null;
     }
-
-    TargetRecord current = _infrastructure.targetStore().get(TargetRecord.key(document.target()));
     return TargetRecord.upsert(current, document);
   }
 }

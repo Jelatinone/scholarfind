@@ -9,6 +9,7 @@ import java.util.concurrent.ExecutorService;
 import com.github.scholarfind.api.queue.Queue;
 import com.github.scholarfind.api.queue.RetryableQueue;
 import com.github.scholarfind.api.store.Store;
+import com.github.scholarfind.meta.result.PersistResult;
 import com.github.scholarfind.meta.result.PipelineResult;
 import com.github.scholarfind.meta.transitory.Disposition;
 import com.github.scholarfind.meta.transitory.Directive;
@@ -81,15 +82,6 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
     Store<StageExecution, String> executionStore();
   }
 
-  /**
-   * Creates a new pipeline task.
-   *
-   * @param executor       Service to execute parallel jobs with
-   * @param taskConfig     Base task configuration
-   * @param pipelineConfig Stage-specific pipeline configuration including the
-   *                       injected infrastructure, policy pipeline, and stage
-   *                       control options
-   */
   protected PipelineTask(
       @NonNull ExecutorService executor,
       @NonNull Task.Configuration taskConfig,
@@ -110,16 +102,20 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 
     Instant occurredAt = Instant.now();
     Persist document = buildDocument(input, context, decision, occurredAt);
+    PersistResult<State, Persist> persisted = persistDocument(input, context, decision, document);
 
-    persistDocument(document);
-    persistExecution(input, decision, occurredAt);
-    persistAttempt(input, decision, startedAt, occurredAt, null);
+    Persist persistDocument = persisted.document();
+    PolicyDecision<State> persistDecision = persisted.decision();
 
-    List<StageEnvelope<Out>> emissions = decision.emissionIntents().stream()
-        .map((emission) -> buildEnvelope((EmissionIntent<? extends Out>) emission, input, context, decision, document))
+    persistExecution(input, persistDecision, occurredAt);
+    persistAttempt(input, persistDecision, startedAt, occurredAt, null);
+
+    List<StageEnvelope<Out>> emissions = persistDecision.emissionIntents().stream()
+        .map((emission) -> buildEnvelope((EmissionIntent<? extends Out>) emission, input, context, persistDecision,
+            persistDocument))
         .toList();
 
-    return new PipelineResult<>(input, document, decision, emissions);
+    return new PipelineResult<>(input, persistDocument, persistDecision, emissions);
   }
 
   @Override
@@ -174,21 +170,9 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
     _inQueue.sendError(errorEnvelope);
   }
 
-  /**
-   * Build a retry envelope for a retryable pipeline result.
-   * 
-   * @param output         Pipeline dispatch result
-   * @param retryDirective Retry directive returned by the policy decision
-   * @return Retryable envelope
-   */
   protected StageEnvelope<In> retryEnvelope(PipelineResult<Persist, In, Out> output, RetryDirective retryDirective) {
     In payload = output.input().payload();
-    RequestHeader header = new RequestHeader(
-        payload.requestHeader().schemaVersion(),
-        payload.requestHeader().requestId(),
-        payload.requestHeader().attempt() + 1,
-        payload.requestHeader().idempotencyKey(),
-        Instant.now());
+    RequestHeader header = RequestHeader.retry(payload.requestHeader(), Instant.now());
     In request = buildRequest(payload, header);
     return new StageEnvelope<>(
         output.input().schemaVersion(),
@@ -199,67 +183,22 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
         request);
   }
 
-  /**
-   * Build an error envelope for a terminal failure result.
-   * 
-   * @param output Pipeline dispatch result
-   * @return Failed envelope
-   */
   protected StageEnvelope<In> errorEnvelope(PipelineResult<Persist, In, Out> output) {
     return output.input();
   }
 
-  /**
-   * Build the initial execution context of an input envelope.
-   * 
-   * @param input     Consumable element from the ordered source queue
-   * @param startedAt Pipeline initial runtime
-   * @return Initial context
-   */
   protected abstract Context buildContext(@NonNull StageEnvelope<In> input, @NonNull Instant startedAt);
 
-  /**
-   * Build the initial state of a consumable element.
-   * 
-   * @param context Initial context of a consumable element
-   * @return Initial state
-   */
   protected abstract State buildState(@NonNull Context context);
 
-  /**
-   * Build the next retry request payload for a retryable consumed element.
-   * 
-   * @param request Initial payload
-   * @param header  Next attempt request header
-   * @return Retry request
-   */
   protected abstract In buildRequest(In request, RequestHeader header);
 
-  /**
-   * Build the finalized, persistable document for a processed element.
-   * 
-   * @param input      Consumable element from the ordered source queue
-   * @param context    Pipeline finalized context
-   * @param decision   Pipeline finalized policy decision
-   * @param occurredAt Pipeline finalized runtime
-   * @return Persistable resulting document
-   */
   protected abstract Persist buildDocument(
       @NonNull StageEnvelope<In> input,
       @NonNull Context context,
       @NonNull PolicyDecision<State> decision,
       @NonNull Instant occurredAt);
 
-  /**
-   * Build a downstream stage envelope from a finalized emission intent.
-   * 
-   * @param emission Pipeline finalized emission intent
-   * @param input    Consumable element from the ordered source queue
-   * @param context  Pipeline finalized context
-   * @param decision Pipeline finalized policy decision
-   * @param document Pipeline finalized document
-   * @return Resulting envelope
-   */
   protected abstract StageEnvelope<Out> buildEnvelope(
       @NonNull EmissionIntent<? extends Out> emission,
       @NonNull StageEnvelope<In> input,
@@ -267,20 +206,17 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
       @NonNull PolicyDecision<State> decision,
       @NonNull Persist document);
 
-  /**
-   * Persist a successfully created document to the stage document store.
-   * 
-   * @param document Pipeline finalized document
-   */
-  protected abstract void persistDocument(@NonNull Persist document);
+  protected PersistResult<State, Persist> persistDocument(
+      @NonNull StageEnvelope<In> input,
+      @NonNull Context context,
+      @NonNull PolicyDecision<State> decision,
+      @NonNull Persist document) {
+    persistStageDocument(document);
+    return new PersistResult<>(document, decision);
+  }
 
-  /**
-   * Persist the latest stage execution record for this target and stage.
-   * 
-   * @param input      Pipeline input envelope
-   * @param decision   Pipeline finalized policy decision
-   * @param occurredAt Pipeline finalized runtime
-   */
+  protected abstract void persistStageDocument(@NonNull Persist document);
+
   protected void persistExecution(
       StageEnvelope<In> input,
       PolicyDecision<?> decision,
@@ -301,15 +237,6 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
     _infrastructure.executionStore().put(updated);
   }
 
-  /**
-   * Persist the per-attempt audit event for the processed envelope.
-   * 
-   * @param input      Pipeline input envelope
-   * @param decision   Pipeline finalized policy decision
-   * @param startedAt  Pipeline initial runtime
-   * @param occurredAt Pipeline finalized runtime
-   * @param throwable  Throwable cause for failure or retry of this attempt
-   */
   protected void persistAttempt(
       StageEnvelope<In> input,
       PolicyDecision<?> decision,
