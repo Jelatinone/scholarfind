@@ -3,7 +3,7 @@ package com.github.scholarfind.task.signal.extractors;
 import java.util.Arrays;
 import java.util.Optional;
 
-import com.github.scholarfind.models.shared.ContextDocument;
+import com.github.scholarfind.models.shared.ContentDocument;
 import com.github.scholarfind.models.shared.TraceReference;
 import com.github.scholarfind.task.signal.SignalCost;
 import com.github.scholarfind.task.signal.SignalExtractionResult;
@@ -21,7 +21,7 @@ public class UrlPathDepthExtractor implements SignalExtractor {
   }
 
   @Override
-  public SignalExtractionResult extract(@NonNull TraceReference trace, ContextDocument context) {
+  public SignalExtractionResult extract(@NonNull TraceReference trace, ContentDocument content) {
     int depth = (int) Arrays.stream(trace.normalizedUrl().getPath().split("/"))
         .filter(part -> !part.isEmpty())
         .count();

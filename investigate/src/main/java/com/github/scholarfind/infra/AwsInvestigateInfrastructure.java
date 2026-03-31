@@ -8,7 +8,7 @@ import com.github.scholarfind.api.queue.RetryableQueue;
 import com.github.scholarfind.api.store.Store;
 import com.github.scholarfind.infra.queue.StageEnvelopeQueue;
 import com.github.scholarfind.infra.repository.AttemptEventStore;
-import com.github.scholarfind.infra.repository.ContextDocumentStore;
+import com.github.scholarfind.infra.repository.ContentDocumentStore;
 import com.github.scholarfind.infra.repository.InvestigateDocumentStore;
 import com.github.scholarfind.infra.repository.StageExecutionRecordStore;
 import com.github.scholarfind.models.annotate.AnnotateRequest;
@@ -16,7 +16,7 @@ import com.github.scholarfind.models.audit.AttemptEvent;
 import com.github.scholarfind.models.audit.StageExecution;
 import com.github.scholarfind.models.investigate.InvestigateDocument;
 import com.github.scholarfind.models.investigate.InvestigateRequest;
-import com.github.scholarfind.models.shared.ContextDocument;
+import com.github.scholarfind.models.shared.ContentDocument;
 import com.github.scholarfind.models.shared.StageEnvelope;
 import com.github.scholarfind.task.InvestigateInfrastructure;
 
@@ -46,7 +46,7 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
   Store<AttemptEvent, String> eventStore;
   Store<StageExecution, String> executionStore;
   Store<InvestigateDocument, UUID> investigateStore;
-  Store<ContextDocument, UUID> contextStore;
+  Store<ContentDocument, UUID> contentStore;
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
@@ -59,7 +59,7 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
 
     @Builder.Default
     String investigateStoreName = "store_investigate",
-        contextStoreName = "store_context",
+        contentStoreName = "store_content",
         attemptEventStoreName = "store_attempt_event",
         executionStoreName = "store_stage_execution";
 
@@ -93,8 +93,8 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
   }
 
   @Override
-  public Store<ContextDocument, UUID> contextStore() {
-    return contextStore;
+  public Store<ContentDocument, UUID> contentStore() {
+    return contentStore;
   }
 
   public static AWSInvestigateInfrastructure create(final @NonNull Configuration config) {
@@ -134,7 +134,7 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
         new AttemptEventStore(dynamoClient, config.attemptEventStoreName),
         new StageExecutionRecordStore(dynamoClient, config.executionStoreName),
         new InvestigateDocumentStore(dynamoClient, config.investigateStoreName),
-        new ContextDocumentStore(dynamoClient, config.contextStoreName));
+        new ContentDocumentStore(dynamoClient, config.contentStoreName));
   }
 
   private static String resolveQueueUrl(final @NonNull SqsClient sqsClient, final @NonNull String canonicalName) {

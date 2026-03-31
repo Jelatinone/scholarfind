@@ -36,7 +36,7 @@ public final class ClassificationPolicy implements Policy<InvestigateContext, In
       }
 
       SignalExtractor extractor = configuration.extractorConfiguration().extractor(identifier);
-      SignalExtractionResult result = extractor.extract(context.document().trace(), context.retrievedContext());
+      SignalExtractionResult result = extractor.extract(context.document().trace(), context.retrievedContent());
 
       Optional<SignalValue> value;
       switch (result) {

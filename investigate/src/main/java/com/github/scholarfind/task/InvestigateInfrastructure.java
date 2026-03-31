@@ -7,11 +7,11 @@ import com.github.scholarfind.meta.PipelineTask.Infrastructure;
 import com.github.scholarfind.models.annotate.AnnotateRequest;
 import com.github.scholarfind.models.investigate.InvestigateDocument;
 import com.github.scholarfind.models.investigate.InvestigateRequest;
-import com.github.scholarfind.models.shared.ContextDocument;
+import com.github.scholarfind.models.shared.ContentDocument;
 
 public interface InvestigateInfrastructure extends Infrastructure<InvestigateRequest, AnnotateRequest> {
 
   Store<InvestigateDocument, UUID> investigateStore();
 
-  Store<ContextDocument, UUID> contextStore();
+  Store<ContentDocument, UUID> contentStore();
 }
