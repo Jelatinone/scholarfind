@@ -4,7 +4,7 @@ import java.util.UUID;
 
 import com.github.scholarfind.infra.aws.DynamoStore;
 import com.github.scholarfind.infra.aws.serial.JacksonDynamoSerializer;
-import com.github.scholarfind.models.shared.ContentDocument;
+import com.github.scholarfind.models.content.ContentDocument;
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 

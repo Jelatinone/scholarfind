@@ -14,9 +14,9 @@ import com.github.scholarfind.infra.repository.StageExecutionRecordStore;
 import com.github.scholarfind.models.annotate.AnnotateRequest;
 import com.github.scholarfind.models.audit.AttemptEvent;
 import com.github.scholarfind.models.audit.StageExecution;
+import com.github.scholarfind.models.content.ContentDocument;
 import com.github.scholarfind.models.investigate.InvestigateDocument;
 import com.github.scholarfind.models.investigate.InvestigateRequest;
-import com.github.scholarfind.models.shared.ContentDocument;
 import com.github.scholarfind.models.shared.StageEnvelope;
 import com.github.scholarfind.task.InvestigateInfrastructure;
 

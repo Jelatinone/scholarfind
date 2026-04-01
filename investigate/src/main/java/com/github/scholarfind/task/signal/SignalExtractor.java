@@ -1,6 +1,6 @@
 package com.github.scholarfind.task.signal;
 
-import com.github.scholarfind.models.shared.ContentDocument;
+import com.github.scholarfind.models.content.ContentDocument;
 import com.github.scholarfind.models.shared.TraceReference;
 
 import lombok.NonNull;

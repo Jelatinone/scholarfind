@@ -3,7 +3,7 @@ package com.github.scholarfind.task.signal.extractors;
 import java.util.Arrays;
 import java.util.Optional;
 
-import com.github.scholarfind.models.shared.ContentDocument;
+import com.github.scholarfind.models.content.ContentDocument;
 import com.github.scholarfind.models.shared.TraceReference;
 import com.github.scholarfind.task.signal.SignalCost;
 import com.github.scholarfind.task.signal.SignalExtractionResult;
