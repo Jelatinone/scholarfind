@@ -122,7 +122,7 @@ public final class InvestigateTask extends
             : _infrastructure.investigateStore().get(targetId),
         targetId == null
             ? null
-            : _infrastructure.contextStore().get(targetId),
+            : _infrastructure.contentStore().get(targetId),
         input.schemaVersion(),
         input.stage(),
         input.requestId(),
