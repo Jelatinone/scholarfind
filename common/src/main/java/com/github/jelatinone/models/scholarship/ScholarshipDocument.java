@@ -1,0 +1,28 @@
+package com.github.jelatinone.models.scholarship;
+
+import java.time.LocalDate;
+import java.util.Collection;
+import java.util.UUID;
+
+import com.github.jelatinone.models.dossier.Activity;
+import com.github.jelatinone.models.dossier.EducationLevel;
+import com.github.jelatinone.models.dossier.Location;
+import com.github.jelatinone.models.dossier.PursuedDegreeLevel;
+import com.github.jelatinone.models.dossier.SupplementalType;
+
+public record ScholarshipDocument(
+    UUID scholarshipId,
+    long schemaVersion,
+    String organizationName,
+    String scholarshipName,
+    LocalDate openDate,
+    LocalDate closeDate,
+    Double awardAmount,
+    Collection<Location> location,
+    Collection<Activity> activities,
+    Collection<SupplementalType> supplements,
+    Collection<PursuedDegreeLevel> pursuedDegrees,
+    Collection<EducationLevel> educationLevels,
+    String applicationUrl) {
+  public static final long SCHEMA_VERSION = 1L;
+}
