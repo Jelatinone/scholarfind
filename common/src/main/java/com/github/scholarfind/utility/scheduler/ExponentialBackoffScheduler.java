@@ -1,4 +1,4 @@
-package com.github.scholarfind.backoff;
+package com.github.scholarfind.utility.scheduler;
 
 import java.util.concurrent.ThreadLocalRandom;
 

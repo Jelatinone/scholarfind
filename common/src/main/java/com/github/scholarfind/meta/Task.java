@@ -19,13 +19,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
 
-import com.github.scholarfind.backoff.BackoffScheduler;
-import com.github.scholarfind.backoff.LinearBackoffScheduler;
 import com.github.scholarfind.meta.result.CollectionResult;
 import com.github.scholarfind.meta.result.OperationResult;
 import com.github.scholarfind.meta.result.PostResult;
 import com.github.scholarfind.meta.transitory.State;
 import com.github.scholarfind.utility.Locked;
+import com.github.scholarfind.utility.scheduler.BackoffScheduler;
+import com.github.scholarfind.utility.scheduler.LinearBackoffScheduler;
 
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.AccessLevel;
