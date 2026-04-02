@@ -1,8 +1,7 @@
-package com.github.jelatinone.models.scholarship;
+package com.github.jelatinone.models.annotate;
 
-import java.util.Date;
 import java.util.Collection;
-import java.util.UUID;
+import java.util.Date;
 
 import com.github.jelatinone.models.dossier.Activity;
 import com.github.jelatinone.models.dossier.EducationLevel;
@@ -10,9 +9,7 @@ import com.github.jelatinone.models.dossier.Location;
 import com.github.jelatinone.models.dossier.PursuedDegreeLevel;
 import com.github.jelatinone.models.dossier.SupplementalType;
 
-public record ScholarshipDocument(
-    UUID scholarshipId,
-    long schemaVersion,
+public record AnnotateStub(
     String organizationName,
     String scholarshipName,
     Date openDate,
@@ -22,7 +19,6 @@ public record ScholarshipDocument(
     Collection<Activity> activities,
     Collection<SupplementalType> supplements,
     Collection<PursuedDegreeLevel> pursuedDegrees,
-    Collection<EducationLevel> educationLevels,
-    String applicationUrl) {
-  public static final long SCHEMA_VERSION = 1L;
+    Collection<EducationLevel> educationLevels) {
+
 }

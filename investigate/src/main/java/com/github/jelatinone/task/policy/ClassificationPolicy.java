@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import com.github.jelatinone.models.investigate.Classification;
-import com.github.jelatinone.models.investigate.ClassificationType;
+import com.github.jelatinone.models.investigate.ClassificationStub;
+import com.github.jelatinone.models.investigate.ClassificationKind;
 import com.github.jelatinone.policy.Policy;
 import com.github.jelatinone.policy.PolicyStep;
 import com.github.jelatinone.utility.Mutable;
@@ -27,7 +27,7 @@ public final class ClassificationPolicy implements Policy<InvestigateContext, In
     }
 
     ClassificationConfiguration configuration = context.classificationConfiguration();
-    Map<ClassificationType, Double> contributions = new HashMap<>();
+    Map<ClassificationKind, Double> contributions = new HashMap<>();
     Mutable<SignalCost> cost = new Mutable<>(configuration.costConfiguration().initial());
 
     configuration.costConfiguration().costs().forEach((identifier, signalCost) -> {
@@ -63,7 +63,7 @@ public final class ClassificationPolicy implements Policy<InvestigateContext, In
       });
     });
 
-    Classification classification = new Classification(contributions);
+    ClassificationStub classification = new ClassificationStub(contributions);
     double confidence = contributions.values().stream()
         .mapToDouble(Double::doubleValue)
         .max()

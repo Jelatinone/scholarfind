@@ -1,6 +1,6 @@
 package com.github.jelatinone.task.policy;
 
-import com.github.jelatinone.models.investigate.Classification;
+import com.github.jelatinone.models.investigate.ClassificationStub;
 import com.github.jelatinone.models.investigate.InvestigateDocument;
 import com.github.jelatinone.policy.Policy;
 import com.github.jelatinone.policy.PolicyStep;
@@ -25,7 +25,7 @@ public final class ClassificationReusePolicy implements Policy<InvestigateContex
       return new PolicyStep.Continue<>(state);
     }
 
-    Classification classification = retrieved.classification();
+    ClassificationStub classification = retrieved.classification();
     double confidence = classification.contributions().values().stream()
         .mapToDouble(Double::doubleValue)
         .max()

@@ -1,13 +1,7 @@
 package com.github.jelatinone.models.annotate;
 
-import java.time.LocalDate;
 import java.util.Collection;
 
-import com.github.jelatinone.models.dossier.Activity;
-import com.github.jelatinone.models.dossier.EducationLevel;
-import com.github.jelatinone.models.dossier.Location;
-import com.github.jelatinone.models.dossier.PursuedDegreeLevel;
-import com.github.jelatinone.models.dossier.SupplementalType;
 import com.github.jelatinone.models.shared.DocumentHeader;
 import com.github.jelatinone.models.shared.FetchReference;
 import com.github.jelatinone.models.shared.ReasonCode;
@@ -22,16 +16,7 @@ public record AnnotateDocument(
     TargetReference target,
     TraceReference trace,
     FetchReference snapshot,
-    String organizationName,
-    String scholarshipName,
-    LocalDate openDate,
-    LocalDate closeDate,
-    Double awardAmount,
-    Collection<Location> location,
-    Collection<Activity> activities,
-    Collection<SupplementalType> supplements,
-    Collection<PursuedDegreeLevel> pursuedDegrees,
-    Collection<EducationLevel> educationLevels,
+    AnnotateStub annotation,
     Double extractionConfidence,
     Collection<ReasonCode> qualityFlags,
     int discoveredTargetCount) implements StageDocument<AnnotateDocument> {
@@ -46,16 +31,7 @@ public record AnnotateDocument(
         target,
         trace,
         snapshot,
-        organizationName,
-        scholarshipName,
-        openDate,
-        closeDate,
-        awardAmount,
-        location,
-        activities,
-        supplements,
-        pursuedDegrees,
-        educationLevels,
+        annotation,
         extractionConfidence,
         qualityFlags,
         discoveredTargetCount);
@@ -69,16 +45,7 @@ public record AnnotateDocument(
         target,
         trace,
         snapshot,
-        organizationName,
-        scholarshipName,
-        openDate,
-        closeDate,
-        awardAmount,
-        location,
-        activities,
-        supplements,
-        pursuedDegrees,
-        educationLevels,
+        annotation,
         extractionConfidence,
         qualityFlags,
         discoveredTargetCount);
