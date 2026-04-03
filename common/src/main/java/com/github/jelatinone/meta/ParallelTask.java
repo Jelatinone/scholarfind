@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 
 import com.github.jelatinone.meta.result.CollectionResult;
@@ -19,6 +20,7 @@ import com.github.jelatinone.meta.transitory.State;
 import com.github.jelatinone.utility.Locked;
 
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 
@@ -34,25 +36,38 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
 public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<Consumes, Produces> {
 
-  ExecutorService _executor;
   Semaphore _threads;
   Collection<CompletableFuture<Void>> _jobs;
 
   Collection<Consumes> _operands;
   Collection<OperationResult<Produces>> _results;
 
+  Configuration _parallelConfig;
+
+  @Builder
+  @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
+  public static final class Configuration {
+    @Builder.Default
+    int threadParallelism = 5;
+
+    @Builder.Default
+    ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+  }
+
   /**
    * Creates a new parallel Task
    * 
-   * @param executor Service to execute parallel jobs with
-   * @param config   Config to associate with this task
+   * @param parallelConfig Service to execute parallel jobs with
+   * @param taskConfig     Config to associate with this task
    */
-  protected ParallelTask(final @NonNull ExecutorService executor, final @NonNull Configuration config) {
-    super(config);
+  protected ParallelTask(final @NonNull ParallelTask.Configuration parallelConfig,
+      final @NonNull Task.Configuration taskConfig) {
+    super(taskConfig);
 
-    _executor = executor;
-    _threads = new Semaphore(_taskConfig.threadParallelism);
-    _jobs = new HashSet<>(_taskConfig.threadParallelism, 1f);
+    _parallelConfig = parallelConfig;
+
+    _threads = new Semaphore(_parallelConfig.threadParallelism);
+    _jobs = new HashSet<>(_parallelConfig.threadParallelism, 5f);
 
     _operands = ConcurrentHashMap.newKeySet(_taskConfig.collectionSize);
     _results = ConcurrentHashMap.newKeySet(_taskConfig.collectionSize);
@@ -76,7 +91,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
           _results.add(result);
 
           return result;
-        }, _executor)
+        }, _parallelConfig.executor)
         .thenAccept(result -> handlePost(element, result))
         .exceptionally(exception -> {
           handleFailure(element, exception);

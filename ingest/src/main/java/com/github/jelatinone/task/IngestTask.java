@@ -3,8 +3,8 @@ package com.github.jelatinone.task;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
 
+import com.github.jelatinone.meta.ParallelTask;
 import com.github.jelatinone.meta.PipelineTask;
 import com.github.jelatinone.meta.Task;
 import com.github.jelatinone.meta.result.PersistResult;
@@ -38,6 +38,8 @@ public final class IngestTask extends
   public static final class Configuration {
     PolicyPipeline<IngestContext, IngestState> policyPipeline;
 
+    IngestInfrastructure infrastructure;
+
     @Builder.Default
     Duration retryTimeout = Duration.ofMinutes(5);
 
@@ -54,27 +56,26 @@ public final class IngestTask extends
     int maxAttempts = 5;
 
     @Builder.Default
-    Duration rescheduleCooldown = Duration.ofHours(24);
+    Duration rescheduleTimeout = Duration.ofHours(24);
   }
 
   Configuration _ingestConfig;
 
   private IngestTask(
-      final Task.Configuration taskConfig,
-      final Configuration ingestConfig,
-      final IngestInfrastructure infrastructure,
-      final ExecutorService executor) {
+      final IngestTask.Configuration ingestConfig,
+      final ParallelTask.Configuration parallelConfig,
+      final Task.Configuration taskConfig) {
     super(
-        executor,
-        taskConfig,
         PipelineTask.Configuration
             .<IngestRequest, InvestigateRequest, IngestContext, IngestState, IngestDocument, IngestInfrastructure>builder()
             .policyPipeline(ingestConfig.policyPipeline)
-            .infrastructure(infrastructure)
+            .infrastructure(ingestConfig.infrastructure)
             .retryDuration(ingestConfig.retryTimeout)
             .transitionHistory(ingestConfig.transitionHistory)
             .processingStage(ProcessingStage.INGEST)
-            .build());
+            .build(),
+        parallelConfig,
+        taskConfig);
     _ingestConfig = ingestConfig;
   }
 
@@ -125,7 +126,7 @@ public final class IngestTask extends
         startedAt,
         targetRecord,
         _ingestConfig.maxDepth,
-        _ingestConfig.rescheduleCooldown,
+        _ingestConfig.rescheduleTimeout,
         input.schemaVersion(),
         input.stage(),
         input.requestId(),

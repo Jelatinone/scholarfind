@@ -7,7 +7,6 @@ import static org.slf4j.event.Level.DEBUG;
 import static org.slf4j.event.Level.ERROR;
 
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 
 import com.github.jelatinone.api.Envelope;
 import com.github.jelatinone.api.queue.QueueResult;
@@ -41,16 +40,16 @@ public abstract class QueueTask<Consumes, Produces> extends ParallelTask<Envelop
   /**
    * Creates a new queue Task
    * 
-   * 
-   * @param queue      Queue to consume elements from
-   * @param executor   Service to execute parallel jobs with
-   * @param taskConfig Config to associate with this task
+   * @param queue          Queue to consume elements from
+   * @param parallelConfig Service to execute parallel jobs with
+   * @param taskConfig     Config to associate with this task
    * 
    */
-  protected QueueTask(@NonNull RetryableQueue<Consumes> queue,
-      @NonNull ExecutorService executor,
-      @NonNull Configuration taskConfig) {
-    super(executor, taskConfig);
+  protected QueueTask(
+      @NonNull RetryableQueue<Consumes> queue,
+      @NonNull ParallelTask.Configuration parallelConfig,
+      @NonNull Task.Configuration taskConfig) {
+    super(parallelConfig, taskConfig);
     _inQueue = queue;
   }
 

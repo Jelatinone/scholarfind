@@ -6,14 +6,14 @@ public sealed class QueueException extends RuntimeException {
 		super(message, cause);
 	}
 
-	public static final class RetryTaskException extends QueueException {
-		public RetryTaskException(String message, Throwable cause) {
+	public static final class RetryQueueException extends QueueException {
+		public RetryQueueException(String message, Throwable cause) {
 			super(message, cause);
 		}
 	}
 
-	public static final class FatalTaskException extends QueueException {
-		public FatalTaskException(String message, Throwable cause) {
+	public static final class FatalQueueException extends QueueException {
+		public FatalQueueException(String message, Throwable cause) {
 			super(message, cause);
 		}
 	}

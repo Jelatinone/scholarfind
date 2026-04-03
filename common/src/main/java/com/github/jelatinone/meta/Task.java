@@ -25,7 +25,6 @@ import com.github.jelatinone.meta.result.PostResult;
 import com.github.jelatinone.meta.transitory.State;
 import com.github.jelatinone.utility.Locked;
 import com.github.jelatinone.utility.scheduler.BackoffScheduler;
-import com.github.jelatinone.utility.scheduler.LinearBackoffScheduler;
 
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.AccessLevel;
@@ -73,15 +72,10 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
     int logicalRetries = 5;
 
     @Builder.Default
-    int threadParallelism = 5;
-
-    @Builder.Default
     int collectionSize = 10;
 
-    @Builder.Default
     @NonNull
-    BackoffScheduler awaitScheduler = new LinearBackoffScheduler(10L, 1000L, 1L),
-        retryScheduler = new LinearBackoffScheduler(10L, 1000L, 1L);
+    BackoffScheduler awaitScheduler, retryScheduler;
   }
 
   static Logger _logger = LoggerFactory.getLogger(Task.class);
@@ -98,12 +92,6 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
   CompletableFuture<Void> _completable;
   Collection<Runnable> _listeners;
 
-  /**
-   * Creates a new abstract Task
-   * 
-   * @param name   Name of the task to be created
-   * @param config Options to associate with this task
-   */
   protected Task(final @NonNull Configuration config) {
     _taskConfig = config;
 

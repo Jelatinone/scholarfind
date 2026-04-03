@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 
 import com.github.jelatinone.api.queue.Queue;
 import com.github.jelatinone.api.queue.RetryableQueue;
@@ -83,10 +82,10 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
   }
 
   protected PipelineTask(
-      @NonNull ExecutorService executor,
-      @NonNull Task.Configuration taskConfig,
-      @NonNull PipelineTask.Configuration<In, Out, Context, State, Persist, Infra> pipelineConfig) {
-    super(pipelineConfig.infrastructure.inQueue(), executor, taskConfig);
+      @NonNull PipelineTask.Configuration<In, Out, Context, State, Persist, Infra> pipelineConfig,
+      @NonNull ParallelTask.Configuration parallelConfig,
+      @NonNull Task.Configuration taskConfig) {
+    super(pipelineConfig.infrastructure.inQueue(), parallelConfig, taskConfig);
     this._pipelineConfig = pipelineConfig;
     this._infrastructure = pipelineConfig.infrastructure;
   }

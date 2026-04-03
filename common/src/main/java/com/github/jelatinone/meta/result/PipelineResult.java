@@ -7,9 +7,9 @@ import com.github.jelatinone.models.shared.StageDocument;
 import com.github.jelatinone.models.shared.StageEnvelope;
 import com.github.jelatinone.policy.PolicyDecision;
 
-public record PipelineResult<D extends StageDocument<?>, I extends Request, R extends Request>(
-        StageEnvelope<I> input,
-        D document,
-        PolicyDecision<?> decision,
-        List<StageEnvelope<R>> emissions) {
+public record PipelineResult<Document extends StageDocument<?>, In extends Request, Out extends Request>(
+                StageEnvelope<In> input,
+                Document document,
+                PolicyDecision<?> decision,
+                List<StageEnvelope<Out>> emissions) {
 }

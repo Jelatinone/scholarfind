@@ -14,24 +14,24 @@ import com.github.jelatinone.meta.Task;
  * 
  * @author Cody Washington
  */
-public sealed interface CollectionResult<Type> {
+public sealed interface CollectionResult<Any> {
 
   /**
    * Describes a list of data with elements
    */
-  public static record Alive<Type>(List<Type> collection) implements CollectionResult<Type> {
+  public static record Alive<Any>(List<Any> collection) implements CollectionResult<Any> {
   }
 
   /**
    * Describes a list of data without elements, but expecting to receive elements
    */
-  public static record Idle<Type>() implements CollectionResult<Type> {
+  public static record Idle<Any>() implements CollectionResult<Any> {
   }
 
   /**
    * Describes a list of data without elements, and not expecting to receive
    * elements
    */
-  public static record Empty<Type>() implements CollectionResult<Type> {
+  public static record Empty<Any>() implements CollectionResult<Any> {
   }
 }

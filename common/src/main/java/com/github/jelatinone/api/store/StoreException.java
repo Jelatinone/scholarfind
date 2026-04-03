@@ -6,14 +6,14 @@ public sealed class StoreException extends RuntimeException {
 		super(message, cause);
 	}
 
-	public static final class RetryTaskException extends StoreException {
-		public RetryTaskException(String message, Throwable cause) {
+	public static final class RetryStoreException extends StoreException {
+		public RetryStoreException(String message, Throwable cause) {
 			super(message, cause);
 		}
 	}
 
-	public static final class FatalTaskException extends StoreException {
-		public FatalTaskException(String message, Throwable cause) {
+	public static final class FatalStoreException extends StoreException {
+		public FatalStoreException(String message, Throwable cause) {
 			super(message, cause);
 		}
 	}
