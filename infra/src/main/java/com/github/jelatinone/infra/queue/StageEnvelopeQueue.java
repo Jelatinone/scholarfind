@@ -8,7 +8,7 @@ import com.github.jelatinone.models.shared.StageEnvelope;
 
 import software.amazon.awssdk.services.sqs.SqsClient;
 
-public final class StageEnvelopeQueue<T extends Request> extends SqsQueue<StageEnvelope<T>> {
+public class StageEnvelopeQueue<T extends Request> extends SqsQueue<StageEnvelope<T>> {
   public StageEnvelopeQueue(
       SqsClient client,
       String inputUrl,

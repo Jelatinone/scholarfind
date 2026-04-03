@@ -8,8 +8,8 @@ import com.github.jelatinone.api.queue.Queue;
 import com.github.jelatinone.api.queue.RetryableQueue;
 import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.infra.aws.DynamoStore;
-import com.github.jelatinone.infra.aws.SQSQueue;
-import com.github.jelatinone.infra.queue.StageEnvelopeQueue;
+import com.github.jelatinone.infra.queue.IngestRequestQueue;
+import com.github.jelatinone.infra.queue.InvestigateRequestQueue;
 import com.github.jelatinone.infra.repository.AttemptEventStore;
 import com.github.jelatinone.infra.repository.IngestDocumentStore;
 import com.github.jelatinone.infra.repository.StageExecutionRecordStore;
@@ -47,8 +47,8 @@ public final class AWSIngestInfrastructure implements IngestInfrastructure {
   SqsClient sqsClient;
   DynamoDbClient dynamoClient;
 
-  SQSQueue<StageEnvelope<IngestRequest>> inQueue;
-  SQSQueue<StageEnvelope<InvestigateRequest>> outQueue;
+  RetryableQueue<StageEnvelope<IngestRequest>> inQueue;
+  Queue<StageEnvelope<InvestigateRequest>> outQueue;
 
   DynamoStore<AttemptEvent, String> eventStore;
   DynamoStore<StageExecution, String> executionStore;
@@ -126,18 +126,16 @@ public final class AWSIngestInfrastructure implements IngestInfrastructure {
         metrics,
         sqsClient,
         dynamoClient,
-        new StageEnvelopeQueue<>(
+        new IngestRequestQueue(
             sqsClient,
             resolveQueueUrl(sqsClient, config.inQueueName),
             resolveQueueUrl(sqsClient, config.retryQueueName),
-            resolveQueueUrl(sqsClient, config.errorQueueName),
-            IngestRequest.class),
-        new StageEnvelopeQueue<>(
+            resolveQueueUrl(sqsClient, config.errorQueueName)),
+        new InvestigateRequestQueue(
             sqsClient,
             resolveQueueUrl(sqsClient, config.outQueueName),
             null,
-            null,
-            InvestigateRequest.class),
+            null),
         new AttemptEventStore(dynamoClient, config.attemptEventStoreName),
         new StageExecutionRecordStore(dynamoClient, config.executionStoreName),
         new IngestDocumentStore(dynamoClient, config.ingestStoreName),
@@ -184,10 +182,10 @@ public final class AWSIngestInfrastructure implements IngestInfrastructure {
           .build());
       return IngestPersistResult.APPLIED;
     } catch (TransactionCanceledException exception) {
-      boolean admissionConflictOccured = exception.cancellationReasons() != null
+      boolean admissionConflictOccurred = exception.cancellationReasons() != null
           && exception.cancellationReasons().stream()
               .anyMatch(reason -> "ConditionalCheckFailed".equals(reason.code()));
-      if (admissionConflictOccured) {
+      if (admissionConflictOccurred) {
         return IngestPersistResult.ADMISSION_CONFLICT;
       }
       throw exception;

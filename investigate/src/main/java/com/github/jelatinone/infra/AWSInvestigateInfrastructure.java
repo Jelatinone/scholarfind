@@ -6,7 +6,8 @@ import java.util.UUID;
 import com.github.jelatinone.api.queue.Queue;
 import com.github.jelatinone.api.queue.RetryableQueue;
 import com.github.jelatinone.api.store.Store;
-import com.github.jelatinone.infra.queue.StageEnvelopeQueue;
+import com.github.jelatinone.infra.queue.AnnotateRequestQueue;
+import com.github.jelatinone.infra.queue.InvestigateRequestQueue;
 import com.github.jelatinone.infra.repository.AttemptEventStore;
 import com.github.jelatinone.infra.repository.ContentDocumentStore;
 import com.github.jelatinone.infra.repository.InvestigateDocumentStore;
@@ -119,18 +120,14 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
         metrics,
         sqsClient,
         dynamoClient,
-        new StageEnvelopeQueue<>(
+        new InvestigateRequestQueue(
             sqsClient,
             resolveQueueUrl(sqsClient, config.inQueueName),
             resolveQueueUrl(sqsClient, config.retryQueueName),
-            resolveQueueUrl(sqsClient, config.errorQueueName),
-            InvestigateRequest.class),
-        new StageEnvelopeQueue<>(
+            resolveQueueUrl(sqsClient, config.errorQueueName)),
+        new AnnotateRequestQueue(
             sqsClient,
-            resolveQueueUrl(sqsClient, config.outQueueName),
-            null,
-            null,
-            AnnotateRequest.class),
+            resolveQueueUrl(sqsClient, config.outQueueName)),
         new AttemptEventStore(dynamoClient, config.attemptEventStoreName),
         new StageExecutionRecordStore(dynamoClient, config.executionStoreName),
         new InvestigateDocumentStore(dynamoClient, config.investigateStoreName),
