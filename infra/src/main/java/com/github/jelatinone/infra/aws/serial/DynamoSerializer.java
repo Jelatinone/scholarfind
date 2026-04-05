@@ -4,10 +4,12 @@ import java.util.Map;
 
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
-public interface DynamoSerializer<T, K> {
-  T decode(Map<String, AttributeValue> item) throws Exception;
+public interface DynamoSerializer<Value, Key> {
+  Map<String, AttributeValue> encodeItem(Value value) throws Exception;
 
-  Map<String, AttributeValue> encode(T value) throws Exception;
+  Value decodeItem(Map<String, AttributeValue> item) throws Exception;
 
-  Map<String, AttributeValue> key(K key);
+  Map<String, AttributeValue> encodeKey(Key key);
+
+  Key deriveKey(Value value);
 }

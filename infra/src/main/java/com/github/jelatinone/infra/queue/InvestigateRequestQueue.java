@@ -1,7 +1,7 @@
 package com.github.jelatinone.infra.queue;
 
 import com.github.jelatinone.infra.aws.SqsQueue;
-import com.github.jelatinone.infra.aws.serial.JacksonSqsSerializer;
+import com.github.jelatinone.infra.aws.jackson.JacksonSqsSerializer;
 import com.github.jelatinone.models.investigate.InvestigateRequest;
 
 import software.amazon.awssdk.services.sqs.SqsClient;

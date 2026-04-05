@@ -3,7 +3,7 @@ package com.github.jelatinone.infra.repository;
 import java.util.UUID;
 
 import com.github.jelatinone.infra.aws.DynamoStore;
-import com.github.jelatinone.infra.aws.serial.JacksonDynamoSerializer;
+import com.github.jelatinone.infra.aws.jackson.JacksonDynamoSerializer;
 import com.github.jelatinone.models.investigate.InvestigateDocument;
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -17,13 +17,13 @@ public final class InvestigateDocumentStore extends DynamoStore<InvestigateDocum
             InvestigateDocumentStore::documentKey));
   }
 
-  private static String documentKey(InvestigateDocument document) {
+  private static UUID documentKey(InvestigateDocument document) {
     if (document.target() != null && document.target().targetId() != null) {
-      return document.target().targetId().toString();
+      return document.target().targetId();
     }
     if (document.documentHeader() != null && document.documentHeader().targetId() != null) {
-      return document.documentHeader().targetId().toString();
+      return document.documentHeader().targetId();
     }
-    return document.documentHeader().documentId().toString();
+    return document.documentHeader().documentId();
   }
 }

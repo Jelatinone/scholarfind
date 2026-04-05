@@ -33,17 +33,17 @@ import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @AllArgsConstructor
-public class SqsQueue<T> implements RetryableQueue<T> {
+public class SqsQueue<Value> implements RetryableQueue<Value> {
   SqsClient client;
   String inputUrl;
   String retryUrl;
   String errorUrl;
-  SqsSerializer<T> serializer;
+  SqsSerializer<Value> serializer;
 
   static Logger _logger = LoggerFactory.getLogger(SqsQueue.class);
 
   @Override
-  public QueueResult<T> poll(int messageCount) {
+  public QueueResult<Value> poll(int messageCount) {
     ReceiveMessageResponse response = client.receiveMessage(
         ReceiveMessageRequest.builder()
             .queueUrl(inputUrl)
@@ -51,7 +51,7 @@ public class SqsQueue<T> implements RetryableQueue<T> {
             .messageAttributeNames(".*")
             .build());
     logResponse("Receive message", response.sdkHttpResponse());
-    List<ReceivedMessage<T>> messages = response.messages().stream()
+    List<ReceivedMessage<Value>> messages = response.messages().stream()
         .map(this::wrap)
         .filter(java.util.Objects::nonNull)
         .toList();
@@ -59,12 +59,12 @@ public class SqsQueue<T> implements RetryableQueue<T> {
   }
 
   @Override
-  public void send(T message) {
+  public void send(Value message) {
     send(inputUrl, message);
   }
 
   @Override
-  public void sendRetry(T message) {
+  public void sendRetry(Value message) {
     if (retryUrl == null) {
       throw new IllegalStateException("Retry queue URL is not configured");
     }
@@ -72,14 +72,14 @@ public class SqsQueue<T> implements RetryableQueue<T> {
   }
 
   @Override
-  public void sendError(T message) {
+  public void sendError(Value message) {
     if (errorUrl == null) {
       throw new IllegalStateException("Error queue URL is not configured");
     }
     send(errorUrl, message);
   }
 
-  public void send(String queueUrl, T message) {
+  public void send(String queueUrl, Value message) {
     try {
       String body = serializer.encodeBody(message);
       Map<String, String> attributes = serializer.encodeAttributes(message);
@@ -93,9 +93,9 @@ public class SqsQueue<T> implements RetryableQueue<T> {
     }
   }
 
-  private ReceivedMessage<T> wrap(Message message) {
+  private ReceivedMessage<Value> wrap(Message message) {
     try {
-      T decoded = serializer.decode(message.body(), decodeAttributes(message.messageAttributes()));
+      Value decoded = serializer.decode(message.body(), decodeAttributes(message.messageAttributes()));
       Acknowledgement acknowledgement = new Acknowledgement() {
         @Override
         public void success() {
@@ -141,10 +141,10 @@ public class SqsQueue<T> implements RetryableQueue<T> {
             APPROXIMATE_NUMBER_OF_MESSAGES_NOT_VISIBLE,
             APPROXIMATE_NUMBER_OF_MESSAGES_DELAYED));
     logResponse("Resolve queue state", response.sdkHttpResponse());
-    boolean queueAlive = response.attributes().values().stream()
+    boolean containsAnyMessages = response.attributes().values().stream()
         .mapToInt(Integer::parseInt)
         .anyMatch(value -> value > 0);
-    return queueAlive ? QueueState.IDLE : QueueState.EMPTY;
+    return containsAnyMessages ? QueueState.IDLE : QueueState.EMPTY;
   }
 
   private Map<String, String> decodeAttributes(Map<String, MessageAttributeValue> attributes) {

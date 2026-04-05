@@ -2,7 +2,7 @@ package com.github.jelatinone.infra.queue;
 
 import com.github.jelatinone.infra.JacksonMapper;
 import com.github.jelatinone.infra.aws.SqsQueue;
-import com.github.jelatinone.infra.aws.serial.JacksonSqsSerializer;
+import com.github.jelatinone.infra.aws.jackson.JacksonSqsSerializer;
 import com.github.jelatinone.models.shared.Request;
 import com.github.jelatinone.models.shared.StageEnvelope;
 

@@ -26,34 +26,35 @@ import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @AllArgsConstructor
-public class DynamoStore<T, K> implements Store<T, K> {
+public class DynamoStore<Value, Key> implements Store<Value, Key> {
   DynamoDbClient client;
   String table;
-  DynamoSerializer<T, K> serializer;
+  DynamoSerializer<Value, Key> serializer;
 
   static Logger _logger = LoggerFactory.getLogger(DynamoStore.class);
 
   @Override
-  public void put(T body) {
+  public Key put(Value body) {
     try {
       PutItemResponse response = client.putItem(builder -> builder
           .tableName(table)
           .item(encode(body))
           .build());
       logResponse("Put item", response.sdkHttpResponse());
+      return serializer.deriveKey(body);
     } catch (Exception exception) {
       throw new IllegalStateException("Failed to encode store item", exception);
     }
   }
 
-  public TransactWriteItem transactPut(T body) {
+  public TransactWriteItem transactPut(Value body) {
     return transactPut(body, (builder) -> {
       // Do nothing ;)
     });
   }
 
   public TransactWriteItem transactPut(
-      T body,
+      Value body,
       Consumer<Put.Builder> mutator) {
     try {
       return TransactWriteItem.builder()
@@ -69,28 +70,28 @@ public class DynamoStore<T, K> implements Store<T, K> {
   }
 
   @Override
-  public T get(K key) {
+  public Value get(Key key) {
     try {
       GetItemResponse response = client.getItem(builder -> builder
           .tableName(table)
-          .key(serializer.key(key))
+          .key(serializer.encodeKey(key))
           .build());
       logResponse("Get item", response.sdkHttpResponse());
-      return serializer.decode(response.item());
+      return serializer.decodeItem(response.item());
     } catch (Exception exception) {
       throw new IllegalStateException("Failed to decode store item", exception);
     }
   }
 
-  public TransactGetItem transactGet(K key) {
+  public TransactGetItem transactGet(Key key) {
     return transactGet(key, (builder) -> {
       // Do nothing ;)
     });
   }
 
-  public TransactGetItem transactGet(K key, Consumer<Get.Builder> mutator) {
+  public TransactGetItem transactGet(Key key, Consumer<Get.Builder> mutator) {
     try {
-      var item = serializer.key(key);
+      var item = serializer.encodeKey(key);
       TransactGetItem transact = TransactGetItem.builder()
           .get(Get.builder()
               .tableName(table)
@@ -105,11 +106,11 @@ public class DynamoStore<T, K> implements Store<T, K> {
   }
 
   @Override
-  public void delete(K key) {
+  public void delete(Key key) {
     try {
       DeleteItemResponse response = client.deleteItem(builder -> builder
           .tableName(table)
-          .key(serializer.key(key))
+          .key(serializer.encodeKey(key))
           .build());
       logResponse("Delete item", response.sdkHttpResponse());
     } catch (Exception exception) {
@@ -117,15 +118,15 @@ public class DynamoStore<T, K> implements Store<T, K> {
     }
   }
 
-  public TransactWriteItem transactDelete(K key) {
+  public TransactWriteItem transactDelete(Key key) {
     return transactDelete(key, (builder) -> {
       // Do nothing ;)
     });
   }
 
-  public TransactWriteItem transactDelete(K key, Consumer<Delete.Builder> mutator) {
+  public TransactWriteItem transactDelete(Key key, Consumer<Delete.Builder> mutator) {
     try {
-      var item = serializer.key(key);
+      var item = serializer.encodeKey(key);
       TransactWriteItem transact = TransactWriteItem.builder()
           .delete(Delete.builder()
               .tableName(table)
@@ -139,9 +140,9 @@ public class DynamoStore<T, K> implements Store<T, K> {
     }
   }
 
-  public Map<String, AttributeValue> encode(T body) {
+  public Map<String, AttributeValue> encode(Value body) {
     try {
-      return serializer.encode(body);
+      return serializer.encodeItem(body);
     } catch (Exception exception) {
       throw new IllegalStateException("Failed to encode store item", exception);
     }
