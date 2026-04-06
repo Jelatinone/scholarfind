@@ -8,7 +8,7 @@ import com.github.jelatinone.api.queue.Queue;
 import com.github.jelatinone.api.queue.RetryableQueue;
 import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.infra.aws.DynamoStore;
-import com.github.jelatinone.infra.aws.SqsQueue;
+import com.github.jelatinone.infra.aws.SQSQueue;
 import com.github.jelatinone.infra.queue.StageEnvelopeQueue;
 import com.github.jelatinone.infra.repository.AttemptEventStore;
 import com.github.jelatinone.infra.repository.IngestDocumentStore;
@@ -47,8 +47,8 @@ public final class AWSIngestInfrastructure implements IngestInfrastructure {
   SqsClient sqsClient;
   DynamoDbClient dynamoClient;
 
-  SqsQueue<StageEnvelope<IngestRequest>> inQueue;
-  SqsQueue<StageEnvelope<InvestigateRequest>> outQueue;
+  SQSQueue<StageEnvelope<IngestRequest>> inQueue;
+  SQSQueue<StageEnvelope<InvestigateRequest>> outQueue;
 
   DynamoStore<AttemptEvent, String> eventStore;
   DynamoStore<StageExecution, String> executionStore;

@@ -16,7 +16,7 @@ import com.github.jelatinone.api.queue.QueueResult;
 import com.github.jelatinone.api.queue.QueueState;
 import com.github.jelatinone.api.queue.ReceivedMessage;
 import com.github.jelatinone.api.queue.RetryableQueue;
-import com.github.jelatinone.infra.aws.serial.SqsSerializer;
+import com.github.jelatinone.infra.aws.serial.SQSSerializer;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -33,14 +33,14 @@ import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @AllArgsConstructor
-public class SqsQueue<Value> implements RetryableQueue<Value> {
+public class SQSQueue<Value> implements RetryableQueue<Value> {
   SqsClient client;
   String inputUrl;
   String retryUrl;
   String errorUrl;
-  SqsSerializer<Value> serializer;
+  SQSSerializer<Value> serializer;
 
-  static Logger _logger = LoggerFactory.getLogger(SqsQueue.class);
+  static Logger _logger = LoggerFactory.getLogger(SQSQueue.class);
 
   @Override
   public QueueResult<Value> poll(int messageCount) {
