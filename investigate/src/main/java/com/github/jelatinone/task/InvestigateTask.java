@@ -3,6 +3,7 @@ package com.github.jelatinone.task;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 
@@ -103,12 +104,16 @@ public final class InvestigateTask extends
         .requestHeader(requestHeader)
         .target(target)
         .trace(new TraceReference(
-            target == null ? null : target.normalizedUrl(),
+            target == null
+                ? null
+                : target.normalizedUrl(),
             null,
             _taskConfig.name,
-            target == null ? null : target.depth()))
+            target == null
+                ? null
+                : target.depth()))
         .reviewedAt(startedAt)
-        .classification(new ClassificationStub(Map.of()))
+        .classification(new ClassificationStub(Map.of(), 0D, Set.of()))
         .confidence(0D)
         .discoveredTargetCount(0)
         .build();
@@ -116,6 +121,7 @@ public final class InvestigateTask extends
     return new InvestigateContext(
         currentDocument,
         _investigateConfig.classificationConfiguration,
+        _infrastructure.acquisitionService(),
         startedAt,
         targetId == null
             ? null

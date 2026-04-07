@@ -1,13 +1,22 @@
 package com.github.jelatinone.infra;
 
+import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
+import com.github.jelatinone.acquisition.BodyFetcher;
+import com.github.jelatinone.acquisition.ContentInterpreter;
+import com.github.jelatinone.acquisition.AcquisitionService;
+import com.github.jelatinone.acquisition.fetch.HTTPBodyFetcher;
+import com.github.jelatinone.acquisition.fetch.HTTPMetadataFetcher;
+import com.github.jelatinone.acquisition.MetadataFetcher;
 import com.github.jelatinone.api.queue.Queue;
 import com.github.jelatinone.api.queue.RetryableQueue;
 import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.infra.queue.StageEnvelopeQueue;
 import com.github.jelatinone.infra.repository.AttemptEventStore;
+import com.github.jelatinone.infra.repository.CaptureDocumentStore;
 import com.github.jelatinone.infra.repository.ContentDocumentStore;
 import com.github.jelatinone.infra.repository.InvestigateDocumentStore;
 import com.github.jelatinone.infra.repository.StageExecutionRecordStore;
@@ -30,6 +39,7 @@ import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.metrics.publishers.cloudwatch.CloudWatchMetricPublisher;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 
@@ -39,6 +49,7 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
   MetricPublisher metrics;
   SqsClient sqsClient;
   DynamoDbClient dynamoClient;
+  S3Client s3Client;
 
   RetryableQueue<StageEnvelope<InvestigateRequest>> inQueue;
   Queue<StageEnvelope<AnnotateRequest>> outQueue;
@@ -47,6 +58,7 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
   Store<StageExecution, String> executionStore;
   Store<InvestigateDocument, UUID> investigateStore;
   Store<ContentDocument, UUID> contentStore;
+  AcquisitionService acquisitionService;
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
@@ -64,7 +76,21 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
         executionStoreName = "store_stage_execution";
 
     @Builder.Default
+    String captureBucketName = "store_capture",
+        sourceCapturePrefix = "capture/source",
+        textCapturePrefix = "capture/text";
+
+    @Builder.Default
+    List<ContentInterpreter> interpreters = List.of();
+
+    @Builder.Default
     Duration callTimeout = Duration.ofSeconds(30);
+
+    @Builder.Default
+    int maxRedirects = 5;
+
+    @Builder.Default
+    String userAgent = UUID.randomUUID().toString();
   }
 
   @Override
@@ -97,6 +123,11 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
     return contentStore;
   }
 
+  @Override
+  public AcquisitionService acquisitionService() {
+    return acquisitionService;
+  }
+
   public static AWSInvestigateInfrastructure create(final @NonNull Configuration config) {
     MetricPublisher metrics = CloudWatchMetricPublisher.builder()
         .cloudWatchClient(CloudWatchAsyncClient.create())
@@ -115,10 +146,49 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
             .apiCallAttemptTimeout(config.callTimeout))
         .build();
 
+    S3Client s3Client = S3Client.builder()
+        .overrideConfiguration(overrides -> overrides
+            .addMetricPublisher(metrics)
+            .apiCallAttemptTimeout(config.callTimeout))
+        .build();
+
+    HttpClient httpClient = HttpClient.newBuilder()
+        .connectTimeout(config.callTimeout)
+        .followRedirects(HttpClient.Redirect.NEVER)
+        .build();
+
+    ContentDocumentStore contentStore = new ContentDocumentStore(dynamoClient, config.contentStoreName);
+    CaptureDocumentStore sourceCaptureStore = new CaptureDocumentStore(
+        s3Client,
+        config.captureBucketName,
+        config.sourceCapturePrefix);
+    CaptureDocumentStore textCaptureStore = new CaptureDocumentStore(
+        s3Client,
+        config.captureBucketName,
+        config.textCapturePrefix);
+    MetadataFetcher metadataFetcher = new HTTPMetadataFetcher(
+        httpClient,
+        config.callTimeout,
+        config.maxRedirects,
+        config.userAgent);
+    BodyFetcher bodyFetcher = new HTTPBodyFetcher(
+        httpClient,
+        config.callTimeout,
+        config.maxRedirects,
+        config.userAgent);
+    AcquisitionService acquisitionService = new AcquisitionService(
+        metadataFetcher,
+        bodyFetcher,
+        config.interpreters,
+        contentStore,
+        sourceCaptureStore,
+        textCaptureStore);
+
     return new AWSInvestigateInfrastructure(
         metrics,
         sqsClient,
         dynamoClient,
+        s3Client,
         new StageEnvelopeQueue<>(
             sqsClient,
             resolveQueueUrl(sqsClient, config.inQueueName),
@@ -134,7 +204,8 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
         new AttemptEventStore(dynamoClient, config.attemptEventStoreName),
         new StageExecutionRecordStore(dynamoClient, config.executionStoreName),
         new InvestigateDocumentStore(dynamoClient, config.investigateStoreName),
-        new ContentDocumentStore(dynamoClient, config.contentStoreName));
+        contentStore,
+        acquisitionService);
   }
 
   private static String resolveQueueUrl(final @NonNull SqsClient sqsClient, final @NonNull String canonicalName) {
@@ -150,5 +221,6 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
     metrics.close();
     sqsClient.close();
     dynamoClient.close();
+    s3Client.close();
   }
 }

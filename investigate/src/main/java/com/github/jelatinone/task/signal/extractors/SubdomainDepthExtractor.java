@@ -1,8 +1,5 @@
 package com.github.jelatinone.task.signal.extractors;
 
-import java.net.URL;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 
 import com.github.jelatinone.acquisition.AcquiredContent;
@@ -15,8 +12,7 @@ import com.github.jelatinone.task.signal.SignalValue;
 
 import lombok.NonNull;
 
-public final class UrlPathNameExtractor implements SignalExtractor {
-
+public final class SubdomainDepthExtractor implements SignalExtractor {
   @Override
   public @NonNull SignalTier requires() {
     return SignalTier.TRACE;
@@ -24,12 +20,12 @@ public final class UrlPathNameExtractor implements SignalExtractor {
 
   @Override
   public @NonNull SignalIdentity identity() {
-    return SignalIdentity.URL_PATH_NAME;
+    return SignalIdentity.SUBDOMAIN_DEPTH;
   }
 
   @Override
   public boolean supports(@NonNull AcquiredContent context) {
-    return context.traceUrl() != null;
+    return context.traceHost() != null && !context.traceHost().isBlank();
   }
 
   @Override
@@ -40,15 +36,11 @@ public final class UrlPathNameExtractor implements SignalExtractor {
 
   @Override
   public Optional<SignalValue> extract(@NonNull AcquiredContent context) {
-    URL url = context.traceUrl();
-    List<String> parts;
-    if (url == null || url.getPath() == null || url.getPath().isBlank()) {
-      parts = List.of();
+    String host = context.traceHost();
+    if (host == null || host.isBlank()) {
+      return Optional.empty();
     }
-    parts = Arrays.stream(url.getPath().split("/"))
-        .map(String::trim)
-        .filter(segment -> !segment.isBlank())
-        .toList();
-    return Optional.of(new SignalValue.ListSignal<>(parts));
+    String[] parts = host.split("\\.");
+    return Optional.of(new SignalValue.NumericSignal(Math.max(0, parts.length - 2)));
   }
 }

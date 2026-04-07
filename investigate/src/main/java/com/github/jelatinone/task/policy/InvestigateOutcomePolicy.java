@@ -29,7 +29,9 @@ public final class InvestigateOutcomePolicy implements Policy<InvestigateContext
         : classification.contributions();
     if (contributions.isEmpty()) {
       return new PolicyStep.Decide<>(
-          PolicyDecision.drop(state, PolicyReason.REQUEST_REJECTED,
+          PolicyDecision.drop(
+              state,
+              PolicyReason.REQUEST_REJECTED,
               "Investigate classification produced no signals"));
     }
 

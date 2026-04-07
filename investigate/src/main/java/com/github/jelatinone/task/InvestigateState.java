@@ -2,6 +2,7 @@ package com.github.jelatinone.task;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
 
 import com.github.jelatinone.models.investigate.ClassificationStub;
 
@@ -14,7 +15,7 @@ public record InvestigateState(
     boolean reusedRecentClassification) {
 
   public static InvestigateState initial(Instant reviewedAt) {
-    return new InvestigateState(reviewedAt, new ClassificationStub(Map.of()), 0D, 0, false, false);
+    return new InvestigateState(reviewedAt, new ClassificationStub(Map.of(), 0D, Set.of()), 0D, 0, false, false);
   }
 
   public InvestigateState withClassification(ClassificationStub nextClassification, double nextConfidence,
