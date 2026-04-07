@@ -6,6 +6,7 @@ import java.util.Set;
 
 import com.github.jelatinone.models.annotate.AnnotateRequest;
 import com.github.jelatinone.models.investigate.ClassificationStub;
+import com.github.jelatinone.models.shared.ReasonCode;
 import com.github.jelatinone.models.investigate.ClassificationKind;
 import com.github.jelatinone.policy.EmissionIntent;
 import com.github.jelatinone.policy.Policy;
@@ -56,7 +57,7 @@ public final class InvestigateOutcomePolicy implements Policy<InvestigateContext
           context.document().requestHeader(),
           context.document().target(),
           classification);
-      Set<com.github.jelatinone.models.shared.ReasonCode> reasonCodes = state.reusedRecentClassification()
+      Set<ReasonCode> reasonCodes = state.reusedRecentClassification()
           ? Set.of(PolicyReason.RECENT_RESULT_REUSED)
           : Set.of();
       return new PolicyStep.Decide<>(

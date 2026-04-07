@@ -93,6 +93,18 @@ public class SQSQueue<Value> implements RetryableQueue<Value> {
     }
   }
 
+  public void send(String queueUrl, String body, Map<String, MessageAttributeValue> attributes) {
+    try {
+      SendMessageResponse response = client.sendMessage(builder -> builder
+          .queueUrl(queueUrl)
+          .messageBody(body)
+          .messageAttributes(attributes));
+      logResponse("Send message", response.sdkHttpResponse());
+    } catch (Exception exception) {
+      throw new IllegalStateException("Failed to encode queue message", exception);
+    }
+  }
+
   private ReceivedMessage<Value> wrap(Message message) {
     try {
       Value decoded = serializer.decode(message.body(), decodeAttributes(message.messageAttributes()));
@@ -121,6 +133,9 @@ public class SQSQueue<Value> implements RetryableQueue<Value> {
       return new ReceivedMessage<>(decoded, acknowledgement);
     } catch (Exception exception) {
       _logger.error(String.format("Decode queue message failed : %s", exception.getMessage()));
+      if (errorUrl != null) {
+        send(errorUrl, message.body(), message.messageAttributes());
+      }
       delete(message.receiptHandle());
       return null;
     }
