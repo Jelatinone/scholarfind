@@ -6,5 +6,6 @@ include(
 
     'ingest',
     'investigate',
+		'annotate'
 
     )
