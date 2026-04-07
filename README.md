@@ -2,6 +2,9 @@
 
 _"Scholarfind is a resource for connecting student profiles with scholarships, all at no cost." - Me, right now_ :)
 
+> [!IMPORTANT]
+> 'Scholarfind' is a placeholder name for this project. If you have a name suggestion, please open an issue!
+
 ## I. A long time ago in a galaxy far, far away...
 
 Like many others, during my senior year of high school affording college became a very real concern I hadn't really thought about. Like many others, I turned to scholarships. Like many others, I found the process fragmented, repetive, and inefficient.
