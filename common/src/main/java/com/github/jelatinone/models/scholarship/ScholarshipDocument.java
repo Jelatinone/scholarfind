@@ -1,6 +1,6 @@
 package com.github.jelatinone.models.scholarship;
 
-import java.time.LocalDate;
+import java.util.Date;
 import java.util.Collection;
 import java.util.UUID;
 
@@ -15,8 +15,8 @@ public record ScholarshipDocument(
     long schemaVersion,
     String organizationName,
     String scholarshipName,
-    LocalDate openDate,
-    LocalDate closeDate,
+    Date openDate,
+    Date closeDate,
     Double awardAmount,
     Collection<Location> location,
     Collection<Activity> activities,

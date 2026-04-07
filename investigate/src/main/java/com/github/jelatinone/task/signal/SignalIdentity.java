@@ -1,0 +1,16 @@
+package com.github.jelatinone.task.signal;
+
+public enum SignalIdentity {
+  URL_PATH_DEPTH,
+  URL_PATH_NAME,
+  DOMAIN_NAME,
+  REDIRECT_HOPS,
+  QUERY_PARAMETER,
+  SET_COOKIE,
+  STATUS_CODE,
+  CONTENT_TYPE,
+  CONTENT_LENGTH,
+  TEXT_WORD_COUNT,
+  SUBDOMAIN_DEPTH,
+  ANCHOR_DENSITY
+}

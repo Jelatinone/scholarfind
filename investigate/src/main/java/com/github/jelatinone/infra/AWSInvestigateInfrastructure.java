@@ -1,14 +1,24 @@
 package com.github.jelatinone.infra;
 
+import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
+import com.github.jelatinone.acquisition.BodyFetcher;
+import com.github.jelatinone.acquisition.ContentInterpreter;
+import com.github.jelatinone.acquisition.AcquisitionService;
+import com.github.jelatinone.acquisition.fetch.HTTPBodyFetcher;
+import com.github.jelatinone.acquisition.fetch.HTTPMetadataFetcher;
+import com.github.jelatinone.acquisition.MetadataFetcher;
 import com.github.jelatinone.api.queue.Queue;
 import com.github.jelatinone.api.queue.RetryableQueue;
 import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.infra.queue.AnnotateRequestQueue;
 import com.github.jelatinone.infra.queue.InvestigateRequestQueue;
+import com.github.jelatinone.infra.queue.StageEnvelopeQueue;
 import com.github.jelatinone.infra.repository.AttemptEventStore;
+import com.github.jelatinone.infra.repository.CaptureDocumentStore;
 import com.github.jelatinone.infra.repository.ContentDocumentStore;
 import com.github.jelatinone.infra.repository.InvestigateDocumentStore;
 import com.github.jelatinone.infra.repository.StageExecutionRecordStore;
@@ -31,121 +41,184 @@ import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.metrics.publishers.cloudwatch.CloudWatchMetricPublisher;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public final class AWSInvestigateInfrastructure implements InvestigateInfrastructure {
-  MetricPublisher metrics;
-  SqsClient sqsClient;
-  DynamoDbClient dynamoClient;
+    MetricPublisher metrics;
+    SqsClient sqsClient;
+    DynamoDbClient dynamoClient;
+    S3Client s3Client;
 
-  RetryableQueue<StageEnvelope<InvestigateRequest>> inQueue;
-  Queue<StageEnvelope<AnnotateRequest>> outQueue;
+    RetryableQueue<StageEnvelope<InvestigateRequest>> inQueue;
+    Queue<StageEnvelope<AnnotateRequest>> outQueue;
 
-  Store<AttemptEvent, String> eventStore;
-  Store<StageExecution, String> executionStore;
-  Store<InvestigateDocument, UUID> investigateStore;
-  Store<ContentDocument, UUID> contentStore;
+    Store<AttemptEvent, String> eventStore;
+    Store<StageExecution, String> executionStore;
+    Store<InvestigateDocument, UUID> investigateStore;
+    Store<ContentDocument, UUID> contentStore;
+    AcquisitionService acquisitionService;
 
-  @Builder
-  @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
-  public static final class Configuration {
-    @Builder.Default
-    String inQueueName = "queue_investigate",
-        outQueueName = "queue_annotate",
-        retryQueueName = "queue_investigate_retry",
-        errorQueueName = "queue_investigate_error";
+    @Builder
+    @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
+    public static final class Configuration {
+        @Builder.Default
+        String inQueueName = "queue_investigate",
+                outQueueName = "queue_annotate",
+                retryQueueName = "queue_investigate_retry",
+                errorQueueName = "queue_investigate_error";
 
-    @Builder.Default
-    String investigateStoreName = "store_investigate",
-        contentStoreName = "store_content",
-        attemptEventStoreName = "store_attempt_event",
-        executionStoreName = "store_stage_execution";
+        @Builder.Default
+        String investigateStoreName = "store_investigate",
+                contentStoreName = "store_content",
+                attemptEventStoreName = "store_attempt_event",
+                executionStoreName = "store_stage_execution";
 
-    @Builder.Default
-    Duration callTimeout = Duration.ofSeconds(30);
-  }
+        @Builder.Default
+        String captureBucketName = "store_capture",
+                sourceCapturePrefix = "capture/source",
+                textCapturePrefix = "capture/text";
 
-  @Override
-  public RetryableQueue<StageEnvelope<InvestigateRequest>> inQueue() {
-    return inQueue;
-  }
+        @Builder.Default
+        List<ContentInterpreter> interpreters = List.of();
 
-  @Override
-  public Queue<StageEnvelope<AnnotateRequest>> outQueue() {
-    return outQueue;
-  }
+        @Builder.Default
+        Duration callTimeout = Duration.ofSeconds(30);
 
-  @Override
-  public Store<AttemptEvent, String> eventStore() {
-    return eventStore;
-  }
+        @Builder.Default
+        int maxRedirects = 5;
 
-  @Override
-  public Store<StageExecution, String> executionStore() {
-    return executionStore;
-  }
+        @Builder.Default
+        String userAgent = UUID.randomUUID().toString();
+    }
 
-  @Override
-  public Store<InvestigateDocument, UUID> investigateStore() {
-    return investigateStore;
-  }
+    @Override
+    public RetryableQueue<StageEnvelope<InvestigateRequest>> inQueue() {
+        return inQueue;
+    }
 
-  @Override
-  public Store<ContentDocument, UUID> contentStore() {
-    return contentStore;
-  }
+    @Override
+    public Queue<StageEnvelope<AnnotateRequest>> outQueue() {
+        return outQueue;
+    }
 
-  public static AWSInvestigateInfrastructure create(final @NonNull Configuration config) {
-    MetricPublisher metrics = CloudWatchMetricPublisher.builder()
-        .cloudWatchClient(CloudWatchAsyncClient.create())
-        .detailedMetrics(CoreMetric.API_CALL_DURATION, CoreMetric.API_CALL_SUCCESSFUL)
-        .build();
+    @Override
+    public Store<AttemptEvent, String> eventStore() {
+        return eventStore;
+    }
 
-    SqsClient sqsClient = SqsClient.builder()
-        .overrideConfiguration(overrides -> overrides
-            .addMetricPublisher(metrics)
-            .apiCallAttemptTimeout(config.callTimeout))
-        .build();
+    @Override
+    public Store<StageExecution, String> executionStore() {
+        return executionStore;
+    }
 
-    DynamoDbClient dynamoClient = DynamoDbClient.builder()
-        .overrideConfiguration(overrides -> overrides
-            .addMetricPublisher(metrics)
-            .apiCallAttemptTimeout(config.callTimeout))
-        .build();
+    @Override
+    public Store<InvestigateDocument, UUID> investigateStore() {
+        return investigateStore;
+    }
 
-    return new AWSInvestigateInfrastructure(
-        metrics,
-        sqsClient,
-        dynamoClient,
-        new InvestigateRequestQueue(
-            sqsClient,
-            resolveQueueUrl(sqsClient, config.inQueueName),
-            resolveQueueUrl(sqsClient, config.retryQueueName),
-            resolveQueueUrl(sqsClient, config.errorQueueName)),
-        new AnnotateRequestQueue(
-            sqsClient,
-            resolveQueueUrl(sqsClient, config.outQueueName)),
-        new AttemptEventStore(dynamoClient, config.attemptEventStoreName),
-        new StageExecutionRecordStore(dynamoClient, config.executionStoreName),
-        new InvestigateDocumentStore(dynamoClient, config.investigateStoreName),
-        new ContentDocumentStore(dynamoClient, config.contentStoreName));
-  }
+    @Override
+    public Store<ContentDocument, UUID> contentStore() {
+        return contentStore;
+    }
 
-  private static String resolveQueueUrl(final @NonNull SqsClient sqsClient, final @NonNull String canonicalName) {
-    return sqsClient.getQueueUrl(
-        GetQueueUrlRequest.builder()
-            .queueName(canonicalName)
-            .build())
-        .queueUrl();
-  }
+    @Override
+    public AcquisitionService acquisitionService() {
+        return acquisitionService;
+    }
 
-  @Override
-  public void close() throws Exception {
-    metrics.close();
-    sqsClient.close();
-    dynamoClient.close();
-  }
+    public static AWSInvestigateInfrastructure create(final @NonNull Configuration config) {
+        MetricPublisher metrics = CloudWatchMetricPublisher.builder()
+                .cloudWatchClient(CloudWatchAsyncClient.create())
+                .detailedMetrics(CoreMetric.API_CALL_DURATION, CoreMetric.API_CALL_SUCCESSFUL)
+                .build();
+
+        SqsClient sqsClient = SqsClient.builder()
+                .overrideConfiguration(overrides -> overrides
+                        .addMetricPublisher(metrics)
+                        .apiCallAttemptTimeout(config.callTimeout))
+                .build();
+
+        DynamoDbClient dynamoClient = DynamoDbClient.builder()
+                .overrideConfiguration(overrides -> overrides
+                        .addMetricPublisher(metrics)
+                        .apiCallAttemptTimeout(config.callTimeout))
+                .build();
+
+        S3Client s3Client = S3Client.builder()
+                .overrideConfiguration(overrides -> overrides
+                        .addMetricPublisher(metrics)
+                        .apiCallAttemptTimeout(config.callTimeout))
+                .build();
+
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(config.callTimeout)
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+
+        ContentDocumentStore contentStore = new ContentDocumentStore(dynamoClient, config.contentStoreName);
+        CaptureDocumentStore sourceCaptureStore = new CaptureDocumentStore(
+                s3Client,
+                config.captureBucketName,
+                config.sourceCapturePrefix);
+        CaptureDocumentStore textCaptureStore = new CaptureDocumentStore(
+                s3Client,
+                config.captureBucketName,
+                config.textCapturePrefix);
+        MetadataFetcher metadataFetcher = new HTTPMetadataFetcher(
+                httpClient,
+                config.callTimeout,
+                config.maxRedirects,
+                config.userAgent);
+        BodyFetcher bodyFetcher = new HTTPBodyFetcher(
+                httpClient,
+                config.callTimeout,
+                config.maxRedirects,
+                config.userAgent);
+        AcquisitionService acquisitionService = new AcquisitionService(
+                metadataFetcher,
+                bodyFetcher,
+                config.interpreters,
+                contentStore,
+                sourceCaptureStore,
+                textCaptureStore);
+
+        return new AWSInvestigateInfrastructure(
+                metrics,
+                sqsClient,
+                dynamoClient,
+                s3Client,
+                new InvestigateRequestQueue(
+                        sqsClient,
+                        resolveQueueUrl(sqsClient, config.inQueueName),
+                        resolveQueueUrl(sqsClient, config.retryQueueName),
+                        resolveQueueUrl(sqsClient, config.errorQueueName)),
+                new AnnotateRequestQueue(
+                        sqsClient,
+                        resolveQueueUrl(sqsClient, config.outQueueName)),
+                new AttemptEventStore(dynamoClient, config.attemptEventStoreName),
+                new StageExecutionRecordStore(dynamoClient, config.executionStoreName),
+                new InvestigateDocumentStore(dynamoClient, config.investigateStoreName),
+                contentStore,
+                acquisitionService);
+    }
+
+    private static String resolveQueueUrl(final @NonNull SqsClient sqsClient, final @NonNull String canonicalName) {
+        return sqsClient.getQueueUrl(
+                GetQueueUrlRequest.builder()
+                        .queueName(canonicalName)
+                        .build())
+                .queueUrl();
+    }
+
+    @Override
+    public void close() throws Exception {
+        metrics.close();
+        sqsClient.close();
+        dynamoClient.close();
+        s3Client.close();
+    }
 }

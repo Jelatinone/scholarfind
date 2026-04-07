@@ -90,7 +90,7 @@ public final class Canonical {
     return port;
   }
 
-  private static String normalizePath(String path) {
+  public static String normalizePath(String path) {
     String normalized = path == null || path.isBlank() ? "/" : path.replaceAll("/{2,}", "/");
     if (normalized.length() > 1 && normalized.endsWith("/")) {
       normalized = normalized.substring(0, normalized.length() - 1);
@@ -98,10 +98,30 @@ public final class Canonical {
     return normalized;
   }
 
-  private static String normalizeQuery(String query) {
+  public static String normalizeQuery(String query) {
     if (query == null || query.isBlank()) {
       return null;
     }
     return query;
+  }
+
+  public static boolean isRedirect(int statusCode) {
+    return statusCode >= 300 && statusCode < 400;
+  }
+
+  public static URI toURI(URL url) {
+    try {
+      return url.toURI();
+    } catch (Exception exception) {
+      throw new IllegalStateException("Failed to resolve target URI", exception);
+    }
+  }
+
+  public static URL toURL(URI uri) {
+    try {
+      return uri.toURL();
+    } catch (Exception exception) {
+      throw new IllegalStateException("Failed to resolve target URL", exception);
+    }
   }
 }

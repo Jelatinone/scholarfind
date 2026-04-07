@@ -11,6 +11,12 @@ public final class DepthBudgetPolicy implements Policy<IngestContext, IngestStat
 
   @Override
   public PolicyStep<IngestState> apply(IngestContext context, IngestState state) {
+    if (context.document().target() == null) {
+      return new PolicyStep.Decide<>(
+          PolicyDecision.drop(state, IngestPolicyReason.TARGET_NOT_CANONICAL,
+              "Ingest target not found"));
+    }
+
     int remainingBudget = Math.max(0, context.maxDepth() - context.document().target().depth());
     IngestState nextState = state.withDepthBudget(remainingBudget);
     if (context.document().target().depth() > context.maxDepth()) {

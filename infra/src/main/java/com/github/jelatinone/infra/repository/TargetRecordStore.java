@@ -1,7 +1,7 @@
 package com.github.jelatinone.infra.repository;
 
 import com.github.jelatinone.infra.aws.DynamoStore;
-import com.github.jelatinone.infra.aws.serial.JacksonDynamoSerializer;
+import com.github.jelatinone.infra.aws.jackson.JacksonDynamoSerializer;
 import com.github.jelatinone.models.ingest.TargetRecord;
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;

@@ -15,7 +15,7 @@ public record InvestigateDocument(
     TargetReference target,
     TraceReference trace,
     Instant reviewedAt,
-    Classification classification,
+    ClassificationStub classification,
     Double confidence,
     int discoveredTargetCount) implements StageDocument<InvestigateDocument> {
 
@@ -33,7 +33,7 @@ public record InvestigateDocument(
         discoveredTargetCount);
   }
 
-  public InvestigateDocument withClassification(Classification nextClassification) {
+  public InvestigateDocument withClassification(ClassificationStub nextClassification) {
     return new InvestigateDocument(documentHeader, requestHeader, target, trace, reviewedAt, nextClassification,
         confidence, discoveredTargetCount);
   }

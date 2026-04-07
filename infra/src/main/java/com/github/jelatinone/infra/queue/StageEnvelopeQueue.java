@@ -1,14 +1,14 @@
 package com.github.jelatinone.infra.queue;
 
 import com.github.jelatinone.infra.JacksonMapper;
-import com.github.jelatinone.infra.aws.SqsQueue;
-import com.github.jelatinone.infra.aws.serial.JacksonSqsSerializer;
+import com.github.jelatinone.infra.aws.SQSQueue;
+import com.github.jelatinone.infra.aws.jackson.JacksonSQSSerializer;
 import com.github.jelatinone.models.shared.Request;
 import com.github.jelatinone.models.shared.StageEnvelope;
 
 import software.amazon.awssdk.services.sqs.SqsClient;
 
-public class StageEnvelopeQueue<T extends Request> extends SqsQueue<StageEnvelope<T>> {
+public class StageEnvelopeQueue<T extends Request> extends SQSQueue<StageEnvelope<T>> {
   public StageEnvelopeQueue(
       SqsClient client,
       String inputUrl,
@@ -20,7 +20,7 @@ public class StageEnvelopeQueue<T extends Request> extends SqsQueue<StageEnvelop
         inputUrl,
         retryUrl,
         errorUrl,
-        new JacksonSqsSerializer<>(
+        new JacksonSQSSerializer<>(
             JacksonMapper.mapper.getTypeFactory().constructParametricType(StageEnvelope.class, payloadType)));
   }
 }

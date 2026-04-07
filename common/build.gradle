@@ -9,6 +9,8 @@ repositories {
 dependencies {
   implementation ('commons-cli:commons-cli:1.11.0')
   implementation ("org.slf4j:slf4j-simple:2.0.17")
+  implementation ("org.jsoup:jsoup:1.18.3")
+  implementation ("org.apache.pdfbox:pdfbox:3.0.4")
 
   compileOnly ("org.projectlombok:lombok:1.18.42")
   annotationProcessor ("org.projectlombok:lombok:1.18.42")

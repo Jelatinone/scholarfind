@@ -1,13 +1,13 @@
 package com.github.jelatinone.models.investigate;
 
-public enum ClassificationType {
+public enum ClassificationKind {
   UNCLASSIFIED,
   NOT_APPLICABLE,
   LANDING,
   AGGREGATOR,
   SCHOLARSHIP;
 
-  public static ClassificationType max(ClassificationType first, ClassificationType second) {
+  public static ClassificationKind max(ClassificationKind first, ClassificationKind second) {
     if (first.ordinal() > second.ordinal()) {
       return first;
     }

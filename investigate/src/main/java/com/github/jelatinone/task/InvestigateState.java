@@ -2,22 +2,24 @@ package com.github.jelatinone.task;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
 
-import com.github.jelatinone.models.investigate.Classification;
+import com.github.jelatinone.models.investigate.ClassificationStub;
 
 public record InvestigateState(
     Instant reviewedAt,
-    Classification classification,
+    ClassificationStub classification,
     double confidence,
     int discoveredTargetCount,
     boolean classificationResolved,
     boolean reusedRecentClassification) {
 
   public static InvestigateState initial(Instant reviewedAt) {
-    return new InvestigateState(reviewedAt, new Classification(Map.of()), 0D, 0, false, false);
+    return new InvestigateState(reviewedAt, new ClassificationStub(Map.of(), 0D, Set.of()), 0D, 0, false, false);
   }
 
-  public InvestigateState withClassification(Classification nextClassification, double nextConfidence, boolean reused) {
+  public InvestigateState withClassification(ClassificationStub nextClassification, double nextConfidence,
+      boolean reused) {
     return new InvestigateState(
         reviewedAt,
         nextClassification,
