@@ -12,9 +12,9 @@ import com.github.jelatinone.models.investigate.InvestigateRequest;
 
 public interface InvestigateInfrastructure extends Infrastructure<InvestigateRequest, AnnotateRequest> {
 
-  Store<InvestigateDocument, UUID> investigateStore();
+	Store<InvestigateDocument, UUID> investigateStore();
 
-  Store<ContentDocument, UUID> contentStore();
+	Store<ContentDocument, UUID> contentStore();
 
-  AcquisitionService acquisitionService();
+	AcquisitionService acquisitionService();
 }
