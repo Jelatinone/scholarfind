@@ -16,6 +16,7 @@ import com.github.jelatinone.models.ingest.IngestRequest;
 import com.github.jelatinone.models.ingest.TargetRecord;
 import com.github.jelatinone.models.investigate.InvestigateRequest;
 import com.github.jelatinone.models.shared.DocumentHeader;
+import com.github.jelatinone.models.shared.Request;
 import com.github.jelatinone.models.shared.RequestHeader;
 import com.github.jelatinone.models.shared.StageEnvelope;
 import com.github.jelatinone.models.shared.TargetReference;
@@ -187,22 +188,30 @@ public final class IngestTask extends
 	}
 
 	@Override
-	protected StageEnvelope<InvestigateRequest> buildEnvelope(
-			@NonNull EmissionIntent<? extends InvestigateRequest> emission,
+	protected <Emit extends Request> StageEnvelope<Emit> buildEnvelope(
+			@NonNull EmissionIntent<? extends Request> emission,
 			@NonNull StageEnvelope<IngestRequest> input,
 			@NonNull IngestContext context,
 			@NonNull PolicyDecision<IngestState> decision,
 			@NonNull IngestDocument document) {
 		Instant emittedAt = Instant.now();
-		RequestHeader nextHeader = RequestHeader.next(
-				document.requestHeader(),
-				InvestigateRequest.SCHEMA_VERSION,
-				emittedAt);
-		InvestigateRequest request = new InvestigateRequest(nextHeader, emission.request().target());
-		return StageEnvelope.of(
-				ProcessingStage.INVESTIGATE,
-				document.documentHeader().documentId().toString(),
-				request);
+		return switch (emission.forwardRef()) {
+			case INVESTIGATE -> {
+				if (!(emission.request() instanceof InvestigateRequest request)) {
+					throw unsupportedEmission(emission);
+				}
+				RequestHeader nextHeader = RequestHeader.next(
+						document.requestHeader(),
+						InvestigateRequest.SCHEMA_VERSION,
+						emittedAt);
+				InvestigateRequest routed = new InvestigateRequest(nextHeader, request.target());
+				yield StageEnvelope.<Emit>of(
+						ProcessingStage.INVESTIGATE,
+						document.documentHeader().documentId().toString(),
+						(Emit) routed);
+			}
+			default -> throw unsupportedEmission(emission);
+		};
 	}
 
 	@Override

@@ -4,8 +4,8 @@ import java.time.Instant;
 
 import com.github.jelatinone.models.shared.StageDocument;
 
-public final class ExpirationPolicy<D extends StageDocument<D>, C extends PolicyContext<D>, State>
-		implements Policy<C, State> {
+public final class ExpirationPolicy<Document extends StageDocument<Document>, Context extends PolicyContext<Document>, State>
+		implements Policy<Context, State> {
 	private final int expirationDays;
 
 	public ExpirationPolicy(int expirationDays) {
@@ -13,7 +13,7 @@ public final class ExpirationPolicy<D extends StageDocument<D>, C extends Policy
 	}
 
 	@Override
-	public PolicyStep<State> apply(C context, State state) {
+	public PolicyStep<State> apply(Context context, State state) {
 		Instant discoveredAt = context.document().target().discoveredAt();
 		if (discoveredAt == null) {
 			return new PolicyStep.Continue<>(state);

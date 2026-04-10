@@ -14,17 +14,22 @@ import com.github.jelatinone.acquisition.MetadataFetcher;
 import com.github.jelatinone.api.queue.Queue;
 import com.github.jelatinone.api.queue.RetryableQueue;
 import com.github.jelatinone.api.store.Store;
+import com.github.jelatinone.infra.construct.StageRouter;
 import com.github.jelatinone.infra.queue.AnnotateRequestQueue;
+import com.github.jelatinone.infra.queue.IngestRequestQueue;
 import com.github.jelatinone.infra.queue.InvestigateRequestQueue;
 import com.github.jelatinone.infra.repository.AttemptEventStore;
 import com.github.jelatinone.infra.repository.CaptureDocumentStore;
 import com.github.jelatinone.infra.repository.ContentDocumentStore;
 import com.github.jelatinone.infra.repository.InvestigateDocumentStore;
 import com.github.jelatinone.infra.repository.StageExecutionRecordStore;
+import com.github.jelatinone.meta.construct.Router;
 import com.github.jelatinone.models.annotate.AnnotateRequest;
 import com.github.jelatinone.models.audit.AttemptEvent;
+import com.github.jelatinone.models.audit.ProcessingStage;
 import com.github.jelatinone.models.audit.StageExecution;
 import com.github.jelatinone.models.content.ContentDocument;
+import com.github.jelatinone.models.ingest.IngestRequest;
 import com.github.jelatinone.models.investigate.InvestigateDocument;
 import com.github.jelatinone.models.investigate.InvestigateRequest;
 import com.github.jelatinone.models.shared.StageEnvelope;
@@ -52,8 +57,14 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
 	DynamoDbClient dynamoClient;
 	S3Client s3Client;
 
+	Router router;
+
 	RetryableQueue<StageEnvelope<InvestigateRequest>> inQueue;
-	Queue<StageEnvelope<AnnotateRequest>> outQueue;
+
+	@SuppressWarnings("unused")
+	Queue<StageEnvelope<AnnotateRequest>> annotateQueue;
+	@SuppressWarnings("unused")
+	Queue<StageEnvelope<IngestRequest>> ingestQueue;
 
 	Store<AttemptEvent, String> eventStore;
 	Store<StageExecution, String> executionStore;
@@ -66,7 +77,8 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
 	public static final class Configuration {
 		@Builder.Default
 		String inQueueName = "queue_investigate",
-				outQueueName = "queue_annotate",
+				annotateQueueName = "queue_annotate",
+				ingestQueueName = "queue_ingest",
 				retryQueueName = "queue_investigate_retry",
 				errorQueueName = "queue_investigate_error";
 
@@ -95,13 +107,13 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
 	}
 
 	@Override
-	public RetryableQueue<StageEnvelope<InvestigateRequest>> inQueue() {
+	public RetryableQueue<StageEnvelope<InvestigateRequest>> input() {
 		return inQueue;
 	}
 
 	@Override
-	public Queue<StageEnvelope<AnnotateRequest>> outQueue() {
-		return outQueue;
+	public Router output() {
+		return router;
 	}
 
 	@Override
@@ -185,19 +197,37 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
 				sourceCaptureStore,
 				textCaptureStore);
 
+		IngestRequestQueue ingestRequestQueue = new IngestRequestQueue(
+				sqsClient,
+				resolveQueueUrl(sqsClient, config.ingestQueueName),
+				null,
+				null);
+		InvestigateRequestQueue investigateRequestQueue = new InvestigateRequestQueue(
+				sqsClient,
+				resolveQueueUrl(sqsClient, config.inQueueName),
+				resolveQueueUrl(sqsClient, config.retryQueueName),
+				resolveQueueUrl(sqsClient, config.errorQueueName));
+		AnnotateRequestQueue annotateRequestQueue = new AnnotateRequestQueue(
+				sqsClient,
+				resolveQueueUrl(sqsClient, config.annotateQueueName));
+
 		return new AWSInvestigateInfrastructure(
 				metrics,
 				sqsClient,
 				dynamoClient,
 				s3Client,
-				new InvestigateRequestQueue(
-						sqsClient,
-						resolveQueueUrl(sqsClient, config.inQueueName),
-						resolveQueueUrl(sqsClient, config.retryQueueName),
-						resolveQueueUrl(sqsClient, config.errorQueueName)),
-				new AnnotateRequestQueue(
-						sqsClient,
-						resolveQueueUrl(sqsClient, config.outQueueName)),
+				StageRouter.of(
+						StageRouter.bind(
+								ProcessingStage.INGEST,
+								IngestRequest.class,
+								ingestRequestQueue::send),
+						StageRouter.bind(
+								ProcessingStage.ANNOTATE,
+								AnnotateRequest.class,
+								annotateRequestQueue::send)),
+				investigateRequestQueue,
+				annotateRequestQueue,
+				ingestRequestQueue,
 				new AttemptEventStore(dynamoClient, config.attemptEventStoreName),
 				new StageExecutionRecordStore(dynamoClient, config.executionStoreName),
 				new InvestigateDocumentStore(dynamoClient, config.investigateStoreName),

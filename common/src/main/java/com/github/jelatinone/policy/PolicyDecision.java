@@ -16,6 +16,12 @@ public record PolicyDecision<State>(
 		List<EmissionIntent<? extends Request>> emissionIntents,
 		Map<String, String> auditAttributes) {
 
+	public PolicyDecision {
+		reasonCodes = Set.copyOf(reasonCodes);
+		emissionIntents = List.copyOf(emissionIntents);
+		auditAttributes = Map.copyOf(auditAttributes);
+	}
+
 	public static <State> PolicyDecision<State> next(State state) {
 		return new PolicyDecision<>(state, StageOutcome.NEXT, Set.of(), null, null, List.of(), Map.of());
 	}

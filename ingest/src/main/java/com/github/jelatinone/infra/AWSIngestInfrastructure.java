@@ -8,13 +8,16 @@ import com.github.jelatinone.api.queue.Queue;
 import com.github.jelatinone.api.queue.RetryableQueue;
 import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.infra.aws.DynamoStore;
+import com.github.jelatinone.infra.construct.StageRouter;
 import com.github.jelatinone.infra.queue.IngestRequestQueue;
 import com.github.jelatinone.infra.queue.InvestigateRequestQueue;
 import com.github.jelatinone.infra.repository.AttemptEventStore;
 import com.github.jelatinone.infra.repository.IngestDocumentStore;
 import com.github.jelatinone.infra.repository.StageExecutionRecordStore;
 import com.github.jelatinone.infra.repository.TargetRecordStore;
+import com.github.jelatinone.meta.construct.Router;
 import com.github.jelatinone.models.audit.AttemptEvent;
+import com.github.jelatinone.models.audit.ProcessingStage;
 import com.github.jelatinone.models.audit.StageExecution;
 import com.github.jelatinone.models.ingest.IngestDocument;
 import com.github.jelatinone.models.ingest.IngestRequest;
@@ -43,169 +46,180 @@ import software.amazon.awssdk.services.sqs.SqsClient;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public final class AWSIngestInfrastructure implements IngestInfrastructure {
-  MetricPublisher metrics;
-  SqsClient sqsClient;
-  DynamoDbClient dynamoClient;
+	MetricPublisher metrics;
+	SqsClient sqsClient;
+	DynamoDbClient dynamoClient;
 
-  RetryableQueue<StageEnvelope<IngestRequest>> inQueue;
-  Queue<StageEnvelope<InvestigateRequest>> outQueue;
+	Router router;
 
-  DynamoStore<AttemptEvent, String> eventStore;
-  DynamoStore<StageExecution, String> executionStore;
-  DynamoStore<IngestDocument, UUID> ingestStore;
-  DynamoStore<TargetRecord, String> targetStore;
+	RetryableQueue<StageEnvelope<IngestRequest>> inQueue;
+	@SuppressWarnings("unused")
+	Queue<StageEnvelope<InvestigateRequest>> outQueue;
 
-  @Builder
-  @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
-  public static final class Configuration {
-    @Builder.Default
-    String inQueueName = "queue_ingest",
-        outQueueName = "queue_investigate",
-        retryQueueName = "queue_ingest_retry",
-        errorQueueName = "queue_ingest_error";
+	DynamoStore<AttemptEvent, String> eventStore;
+	DynamoStore<StageExecution, String> executionStore;
+	DynamoStore<IngestDocument, UUID> ingestStore;
+	DynamoStore<TargetRecord, String> targetStore;
 
-    @Builder.Default
-    String ingestStoreName = "store_ingest",
-        targetStoreName = "store_target",
-        attemptEventStoreName = "store_attempt_event",
-        executionStoreName = "store_stage_execution";
+	@Builder
+	@FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
+	public static final class Configuration {
+		@Builder.Default
+		String inQueueName = "queue_ingest",
+				outQueueName = "queue_investigate",
+				retryQueueName = "queue_ingest_retry",
+				errorQueueName = "queue_ingest_error";
 
-    @Builder.Default
-    Duration callTimeout = Duration.ofSeconds(30);
-  }
+		@Builder.Default
+		String ingestStoreName = "store_ingest",
+				targetStoreName = "store_target",
+				attemptEventStoreName = "store_attempt_event",
+				executionStoreName = "store_stage_execution";
 
-  @Override
-  public RetryableQueue<StageEnvelope<IngestRequest>> inQueue() {
-    return inQueue;
-  }
+		@Builder.Default
+		Duration callTimeout = Duration.ofSeconds(30);
+	}
 
-  @Override
-  public Queue<StageEnvelope<InvestigateRequest>> outQueue() {
-    return outQueue;
-  }
+	@Override
+	public RetryableQueue<StageEnvelope<IngestRequest>> input() {
+		return inQueue;
+	}
 
-  @Override
-  public Store<AttemptEvent, String> eventStore() {
-    return eventStore;
-  }
+	@Override
+	public Router output() {
+		return router;
+	}
 
-  @Override
-  public Store<StageExecution, String> executionStore() {
-    return executionStore;
-  }
+	@Override
+	public Store<AttemptEvent, String> eventStore() {
+		return eventStore;
+	}
 
-  @Override
-  public Store<IngestDocument, UUID> ingestStore() {
-    return ingestStore;
-  }
+	@Override
+	public Store<StageExecution, String> executionStore() {
+		return executionStore;
+	}
 
-  @Override
-  public Store<TargetRecord, String> targetStore() {
-    return targetStore;
-  }
+	@Override
+	public Store<IngestDocument, UUID> ingestStore() {
+		return ingestStore;
+	}
 
-  public static AWSIngestInfrastructure create(final @NonNull Configuration config) {
-    MetricPublisher metrics = CloudWatchMetricPublisher.builder()
-        .cloudWatchClient(CloudWatchAsyncClient.create())
-        .detailedMetrics(CoreMetric.API_CALL_DURATION, CoreMetric.API_CALL_SUCCESSFUL)
-        .build();
+	@Override
+	public Store<TargetRecord, String> targetStore() {
+		return targetStore;
+	}
 
-    SqsClient sqsClient = SqsClient.builder()
-        .overrideConfiguration(overrides -> overrides
-            .addMetricPublisher(metrics)
-            .apiCallAttemptTimeout(config.callTimeout))
-        .build();
+	public static AWSIngestInfrastructure create(final @NonNull Configuration config) {
+		MetricPublisher metrics = CloudWatchMetricPublisher.builder()
+				.cloudWatchClient(CloudWatchAsyncClient.create())
+				.detailedMetrics(CoreMetric.API_CALL_DURATION, CoreMetric.API_CALL_SUCCESSFUL)
+				.build();
 
-    DynamoDbClient dynamoClient = DynamoDbClient.builder()
-        .overrideConfiguration(overrides -> overrides
-            .addMetricPublisher(metrics)
-            .apiCallAttemptTimeout(config.callTimeout))
-        .build();
+		SqsClient sqsClient = SqsClient.builder()
+				.overrideConfiguration(overrides -> overrides
+						.addMetricPublisher(metrics)
+						.apiCallAttemptTimeout(config.callTimeout))
+				.build();
 
-    return new AWSIngestInfrastructure(
-        metrics,
-        sqsClient,
-        dynamoClient,
-        new IngestRequestQueue(
-            sqsClient,
-            resolveQueueUrl(sqsClient, config.inQueueName),
-            resolveQueueUrl(sqsClient, config.retryQueueName),
-            resolveQueueUrl(sqsClient, config.errorQueueName)),
-        new InvestigateRequestQueue(
-            sqsClient,
-            resolveQueueUrl(sqsClient, config.outQueueName),
-            null,
-            null),
-        new AttemptEventStore(dynamoClient, config.attemptEventStoreName),
-        new StageExecutionRecordStore(dynamoClient, config.executionStoreName),
-        new IngestDocumentStore(dynamoClient, config.ingestStoreName),
-        new TargetRecordStore(dynamoClient, config.targetStoreName));
-  }
+		DynamoDbClient dynamoClient = DynamoDbClient.builder()
+				.overrideConfiguration(overrides -> overrides
+						.addMetricPublisher(metrics)
+						.apiCallAttemptTimeout(config.callTimeout))
+				.build();
 
-  private static String resolveQueueUrl(final @NonNull SqsClient sqsClient, final @NonNull String canonicalName) {
-    return sqsClient.getQueueUrl(
-        GetQueueUrlRequest.builder()
-            .queueName(canonicalName)
-            .build())
-        .queueUrl();
-  }
+		IngestRequestQueue ingestRequestQueue = new IngestRequestQueue(
+				sqsClient,
+				resolveQueueUrl(sqsClient, config.inQueueName),
+				resolveQueueUrl(sqsClient, config.retryQueueName),
+				resolveQueueUrl(sqsClient, config.errorQueueName));
+		InvestigateRequestQueue investigateRequestQueue = new InvestigateRequestQueue(
+				sqsClient,
+				resolveQueueUrl(sqsClient, config.outQueueName),
+				null,
+				null);
 
-  @Override
-  public void close() throws Exception {
-    metrics.close();
-    sqsClient.close();
-    dynamoClient.close();
-  }
+		return new AWSIngestInfrastructure(
+				metrics,
+				sqsClient,
+				dynamoClient,
+				StageRouter.of(
+						StageRouter.bind(
+								ProcessingStage.INVESTIGATE,
+								InvestigateRequest.class,
+								investigateRequestQueue::send)),
+				ingestRequestQueue,
+				investigateRequestQueue,
+				new AttemptEventStore(dynamoClient, config.attemptEventStoreName),
+				new StageExecutionRecordStore(dynamoClient, config.executionStoreName),
+				new IngestDocumentStore(dynamoClient, config.ingestStoreName),
+				new TargetRecordStore(dynamoClient, config.targetStoreName));
+	}
 
-  @Override
-  public IngestPersistResult persist(@NonNull IngestDocument document, TargetRecord currentRecord,
-      TargetRecord nextRecord) {
-    if (nextRecord == null) {
-      ingestStore.put(document);
-      return IngestPersistResult.APPLIED;
-    }
+	private static String resolveQueueUrl(final @NonNull SqsClient sqsClient, final @NonNull String canonicalName) {
+		return sqsClient.getQueueUrl(
+				GetQueueUrlRequest.builder()
+						.queueName(canonicalName)
+						.build())
+				.queueUrl();
+	}
 
-    if (!document.admitted()) {
-      dynamoClient.transactWriteItems(builder -> builder
-          .transactItems(
-              ingestStore.transactPut(document),
-              targetStore.transactPut(nextRecord))
-          .build());
-      return IngestPersistResult.APPLIED;
-    }
+	@Override
+	public void close() throws Exception {
+		metrics.close();
+		sqsClient.close();
+		dynamoClient.close();
+	}
 
-    try {
-      dynamoClient.transactWriteItems(builder -> builder
-          .transactItems(
-              ingestStore.transactPut(document),
-              putConditionally(currentRecord, nextRecord))
-          .build());
-      return IngestPersistResult.APPLIED;
-    } catch (TransactionCanceledException exception) {
-      boolean admissionConflictOccurred = exception.cancellationReasons() != null
-          && exception.cancellationReasons().stream()
-              .anyMatch(reason -> "ConditionalCheckFailed".equals(reason.code()));
-      if (admissionConflictOccurred) {
-        return IngestPersistResult.ADMISSION_CONFLICT;
-      }
-      throw exception;
-    }
-  }
+	@Override
+	public IngestPersistResult persist(@NonNull IngestDocument document, TargetRecord currentRecord,
+			TargetRecord nextRecord) {
+		if (nextRecord == null) {
+			ingestStore.put(document);
+			return IngestPersistResult.APPLIED;
+		}
 
-  private TransactWriteItem putConditionally(
-      TargetRecord currentRecord,
-      TargetRecord nextRecord) {
-    if (currentRecord == null) {
-      return targetStore.transactPut(
-          nextRecord,
-          builder -> builder.conditionExpression("attribute_not_exists(id)"));
-    }
+		if (!document.admitted()) {
+			dynamoClient.transactWriteItems(builder -> builder
+					.transactItems(
+							ingestStore.transactPut(document),
+							targetStore.transactPut(nextRecord))
+					.build());
+			return IngestPersistResult.APPLIED;
+		}
 
-    AttributeValue expectedPayload = targetStore.encode(currentRecord).get("payload");
-    return targetStore.transactPut(
-        nextRecord,
-        builder -> builder
-            .conditionExpression("payload = :expectedPayload")
-            .expressionAttributeValues(Map.of(":expectedPayload", expectedPayload)));
-  }
+		try {
+			dynamoClient.transactWriteItems(builder -> builder
+					.transactItems(
+							ingestStore.transactPut(document),
+							putConditionally(currentRecord, nextRecord))
+					.build());
+			return IngestPersistResult.APPLIED;
+		} catch (TransactionCanceledException exception) {
+			boolean admissionConflictOccurred = exception.cancellationReasons() != null
+					&& exception.cancellationReasons().stream()
+							.anyMatch(reason -> "ConditionalCheckFailed".equals(reason.code()));
+			if (admissionConflictOccurred) {
+				return IngestPersistResult.ADMISSION_CONFLICT;
+			}
+			throw exception;
+		}
+	}
+
+	private TransactWriteItem putConditionally(
+			TargetRecord currentRecord,
+			TargetRecord nextRecord) {
+		if (currentRecord == null) {
+			return targetStore.transactPut(
+					nextRecord,
+					builder -> builder.conditionExpression("attribute_not_exists(id)"));
+		}
+
+		AttributeValue expectedPayload = targetStore.encode(currentRecord).get("payload");
+		return targetStore.transactPut(
+				nextRecord,
+				builder -> builder
+						.conditionExpression("payload = :expectedPayload")
+						.expressionAttributeValues(Map.of(":expectedPayload", expectedPayload)));
+	}
 }

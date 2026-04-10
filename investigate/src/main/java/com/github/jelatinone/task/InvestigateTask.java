@@ -11,10 +11,12 @@ import com.github.jelatinone.meta.PipelineTask;
 import com.github.jelatinone.meta.Task;
 import com.github.jelatinone.models.annotate.AnnotateRequest;
 import com.github.jelatinone.models.audit.ProcessingStage;
+import com.github.jelatinone.models.ingest.IngestRequest;
 import com.github.jelatinone.models.investigate.ClassificationStub;
 import com.github.jelatinone.models.investigate.InvestigateDocument;
 import com.github.jelatinone.models.investigate.InvestigateRequest;
 import com.github.jelatinone.models.shared.DocumentHeader;
+import com.github.jelatinone.models.shared.Request;
 import com.github.jelatinone.models.shared.RequestHeader;
 import com.github.jelatinone.models.shared.StageEnvelope;
 import com.github.jelatinone.models.shared.TargetReference;
@@ -177,23 +179,45 @@ public final class InvestigateTask extends
 	}
 
 	@Override
-	protected StageEnvelope<AnnotateRequest> buildEnvelope(
-			@NonNull EmissionIntent<? extends AnnotateRequest> emission,
+	protected <Emit extends Request> StageEnvelope<Emit> buildEnvelope(
+			@NonNull EmissionIntent<? extends Request> emission,
 			@NonNull StageEnvelope<InvestigateRequest> input,
 			@NonNull InvestigateContext context,
 			@NonNull PolicyDecision<InvestigateState> decision,
 			@NonNull InvestigateDocument document) {
 		Instant emittedAt = Instant.now();
-		RequestHeader nextHeader = RequestHeader.next(
-				document.requestHeader(),
-				AnnotateRequest.SCHEMA_VERSION,
-				emittedAt);
-		AnnotateRequest request = new AnnotateRequest(nextHeader, emission.request().target(),
-				emission.request().classification());
-		return StageEnvelope.of(
-				ProcessingStage.ANNOTATE,
-				document.documentHeader().documentId().toString(),
-				request);
+		return switch (emission.forwardRef()) {
+			case INGEST -> {
+				if (!(emission.request() instanceof IngestRequest request)) {
+					throw unsupportedEmission(emission);
+				}
+				RequestHeader nextHeader = RequestHeader.next(
+						document.requestHeader(),
+						InvestigateRequest.SCHEMA_VERSION,
+						emittedAt);
+				IngestRequest routed = new IngestRequest(nextHeader, request.target(), request.provenance(),
+						request.priority());
+				yield StageEnvelope.<Emit>of(
+						ProcessingStage.INVESTIGATE,
+						document.documentHeader().documentId().toString(),
+						(Emit) routed);
+			}
+			case ANNOTATE -> {
+				if (!(emission.request() instanceof AnnotateRequest request)) {
+					throw unsupportedEmission(emission);
+				}
+				RequestHeader nextHeader = RequestHeader.next(
+						document.requestHeader(),
+						InvestigateRequest.SCHEMA_VERSION,
+						emittedAt);
+				AnnotateRequest routed = new AnnotateRequest(nextHeader, request.target(), request.classification());
+				yield StageEnvelope.<Emit>of(
+						ProcessingStage.INVESTIGATE,
+						document.documentHeader().documentId().toString(),
+						(Emit) routed);
+			}
+			default -> throw unsupportedEmission(emission);
+		};
 	}
 
 	@Override

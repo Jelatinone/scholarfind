@@ -10,13 +10,13 @@ import com.github.jelatinone.models.ingest.TargetRecord;
 import com.github.jelatinone.policy.RequestPolicyContext;
 
 public record IngestContext(
-        IngestDocument document,
-        Instant reviewedAt,
-        TargetRecord targetRecord,
-        int maxDepth,
-        Duration rescheduleCooldown,
-        long envelopeSchemaVersion,
-        ProcessingStage envelopeStage,
-        UUID envelopeRequestId,
-        UUID envelopeTargetId) implements RequestPolicyContext<IngestDocument> {
+		IngestDocument document,
+		Instant reviewedAt,
+		TargetRecord targetRecord,
+		int maxDepth,
+		Duration rescheduleTimeout,
+		long envelopeSchemaVersion,
+		ProcessingStage envelopeStage,
+		UUID envelopeRequestId,
+		UUID envelopeTargetId) implements RequestPolicyContext<IngestDocument> {
 }

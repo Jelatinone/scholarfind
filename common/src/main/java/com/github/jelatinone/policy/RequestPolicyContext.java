@@ -5,13 +5,13 @@ import java.util.UUID;
 import com.github.jelatinone.models.audit.ProcessingStage;
 import com.github.jelatinone.models.shared.StageDocument;
 
-public interface RequestPolicyContext<D extends StageDocument<D>> extends PolicyContext<D> {
+public interface RequestPolicyContext<Document extends StageDocument<Document>> extends PolicyContext<Document> {
 
-  long envelopeSchemaVersion();
+	long envelopeSchemaVersion();
 
-  ProcessingStage envelopeStage();
+	ProcessingStage envelopeStage();
 
-  UUID envelopeRequestId();
+	UUID envelopeRequestId();
 
-  UUID envelopeTargetId();
+	UUID envelopeTargetId();
 }

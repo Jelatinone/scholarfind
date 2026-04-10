@@ -2,8 +2,8 @@ package com.github.jelatinone.policy;
 
 import com.github.jelatinone.models.shared.StageDocument;
 
-public final class AttemptsPolicy<D extends StageDocument<D>, C extends PolicyContext<D>, State>
-		implements Policy<C, State> {
+public final class AttemptsPolicy<Document extends StageDocument<Document>, Context extends PolicyContext<Document>, State>
+		implements Policy<Context, State> {
 	private final int maxAttempts;
 
 	public AttemptsPolicy(int maxAttempts) {
@@ -11,7 +11,7 @@ public final class AttemptsPolicy<D extends StageDocument<D>, C extends PolicyCo
 	}
 
 	@Override
-	public PolicyStep<State> apply(C context, State state) {
+	public PolicyStep<State> apply(Context context, State state) {
 		if (context.document().requestHeader().attempt() >= maxAttempts) {
 			return new PolicyStep.Decide<>(
 					PolicyDecision.error(state, PolicyReason.ATTEMPTS_EXCEEDED, "Request attempts exceeded stage limit"));

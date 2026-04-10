@@ -12,21 +12,21 @@ import com.github.jelatinone.task.IngestState;
 
 public final class DedupePolicy implements Policy<IngestContext, IngestState> {
 
-  @Override
-  public PolicyStep<IngestState> apply(IngestContext context, IngestState state) {
-    TargetRecord targetRecord = context.targetRecord();
-    if (targetRecord == null || targetRecord.lastScheduledAt() == null) {
-      return new PolicyStep.Continue<>(state);
-    }
+	@Override
+	public PolicyStep<IngestState> apply(IngestContext context, IngestState state) {
+		TargetRecord targetRecord = context.targetRecord();
+		if (targetRecord == null || targetRecord.lastScheduledAt() == null) {
+			return new PolicyStep.Continue<>(state);
+		}
 
-    Instant cutoff = context.reviewedAt().minus(context.rescheduleCooldown());
-    if (targetRecord.lastScheduledAt().isBefore(cutoff)) {
-      return new PolicyStep.Continue<>(state);
-    }
+		Instant cutoff = context.reviewedAt().minus(context.rescheduleTimeout());
+		if (targetRecord.lastScheduledAt().isBefore(cutoff)) {
+			return new PolicyStep.Continue<>(state);
+		}
 
-    IngestState nextState = state.withDecision(IngestDecision.DUPLICATE_SUPPRESSED);
-    return new PolicyStep.Decide<>(
-        PolicyDecision.drop(nextState, IngestPolicyReason.TARGET_DUPLICATE_SUPPRESSED,
-            "Ingest target was recently scheduled and remains inside the reschedule cooldown"));
-  }
+		IngestState nextState = state.withDecision(IngestDecision.DUPLICATE_SUPPRESSED);
+		return new PolicyStep.Decide<>(
+				PolicyDecision.drop(nextState, IngestPolicyReason.TARGET_DUPLICATE_SUPPRESSED,
+						"Ingest target was recently scheduled and remains inside the reschedule cooldown"));
+	}
 }

@@ -5,9 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
-import com.github.jelatinone.api.queue.Queue;
-import com.github.jelatinone.api.queue.RetryableQueue;
-import com.github.jelatinone.api.store.Store;
+import com.github.jelatinone.meta.construct.Infrastructure;
 import com.github.jelatinone.meta.result.PersistResult;
 import com.github.jelatinone.meta.result.PipelineResult;
 import com.github.jelatinone.meta.transitory.Directive;
@@ -45,8 +43,8 @@ import lombok.experimental.FieldDefaults;
  * @author Cody Washington
  */
 @FieldDefaults(level = AccessLevel.PROTECTED, makeFinal = true)
-public abstract class PipelineTask<In extends Request, Out extends Request, Context, State, Persist extends StageDocument<Persist>, Infra extends PipelineTask.Infrastructure<In, Out>>
-		extends QueueTask<StageEnvelope<In>, PipelineResult<Persist, In, Out>> {
+public abstract class PipelineTask<In extends Request, Out extends Request, Context, State, Persist extends StageDocument<Persist>, Infra extends Infrastructure<In, Out>>
+		extends QueueTask<StageEnvelope<In>, PipelineResult<Persist, In>> {
 
 	PipelineTask.Configuration<In, Out, Context, State, Persist, Infra> _pipelineConfig;
 	Infra _infrastructure;
@@ -70,29 +68,17 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 		ProcessingStage processingStage;
 	}
 
-	public static interface Infrastructure<In extends Request, Out extends Request> extends AutoCloseable {
-
-		RetryableQueue<StageEnvelope<In>> inQueue();
-
-		Queue<StageEnvelope<Out>> outQueue();
-
-		Store<AttemptEvent, String> eventStore();
-
-		Store<StageExecution, String> executionStore();
-	}
-
 	protected PipelineTask(
 			@NonNull PipelineTask.Configuration<In, Out, Context, State, Persist, Infra> pipelineConfig,
 			@NonNull ParallelTask.Configuration parallelConfig,
 			@NonNull Task.Configuration taskConfig) {
-		super(pipelineConfig.infrastructure.inQueue(), parallelConfig, taskConfig);
+		super(pipelineConfig.infrastructure.input(), parallelConfig, taskConfig);
 		this._pipelineConfig = pipelineConfig;
 		this._infrastructure = pipelineConfig.infrastructure;
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
-	protected final PipelineResult<Persist, In, Out> elementProcess(@NonNull StageEnvelope<In> input) {
+	protected final PipelineResult<Persist, In> elementProcess(@NonNull StageEnvelope<In> input) {
 		Instant startedAt = Instant.now();
 
 		Context context = buildContext(input, startedAt);
@@ -109,16 +95,15 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 		persistExecution(input, persistDecision, occurredAt);
 		persistAttempt(input, persistDecision, startedAt, occurredAt, null);
 
-		List<StageEnvelope<Out>> emissions = persistDecision.emissionIntents().stream()
-				.map((emission) -> buildEnvelope((EmissionIntent<? extends Out>) emission, input, context, persistDecision,
-						persistDocument))
+		List<StageEnvelope<Request>> emissions = persistDecision.emissionIntents().stream()
+				.map((emission) -> buildEnvelope(emission, input, context, persistDecision, persistDocument))
 				.toList();
 
-		return new PipelineResult<>(input, persistDocument, persistDecision, emissions);
+		return new PipelineResult<Persist, In>(input, persistDocument, persistDecision, emissions);
 	}
 
 	@Override
-	protected final PipelineResult<Persist, In, Out> elementFailure(@NonNull StageEnvelope<In> input,
+	protected final PipelineResult<Persist, In> elementFailure(@NonNull StageEnvelope<In> input,
 			@NonNull Throwable throwable) {
 		Instant startedAt = Instant.now();
 
@@ -136,7 +121,7 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 	}
 
 	@Override
-	protected final Directive elementDirective(@NonNull PipelineResult<Persist, In, Out> output) {
+	protected final Directive elementDirective(@NonNull PipelineResult<Persist, In> output) {
 		return switch (output.decision().outcome()) {
 			case NEXT, DROP -> Directive.COMPLETE;
 			case RETRY -> Directive.RETRY;
@@ -145,40 +130,41 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 	}
 
 	@Override
-	protected final void onComplete(@NonNull PipelineResult<Persist, In, Out> output) throws Exception {
+	protected final void onComplete(@NonNull PipelineResult<Persist, In> output) throws Exception {
 		if (output.emissions().isEmpty()) {
 			return;
 		}
-		output.emissions().forEach(_infrastructure.outQueue()::send);
+		output.emissions().forEach(_infrastructure.output()::route);
 	}
 
 	@Override
-	protected final void onRetry(@NonNull PipelineResult<Persist, In, Out> output) throws Exception {
+	protected final void onRetry(@NonNull PipelineResult<Persist, In> output) throws Exception {
 		RetryDirective retryDirective = output.decision().retryDirective();
 		StageEnvelope<In> retryEnvelope = retryEnvelope(output, retryDirective);
 		_inQueue.sendRetry(retryEnvelope);
 	}
 
 	@Override
-	protected final void onError(@NonNull PipelineResult<Persist, In, Out> output) throws Exception {
+	protected final void onError(@NonNull PipelineResult<Persist, In> output) throws Exception {
 		StageEnvelope<In> errorEnvelope = errorEnvelope(output);
 		_inQueue.sendError(errorEnvelope);
 	}
 
-	protected StageEnvelope<In> retryEnvelope(PipelineResult<Persist, In, Out> output, RetryDirective retryDirective) {
+	protected StageEnvelope<In> retryEnvelope(PipelineResult<Persist, In> output, RetryDirective retryDirective) {
 		In payload = output.input().payload();
-		RequestHeader header = RequestHeader.retry(payload.requestHeader(), Instant.now());
-		In request = buildRequest(payload, header);
+
+		RequestHeader nextHeader = RequestHeader.retry(payload.requestHeader(), Instant.now());
+		In nextRequest = buildRequest(payload, nextHeader);
 		return new StageEnvelope<>(
 				output.input().schemaVersion(),
 				output.input().stage(),
 				output.input().executionRef(),
-				request.requestHeader().requestId(),
-				request.target().targetId(),
-				request);
+				nextRequest.requestHeader().requestId(),
+				nextRequest.target().targetId(),
+				nextRequest);
 	}
 
-	protected StageEnvelope<In> errorEnvelope(PipelineResult<Persist, In, Out> output) {
+	protected StageEnvelope<In> errorEnvelope(PipelineResult<Persist, In> output) {
 		return output.input();
 	}
 
@@ -194,12 +180,20 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 			@NonNull PolicyDecision<State> decision,
 			@NonNull Instant occurredAt);
 
-	protected abstract StageEnvelope<Out> buildEnvelope(
-			@NonNull EmissionIntent<? extends Out> emission,
+	protected abstract <Emit extends Request> StageEnvelope<Emit> buildEnvelope(
+			@NonNull EmissionIntent<? extends Request> emission,
 			@NonNull StageEnvelope<In> input,
 			@NonNull Context context,
 			@NonNull PolicyDecision<State> decision,
 			@NonNull Persist document);
+
+	protected static IllegalArgumentException unsupportedEmission(EmissionIntent<? extends Request> emission) {
+		return new IllegalArgumentException(String.format("IngestTask cannot route emission stage=%s payload=%s",
+				emission.forwardRef(),
+				emission.request() == null
+						? "null"
+						: emission.request().getClass().getName()));
+	}
 
 	protected PersistResult<State, Persist> persistDocument(
 			@NonNull StageEnvelope<In> input,
