@@ -7,7 +7,7 @@ _"Scholarfind is a resource for connecting student profiles with scholarships, a
 
 ## I. A long time ago in a galaxy far, far away...
 
-Like many others, during my senior year of high school affording college became a very real concern I hadn't really thought about. Like many others, I turned to scholarships. Like many others, I found the process fragmented, repetive, and inefficient.
+Like many others, during my senior year of high school affording college became a very real concern I hadn't really thought about. Like many others, I turned to scholarships. Like many others, I found the process fragmented, repetitive, and inefficient.
 
 _Unlike many others, I set about trying to change that._
 
@@ -15,11 +15,11 @@ _Unlike many others, I set about trying to change that._
 
 **Discoverable**
 
-You can't apply for what you never found. The most prevalent problem, for any student is simply discovering the scholarships. While many hubs for scholarships exist, scholarship data is fragmented across thousands of unstructured sources. There is no centralized system. Oppurtunities are often time-sensitive but aren't surfaced in real-time.
+You can't apply for what you never found. The most prevalent problem, for any student is simply discovering the scholarships. While many hubs for scholarships exist, scholarship data is fragmented across thousands of unstructured sources. There is no centralized system. Opportunities are often time-sensitive but aren't surfaced in real-time.
 
 **Structured**
 
-Structure is everything when applying to hundreds of sources, want to spend hours building your own spreadsheet tracking a hundred applications? No, you don't (I hope). Critical information is often buried or scattered, inconsistent and non-standardized, duplicated, outdated, invalid. Content can exist in multiple formats: `.html`, `.pdf`, `.docx`, et al. Many elibility rules and requirements are implied in descriptions or summaries rather than made explicitly structural; our interpretations of natural language introduce ambiguity and inconsistency.
+Structure is everything when applying to hundreds of sources, want to spend hours building your own spreadsheet tracking a hundred applications? No, you don't (I hope). Critical information is often buried or scattered, inconsistent and non-standardized, duplicated, outdated, invalid. Content can exist in multiple formats: `.html`, `.pdf`, `.docx`, et al. Many eligibility rules and requirements are implied in descriptions or summaries rather than made explicitly structural; our interpretations of natural language introduce ambiguity and inconsistency.
 
 **Searchable**
 
@@ -29,13 +29,13 @@ Existing platforms often rely on rigid, rule-based filters that fail under nuanc
 
 The most annoying? The need for an account, EVERYWHERE. Want to sign-up with our service? Just make another account among the hundreds you already have. Just spend another thirty minutes to input the same information across another platform. Results are not personalized without significant user effort. Not to mention a new UI to learn, poorly optimized interfaces, or poor design choices.
 
-### III. The Hiest
+### III. The Heist
 
 So, on a cold and stormy night, I set about solving these issues:
 
 _What if I built a unified scholarship engine which scraped publicly available content to generate high-fidelity structured data?_
 
-Instead of needing to split across several different hubs for scholarships, build a single unified hub that derived from the hundreds of sources out there? Levraging the abundance of duplicates to create a highly-accurate model in real-time with frequent, dynamic re-discovery from sources.
+Instead of needing to split across several different hubs for scholarships, build a single unified hub that derived from the hundreds of sources out there? Leveraging the abundance of duplicates to create a highly-accurate model in real-time with frequent, dynamic re-discovery from sources.
 
 Normalize the structure with a single model, a standardized scholarship that is a wide as the ocean, but strict enough that we can display normalized content without issues.
 
@@ -120,7 +120,7 @@ Notable existing capabilities by module:
 ### `ingest`
 
 - Canonical target admission
-- Deduplication and reschedule cooldown handling
+- Deduplication and reschedule timeout handling
 - Depth-budget enforcement
 - Provenance-aware ingest decisions
 - Transactional persistence coordination with target records
