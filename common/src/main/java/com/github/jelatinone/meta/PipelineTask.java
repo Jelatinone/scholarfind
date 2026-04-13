@@ -150,6 +150,21 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 		_inQueue.sendError(errorEnvelope);
 	}
 
+	/**
+	 * Generate an envelope corresponding to a retryable failure of an
+	 * {@link #elementProcess(StageEnvelope) process result} triggered by an
+	 * {@link #onRetry(PipelineResult) retry decision}
+	 * 
+	 * @param output         Pipeline result yielded by
+	 *                       {@link #persistDocument(StageEnvelope, Object, PolicyDecision, StageDocument)
+	 *                       persisting} the result of the policy pipeline on the
+	 *                       {@link #collect() input}
+	 * @param retryDirective Retry decision yielded by
+	 *                       {@link #persistDocument(StageEnvelope, Object, PolicyDecision, StageDocument)
+	 *                       persisting} the result of the policy pipeline on the
+	 *                       {@link #collect() input}
+	 * @return Envelope to send into the retry queue
+	 */
 	protected StageEnvelope<In> retryEnvelope(PipelineResult<Persist, In> output, RetryDirective retryDirective) {
 		In payload = output.input().payload();
 
@@ -164,22 +179,78 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 				nextRequest);
 	}
 
+	/**
+	 * Generate an envelope corresponding to an operational failure of an
+	 * {@link #elementProcess(StageEnvelope) process result} triggered by an
+	 * {@link #onError(PipelineResult) error decision}
+	 * 
+	 * @param output Pipeline result yielded by
+	 *               {@link #persistDocument(StageEnvelope, Object, PolicyDecision, StageDocument)
+	 *               persisting} the result of the policy pipeline on the
+	 *               {@link #collect() input}
+	 * @return Envelope to send into the error queue
+	 */
 	protected StageEnvelope<In> errorEnvelope(PipelineResult<Persist, In> output) {
 		return output.input();
 	}
 
+	/**
+	 * Generate an initial context to seed the policy pipeline with
+	 * 
+	 * @param input     Pipeline input yielded by {@link #collect() collection}
+	 * @param startedAt Chronological instant of context creation
+	 * @return Valid initial context corresponding to the provided envelope
+	 */
 	protected abstract Context buildContext(@NonNull StageEnvelope<In> input, @NonNull Instant startedAt);
 
+	/**
+	 * Generate an initial, modifiable state corresponding to context
+	 * 
+	 * @param context Generated context
+	 * @return Valid initial state corresponding to the provided envelope
+	 */
 	protected abstract State buildState(@NonNull Context context);
 
+	/**
+	 * Generate an input request
+	 * 
+	 * @param request Pipeline input request yielded by {@link #collect()
+	 *                collection}
+	 * @param header  Generated header yielded by upsetting current chronological
+	 *                time into the original request
+	 * @return Valid retry request
+	 */
 	protected abstract In buildRequest(In request, RequestHeader header);
 
+	/**
+	 * Generate a persist-able result
+	 * 
+	 * @param input      Pipeline input yielded by {@link #collect() collection}
+	 * @param context    Generated context
+	 * @param decision   Pipeline output decision
+	 * @param occurredAt Chronological instant of output persist
+	 * @return Valid persist document
+	 */
 	protected abstract Persist buildDocument(
 			@NonNull StageEnvelope<In> input,
 			@NonNull Context context,
 			@NonNull PolicyDecision<State> decision,
 			@NonNull Instant occurredAt);
 
+	/**
+	 * Build a generalized envelope supported by this pipeline
+	 * 
+	 * @param <Emit>   Any descendant of {@link Request}
+	 * @param emission Pipeline output emission
+	 * @param input    Pipeline input yielded by {@link #collect() collection}
+	 * @param context  Generated context
+	 * @param decision Pipeline output decision
+	 * @param document Generated Document
+	 * @return Valid general envelope descending from the
+	 *         {@link EmissionIntent#forwardRef() forwarding reference}
+	 * 
+	 * @throws IllegalArgumentException When an invalid envelope has been requested
+	 */
 	protected abstract <Emit extends Request> StageEnvelope<Emit> buildEnvelope(
 			@NonNull EmissionIntent<? extends Request> emission,
 			@NonNull StageEnvelope<In> input,
@@ -187,14 +258,33 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 			@NonNull PolicyDecision<State> decision,
 			@NonNull Persist document);
 
-	protected static IllegalArgumentException unsupportedEmission(EmissionIntent<? extends Request> emission) {
-		return new IllegalArgumentException(String.format("IngestTask cannot route emission stage=%s payload=%s",
+	/**
+	 * Generate an unsupported emission
+	 * 
+	 * @apiNote Helper intended for usage within the implementation of
+	 *          {@link #buildEnvelope(EmissionIntent, StageEnvelope, Object, PolicyDecision, StageDocument)}
+	 * 
+	 * @param emission Pipeline output emission
+	 * @return Unsupported emission exception
+	 */
+	protected IllegalArgumentException unsupportedEmission(EmissionIntent<? extends Request> emission) {
+		return new IllegalArgumentException(String.format("%s cannot route emission stage=%s payload=%s",
+				_taskConfig.name,
 				emission.forwardRef(),
 				emission.request() == null
 						? "null"
 						: emission.request().getClass().getName()));
 	}
 
+	/**
+	 * Persist a valid generated by policy pipeline document
+	 * 
+	 * @param input    Pipeline input yielded by {@link #collect() collection}
+	 * @param context  Generated context
+	 * @param decision Pipeline output decision
+	 * @param document Generated Document
+	 * @return Persist operational result
+	 */
 	protected PersistResult<State, Persist> persistDocument(
 			@NonNull StageEnvelope<In> input,
 			@NonNull Context context,
@@ -204,8 +294,20 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 		return new PersistResult<>(document, decision);
 	}
 
+	/**
+	 * Persist a valid document for this stage using configured infrastructure
+	 * 
+	 * @param document Generated Document
+	 */
 	protected abstract void persistStageDocument(@NonNull Persist document);
 
+	/**
+	 * Persist a stage execution event result into the execution store
+	 * 
+	 * @param input      Pipeline input yielded by {@link #collect() collection}
+	 * @param decision   Pipeline output decision
+	 * @param occurredAt Chronological instant of output persist
+	 */
 	protected void persistExecution(
 			StageEnvelope<In> input,
 			PolicyDecision<?> decision,
@@ -226,6 +328,17 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 		_infrastructure.executionStore().put(updated);
 	}
 
+	/**
+	 * Persist a stage attempt event result into the attempt store
+	 * 
+	 * @param input      Pipeline input yielded by {@link #collect() collection}
+	 * @param decision   Pipeline output decision
+	 * @param startedAt  Chronological instant of
+	 *                   {@link #operate(com.github.jelatinone.api.Envelope)
+	 *                   operation} initialization
+	 * @param occurredAt Chronological instant of output persist
+	 * @param throwable  Optional primary cause of failure
+	 */
 	protected void persistAttempt(
 			StageEnvelope<In> input,
 			PolicyDecision<?> decision,
