@@ -22,7 +22,7 @@ public class TextContentInterpreter implements ContentInterpreter {
   }
 
   @Override
-  public @NonNull InterpretedContent interpret(@NonNull byte[] source, @NonNull DetectedContent contentType) {
+  public @NonNull InterpretedContent interpret(byte[] source, @NonNull DetectedContent contentType) {
     String normalizedText = ContentInterpreter.decode(source, contentType.characterEncoding());
     return new InterpretedContent(
         source,

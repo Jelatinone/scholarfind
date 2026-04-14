@@ -11,14 +11,14 @@ import com.github.jelatinone.policy.RequestPolicyContext;
 import com.github.jelatinone.task.policy.ClassificationConfiguration;
 
 public record InvestigateContext(
-    InvestigateDocument document,
-    ClassificationConfiguration classificationConfiguration,
-    AcquisitionService acquisitionService,
-    Instant reviewedAt,
-    InvestigateDocument retrievedInvestigate,
-    ContentDocument retrievedContent,
-    long envelopeSchemaVersion,
-    ProcessingStage envelopeStage,
-    UUID envelopeRequestId,
-    UUID envelopeTargetId) implements RequestPolicyContext<InvestigateDocument> {
+		InvestigateDocument document,
+		ClassificationConfiguration classificationConfiguration,
+		AcquisitionService acquisitionService,
+		Instant reviewedAt,
+		InvestigateDocument retrievedInvestigate,
+		ContentDocument retrievedContent,
+		long envelopeSchemaVersion,
+		ProcessingStage envelopeStage,
+		UUID envelopeRequestId,
+		UUID envelopeTargetId) implements RequestPolicyContext<InvestigateDocument> {
 }

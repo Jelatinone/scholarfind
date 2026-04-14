@@ -22,7 +22,7 @@ public class HTMLContentInterpreter implements ContentInterpreter {
   }
 
   @Override
-  public @NonNull InterpretedContent interpret(@NonNull byte[] source, @NonNull DetectedContent contentType) {
+  public @NonNull InterpretedContent interpret(byte[] source, @NonNull DetectedContent contentType) {
     String decodedSource = ContentInterpreter.decode(source, contentType.characterEncoding());
 
     Document interpretedSource = Jsoup.parse(decodedSource);

@@ -197,7 +197,7 @@ public final class InvestigateTask extends
 						emittedAt);
 				IngestRequest routed = new IngestRequest(nextHeader, request.target(), request.provenance(),
 						request.priority());
-				yield StageEnvelope.<Emit>of(
+				yield StageEnvelope.of(
 						ProcessingStage.INVESTIGATE,
 						document.documentHeader().documentId().toString(),
 						(Emit) routed);
@@ -211,7 +211,7 @@ public final class InvestigateTask extends
 						InvestigateRequest.SCHEMA_VERSION,
 						emittedAt);
 				AnnotateRequest routed = new AnnotateRequest(nextHeader, request.target(), request.classification());
-				yield StageEnvelope.<Emit>of(
+				yield StageEnvelope.of(
 						ProcessingStage.INVESTIGATE,
 						document.documentHeader().documentId().toString(),
 						(Emit) routed);

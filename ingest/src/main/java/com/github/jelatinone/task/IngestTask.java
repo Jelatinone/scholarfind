@@ -205,7 +205,8 @@ public final class IngestTask extends
 						InvestigateRequest.SCHEMA_VERSION,
 						emittedAt);
 				InvestigateRequest routed = new InvestigateRequest(nextHeader, request.target());
-				yield StageEnvelope.<Emit>of(
+
+				yield StageEnvelope.of(
 						ProcessingStage.INVESTIGATE,
 						document.documentHeader().documentId().toString(),
 						(Emit) routed);

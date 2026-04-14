@@ -99,7 +99,7 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 				.map((emission) -> buildEnvelope(emission, input, context, persistDecision, persistDocument))
 				.toList();
 
-		return new PipelineResult<Persist, In>(input, persistDocument, persistDecision, emissions);
+		return new PipelineResult<>(input, persistDocument, persistDecision, emissions);
 	}
 
 	@Override
@@ -107,7 +107,7 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 			@NonNull Throwable throwable) {
 		Instant startedAt = Instant.now();
 
-		PolicyDecision<State> decision = PolicyDecision.<State>retry(
+		PolicyDecision<State> decision = PolicyDecision.retry(
 				null,
 				PolicyReason.OPERATION_EXCEPTION,
 				throwable.getMessage(),
@@ -130,7 +130,7 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 	}
 
 	@Override
-	protected final void onComplete(@NonNull PipelineResult<Persist, In> output) throws Exception {
+	protected final void onComplete(@NonNull PipelineResult<Persist, In> output) {
 		if (output.emissions().isEmpty()) {
 			return;
 		}
@@ -138,14 +138,14 @@ public abstract class PipelineTask<In extends Request, Out extends Request, Cont
 	}
 
 	@Override
-	protected final void onRetry(@NonNull PipelineResult<Persist, In> output) throws Exception {
+	protected final void onRetry(@NonNull PipelineResult<Persist, In> output) {
 		RetryDirective retryDirective = output.decision().retryDirective();
 		StageEnvelope<In> retryEnvelope = retryEnvelope(output, retryDirective);
 		_inQueue.sendRetry(retryEnvelope);
 	}
 
 	@Override
-	protected final void onError(@NonNull PipelineResult<Persist, In> output) throws Exception {
+	protected final void onError(@NonNull PipelineResult<Persist, In> output) {
 		StageEnvelope<In> errorEnvelope = errorEnvelope(output);
 		_inQueue.sendError(errorEnvelope);
 	}

@@ -75,7 +75,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 						CollectionResult<Consumes> result = collect();
 						switch (result) {
 							case CollectionResult.Alive(List<Consumes> collection) -> {
-								useMessage(String.format("Collection shape : Alive"), INFO);
+								useMessage("Collection shape : Alive", INFO);
 
 								_collected.addAll(collection);
 								_taskConfig.retryScheduler.reset();
@@ -83,13 +83,9 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 								useMessage(String.format("Added collected work : %d", collection.size()), DEBUG);
 							}
 
-							case CollectionResult.Idle() -> {
-								useMessage(String.format("Collection shape : Idle"), INFO);
-							}
+							case CollectionResult.Idle() -> useMessage("Collection shape : Idle", INFO);
 
-							case CollectionResult.Empty() -> {
-								useMessage(String.format("Collection shape : Empty"), INFO);
-							}
+							case CollectionResult.Empty() -> useMessage("Collection shape : Empty", INFO);
 						}
 
 						if (!_collected.isEmpty()) {
@@ -141,7 +137,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 									long delay = _taskConfig.retryScheduler.compute(attempt);
 
 									_attempts.put(operand, attempt);
-									_failed.add(new Locked<Consumes>(operand, delay, NANOSECONDS));
+									_failed.add(new Locked<>(operand, delay, NANOSECONDS));
 
 									useMessage(String.format("Queued failed work : %s", operand), ERROR);
 								} else {

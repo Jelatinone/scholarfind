@@ -231,7 +231,7 @@ public class AcquisitionService {
     };
   }
 
-  private InterpretedContent interpret(@NonNull byte[] source, @NonNull DetectedContent detected) {
+  private InterpretedContent interpret(byte[] source, @NonNull DetectedContent detected) {
     for (ContentInterpreter interpreter : interpreters) {
       if (interpreter.supports(detected)) {
         return interpreter.interpret(source, detected);

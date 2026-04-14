@@ -165,7 +165,7 @@ public final class AWSIngestInfrastructure implements IngestInfrastructure {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void close() {
 		metrics.close();
 		sqsClient.close();
 		dynamoClient.close();

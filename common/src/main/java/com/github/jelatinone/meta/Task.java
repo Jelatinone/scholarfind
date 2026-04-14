@@ -4,7 +4,6 @@ import static com.github.jelatinone.meta.transitory.State.*;
 import static org.slf4j.event.Level.*;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
@@ -46,7 +45,7 @@ import lombok.experimental.NonFinal;
  * Used to perform mass operations of similar type `consumes` on a collection of
  * consumable data and transforms via an operation into an object which can be
  * posted.
- * For example, a task which scrapes all of the data from a website, then parses
+ * For example, a task which scrapes all the data from a website, then parses
  * each individual tag and converts it to a `String`.
  * </p>
  * 
@@ -95,7 +94,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
   protected Task(final @NonNull Configuration config) {
     _taskConfig = config;
 
-    _state = new AtomicReference<State>();
+    _state = new AtomicReference<>();
 
     _attempts = new ConcurrentHashMap<>();
     _failed = new DelayQueue<>();
@@ -109,7 +108,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
 
   /**
    * Collects all consumable data into a single collection for
-   * {@link #operate(Serializable) operation} to be performed on each element
+   * {@link #operate(Object)  operation} to be performed on each element
    * within the collection.
    * 
    * @return Collection of consumable data
@@ -153,7 +152,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
    * new collection has been returned with valid work.
    * 
    * @throws IOException When a critical failure has occurred while trying to
-   *                     setup
+   *                     set up
    */
   protected void setup() throws IOException {
   }
@@ -164,7 +163,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
    * failure phases.
    * 
    * @throws IOException When a critical failure has occurred while trying to
-   *                     shutdown
+   *                     shut down
    */
   protected void shutdown() throws IOException {
   }
@@ -202,7 +201,7 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
   /**
    * Adds a message update listener to this instance, which
    * {@link Runnable#run() updates} on
-   * each call to {@link #setMessage(String) update message}.
+   * each call to {@link #useMessage(String, Level, Object...)  update message}.
    * 
    * @param listener Listener to add as listener
    */
@@ -231,10 +230,10 @@ public sealed abstract class Task<@NonNull Consumes, @NonNull Produces>
    * 
    * Safely modifies the internal runtime state of this instance
    * 
-   * @param State next state of this task instance
+   * @param state next state of this task instance
    * 
    * @apiNote Unexpected modifications to state during {@link #run() runtime} can
-   *          cause unexpected side-affects
+   *          cause unexpected side effects
    * 
    */
   protected synchronized void useState(final @NonNull State state) {

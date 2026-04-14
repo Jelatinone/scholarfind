@@ -44,11 +44,12 @@ public final class UrlPathNameExtractor implements SignalExtractor {
     List<String> parts;
     if (url == null || url.getPath() == null || url.getPath().isBlank()) {
       parts = List.of();
-    }
-    parts = Arrays.stream(url.getPath().split("/"))
+    } else {
+      parts = Arrays.stream(url.getPath().split("/"))
         .map(String::trim)
         .filter(segment -> !segment.isBlank())
         .toList();
+    }
     return Optional.of(new SignalValue.ListSignal<>(parts));
   }
 }

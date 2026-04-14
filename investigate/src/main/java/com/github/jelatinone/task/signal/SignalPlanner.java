@@ -1,14 +1,6 @@
 package com.github.jelatinone.task.signal;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 import com.github.jelatinone.acquisition.AcquiredContent;
 import com.github.jelatinone.acquisition.AcquisitionService;
@@ -100,7 +92,7 @@ public final class SignalPlanner {
 				.filter(extractor -> !executed.contains(extractor.identity()))
 				.filter(extractor -> extractor.supports(acquisition))
 				.map(extractor -> buildCandidate(extractor, acquisition, stub))
-				.filter(candidate -> candidate != null)
+				.filter(Objects::nonNull)
 				.filter(candidate -> !mustBeCostless || candidate.cost() <= EPSILON)
 				.filter(
 						candidate -> mustBeCostless
@@ -153,7 +145,7 @@ public final class SignalPlanner {
 		return _configuration.evidenceConfiguration().rulesFor(signal).stream()
 				.filter(rule -> contenders.contains(rule.classification()))
 				.map(rule -> _configuration.scoreConfiguration().policyFor(rule.classification()))
-				.filter(rule -> rule != null)
+				.filter(Objects::nonNull)
 				.mapToDouble((rule) -> Math.max(
 						Math.abs(rule.min()),
 						Math.abs(rule.max())))

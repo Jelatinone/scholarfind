@@ -80,7 +80,7 @@ public final class InvestigateReflowPolicy implements Policy<InvestigateContext,
 					Map<UUID, TargetReference> discoveredTargets = new LinkedHashMap<>();
 					for (Element anchor : document.select("a[href]")) {
 						String href = anchor.absUrl("href");
-						if (href == null || href.isBlank()) {
+						if (href.isBlank()) {
 							continue;
 						}
 						TargetReference target = resolveTarget(context, href);

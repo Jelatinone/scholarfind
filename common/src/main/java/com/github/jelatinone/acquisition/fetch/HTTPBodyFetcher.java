@@ -55,7 +55,7 @@ public class HTTPBodyFetcher implements BodyFetcher {
         Long contentLength = response.headers().firstValue("Content-Length")
             .map((length) -> {
               try {
-                return (long) Long.parseLong(length);
+                return Long.parseLong(length);
               } catch (Exception exception) {
                 return null;
               }

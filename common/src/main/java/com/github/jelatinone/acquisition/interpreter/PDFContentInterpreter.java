@@ -26,8 +26,8 @@ public class PDFContentInterpreter implements ContentInterpreter {
   }
 
   @Override
-  public @NonNull InterpretedContent interpret(@NonNull byte[] source,
-      @NonNull DetectedContent contentType) {
+  public @NonNull InterpretedContent interpret(byte[] source,
+                                               @NonNull DetectedContent contentType) {
 
     try (PDDocument document = Loader.loadPDF(source)) {
       String normalizedSource = new PDFTextStripper().getText(document);

@@ -133,7 +133,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 					long delay = _taskConfig.retryScheduler.compute(attempt);
 
 					_attempts.put(operand, attempt);
-					_failed.add(new Locked<Consumes>(operand, delay, NANOSECONDS));
+					_failed.add(new Locked<>(operand, delay, NANOSECONDS));
 
 					useMessage(String.format("Queued job : %s", operand), DEBUG);
 				} else {
@@ -158,7 +158,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 			long delay = _taskConfig.retryScheduler.compute(attempt);
 
 			_attempts.put(operand, attempt);
-			_failed.add(new Locked<Consumes>(operand, delay, NANOSECONDS));
+			_failed.add(new Locked<>(operand, delay, NANOSECONDS));
 
 			useMessage(String.format("Queued dispatched job : %s", operand), DEBUG);
 		}
@@ -196,7 +196,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 						CollectionResult<Consumes> result = collect();
 						switch (result) {
 							case CollectionResult.Alive(List<Consumes> collection) -> {
-								useMessage(String.format("Collection shape : Alive"), INFO);
+								useMessage("Collection shape : Alive", DEBUG);
 
 								_collected.addAll(collection);
 								_taskConfig.retryScheduler.reset();
@@ -204,13 +204,9 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 								useMessage(String.format("Added collected jobs : %d", collection.size()), DEBUG);
 							}
 
-							case CollectionResult.Idle() -> {
-								useMessage(String.format("Collection shape : Idle"), DEBUG);
-							}
+							case CollectionResult.Idle() -> useMessage("Collection shape : Idle", DEBUG);
 
-							case CollectionResult.Empty() -> {
-								useMessage(String.format("Collection shape : Empty"), DEBUG);
-							}
+							case CollectionResult.Empty() -> useMessage("Collection shape : Empty", DEBUG);
 						}
 						if (!_collected.isEmpty()) {
 							setup();

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,7 +65,7 @@ public class SqsQueue<Value> implements RetryableQueue<Value> {
 	}
 
 	@Override
-	public void sendRetry(Value message) {
+	public void sendRetry(@NonNull Value message) {
 		if (retryUrl == null) {
 			throw new IllegalStateException("Retry queue URL is not configured");
 		}
@@ -72,7 +73,7 @@ public class SqsQueue<Value> implements RetryableQueue<Value> {
 	}
 
 	@Override
-	public void sendError(Value message) {
+	public void sendError(@NonNull Value message) {
 		if (errorUrl == null) {
 			throw new IllegalStateException("Error queue URL is not configured");
 		}

@@ -45,7 +45,7 @@ public class StageRouter implements Router {
 	}
 
 	@Override
-	public void route(StageEnvelope<? extends Request> envelope) {
+	public void route(StageEnvelope<?> envelope) {
 		StageRouteBinding<?> binding = bindings.get(envelope.stage());
 		if (binding == null) {
 			throw new IllegalStateException(String.format("No emission binding configured for %s stage", envelope.stage()));

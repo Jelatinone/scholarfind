@@ -9,11 +9,11 @@ import com.github.jelatinone.models.shared.StageEnvelope;
 
 public interface Infrastructure<In extends Request, Out extends Request> extends AutoCloseable {
 
-	public RetryableQueue<StageEnvelope<In>> input();
+  RetryableQueue<StageEnvelope<In>> input();
 
-	public Router output();
+  Router output();
 
-	public Store<AttemptEvent, String> eventStore();
+  Store<AttemptEvent, String> eventStore();
 
-	public Store<StageExecution, String> executionStore();
+  Store<StageExecution, String> executionStore();
 }

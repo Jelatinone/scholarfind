@@ -21,14 +21,14 @@ public interface SignalExtractor {
 
   Optional<SignalValue> extract(@NonNull AcquiredContent acquisition);
 
-  public static double metadataCost(AcquiredContent acquisition, SignalPattern pattern) {
+  static double metadataCost(AcquiredContent acquisition, SignalPattern pattern) {
     if (acquisition.hasMetadata()) {
       return pattern.positiveMetadataCost();
     }
     return pattern.negativeMetadataCost();
   }
 
-  public static double contentCost(AcquiredContent acquisition, SignalPattern pattern) {
+  static double contentCost(AcquiredContent acquisition, SignalPattern pattern) {
     if (acquisition.hasHydratedSource()) {
       return pattern.hydratedContentCost();
     }
@@ -38,7 +38,7 @@ public interface SignalExtractor {
     return pattern.negativeContentCost();
   }
 
-  public static double textCost(AcquiredContent acquisition, SignalPattern pattern) {
+  static double textCost(AcquiredContent acquisition, SignalPattern pattern) {
     if (acquisition.hasCompleteText()) {
       return pattern.completeTextCost();
     }

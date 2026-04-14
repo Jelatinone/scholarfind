@@ -4,18 +4,18 @@ import java.util.List;
 
 public sealed interface SignalValue {
 
-  public record NumericSignal(double value) implements SignalValue {
+  record NumericSignal(double value) implements SignalValue {
   }
 
-  public record BooleanSignal(boolean value) implements SignalValue {
+  record BooleanSignal(boolean value) implements SignalValue {
   }
 
-  public record StringSignal(String value) implements SignalValue {
+  record StringSignal(String value) implements SignalValue {
   }
 
-  public record EnumSignal<Enumerable extends Enum<Enumerable>>(Enumerable value) implements SignalValue {
+  record EnumSignal<Enumerable extends Enum<Enumerable>>(Enumerable value) implements SignalValue {
   }
 
-  public record ListSignal<T>(List<T> values) implements SignalValue {
+  record ListSignal<T>(List<T> values) implements SignalValue {
   }
 }
