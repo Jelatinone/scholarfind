@@ -193,12 +193,12 @@ public final class InvestigateTask extends
 				}
 				RequestHeader nextHeader = RequestHeader.next(
 						document.requestHeader(),
-						InvestigateRequest.SCHEMA_VERSION,
+						IngestRequest.SCHEMA_VERSION,
 						emittedAt);
 				IngestRequest routed = new IngestRequest(nextHeader, request.target(), request.provenance(),
 						request.priority());
 				yield StageEnvelope.of(
-						ProcessingStage.INVESTIGATE,
+						ProcessingStage.INGEST,
 						document.documentHeader().documentId().toString(),
 						(Emit) routed);
 			}
