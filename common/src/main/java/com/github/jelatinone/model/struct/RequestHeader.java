@@ -3,6 +3,8 @@ package com.github.jelatinone.model.struct;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.github.jelatinone.model.graph.TargetNode;
+
 /**
  * 
  * <h1>RequestHeader</h1>
@@ -12,6 +14,8 @@ import java.util.UUID;
  * @author Cody Washington
  */
 public record RequestHeader(
+		long schemaVersion,
+
 		UUID requestId,
 		UUID targetId,
 

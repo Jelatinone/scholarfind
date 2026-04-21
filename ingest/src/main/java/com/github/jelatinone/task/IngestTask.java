@@ -187,6 +187,7 @@ public final class IngestTask extends
 		throw new UnsupportedOperationException("Ingest persistence requires contextual target-record coordination");
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	protected <Emit extends Request> StageEnvelope<Emit> buildEnvelope(
 			@NonNull EmissionIntent<? extends Request> emission,

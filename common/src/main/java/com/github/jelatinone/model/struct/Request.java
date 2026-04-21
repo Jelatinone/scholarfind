@@ -1,5 +1,7 @@
 package com.github.jelatinone.model.struct;
 
+import java.util.UUID;
+
 import com.github.jelatinone.model.graph.TargetNode;
 
 /**

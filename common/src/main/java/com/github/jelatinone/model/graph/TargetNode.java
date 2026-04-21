@@ -14,6 +14,8 @@ import java.util.UUID;
  * @author Cody Washington
  */
 public record TargetNode(
+		long schemaVersion,
+
 		UUID targetId,
 		URL canonicalUrl,
 

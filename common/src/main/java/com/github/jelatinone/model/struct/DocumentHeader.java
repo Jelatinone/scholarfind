@@ -22,10 +22,10 @@ import com.github.jelatinone.model.graph.TargetReview;
  * 
  */
 public record DocumentHeader(
+		long schemaVersion,
+
 		UUID targetId,
 		UUID reviewId,
-
-		long schemaVersion,
 
 		String emittedBy,
 		Instant emittedAt) {

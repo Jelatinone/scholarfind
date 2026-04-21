@@ -12,6 +12,8 @@ import java.util.UUID;
  * @author Cody Washington
  */
 public record TargetReview(
+		long schemaVersion,
+
 		UUID reviewId,
 		UUID targetId,
 

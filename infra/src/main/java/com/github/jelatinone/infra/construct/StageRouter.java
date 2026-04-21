@@ -58,6 +58,7 @@ public class StageRouter implements Router {
 			Class<R> payloadType,
 			Consumer<StageEnvelope<R>> forwardTo) {
 
+		@SuppressWarnings("unchecked")
 		public void send(StageEnvelope<? extends Request> envelope) {
 			Request payload = envelope.payload();
 			if (payload == null || !payloadType.isInstance(payload)) {

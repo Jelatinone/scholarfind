@@ -13,6 +13,8 @@ import java.util.UUID;
  * @author Cody Washington
  */
 public record TargetEdge(
+		long schemaVersion,
+
 		UUID edgeId,
 		UUID reviewId,
 

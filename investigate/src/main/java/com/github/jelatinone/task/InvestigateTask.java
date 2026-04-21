@@ -178,6 +178,7 @@ public final class InvestigateTask extends
 		_infrastructure.investigateStore().put(document);
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	protected <Emit extends Request> StageEnvelope<Emit> buildEnvelope(
 			@NonNull EmissionIntent<? extends Request> emission,

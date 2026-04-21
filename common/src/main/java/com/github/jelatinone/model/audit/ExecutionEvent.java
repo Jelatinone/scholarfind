@@ -4,16 +4,16 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.UUID;
 
-import com.github.jelatinone.models.audit.ProcessingStage;
 import com.github.jelatinone.policy.StageOutcome;
 
 public record ExecutionEvent(
 		UUID targetId,
 
-		ProcessingStage stage,
+		ExecutionStage executionRef,
 
 		Collection<AttemptTransition> transitions,
 		StageOutcome outcome,
 
+		Instant attemptAt,
 		Instant emittedAt) {
 }
