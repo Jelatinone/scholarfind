@@ -3,9 +3,8 @@ package com.github.jelatinone.model.transit;
 import java.time.Instant;
 import java.util.UUID;
 
-import org.jsoup.helper.HttpConnection.Request;
-
 import com.github.jelatinone.model.audit.ExecutionStage;
+import com.github.jelatinone.model.struct.Request;
 
 public record Letter<Content extends Request>(
 		long schemaVersion,
