@@ -54,11 +54,9 @@ public abstract class QueueTask<Consumes, Produces> extends ParallelTask<Envelop
 	}
 
 	@Override
-	protected final @NonNull CollectionResult<Envelope<Consumes>> collect() {
+	public final @NonNull CollectionResult<Envelope<Consumes>> collect() {
 		QueueResult<Consumes> receivedMessages = _inQueue.poll(_taskConfig.collectionSize);
-		List<Envelope<Consumes>> envelopes = receivedMessages.messages().stream()
-				.map((message) -> new Envelope<>(message.message(), message.acknowledgement()))
-				.toList();
+		List<Envelope<Consumes>> envelopes = receivedMessages.messages();
 		if (!envelopes.isEmpty()) {
 			return new CollectionResult.Alive<>(envelopes);
 		}
@@ -69,7 +67,7 @@ public abstract class QueueTask<Consumes, Produces> extends ParallelTask<Envelop
 	}
 
 	@Override
-	protected final OperationResult<Envelope<Produces>> operate(@NonNull Envelope<Consumes> operand) {
+	public final OperationResult<Envelope<Produces>> operate(@NonNull Envelope<Consumes> operand) {
 		try {
 			Produces output = elementProcess(operand.content());
 			return new OperationResult<>(new Envelope<>(output, operand.acknowledgement()));
@@ -81,7 +79,7 @@ public abstract class QueueTask<Consumes, Produces> extends ParallelTask<Envelop
 	}
 
 	@Override
-	protected final @NonNull PostResult post(OperationResult<Envelope<Produces>> operand) {
+	public final @NonNull PostResult post(OperationResult<Envelope<Produces>> operand) {
 		if (operand == null || operand.value() == null || operand.value().content() == null) {
 			useMessage(String.format("Queue operation result was null : %s", operand), DEBUG);
 			return FAILURE_FATAL;
