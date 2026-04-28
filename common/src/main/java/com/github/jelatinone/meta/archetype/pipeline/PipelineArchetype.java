@@ -1,4 +1,4 @@
-package com.github.jelatinone.meta.archetype.policy;
+package com.github.jelatinone.meta.archetype.pipeline;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -6,8 +6,9 @@ import java.util.List;
 
 import com.github.jelatinone.meta.archetype.Operate;
 import com.github.jelatinone.meta.archetype.Retrieve;
+import com.github.jelatinone.meta.archetype.policy.PolicyArchetype;
+import com.github.jelatinone.meta.archetype.policy.PolicyResult;
 import com.github.jelatinone.meta.result.PersistResult;
-import com.github.jelatinone.meta.result.PipelineResult;
 import com.github.jelatinone.model.struct.Document;
 import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.model.struct.RequestHeader;
@@ -22,14 +23,21 @@ import lombok.NonNull;
  * 
  * <h1>PipelineArchetype</h1>
  * 
- * Stage lifecycle boilerplate layered on top of {@link PolicyArchetype}
+ * Stage lifecycle boilerplate layered around a {@link PolicyArchetype}
  * without assuming any queue transport behavior.
  * 
  * @author Cody Washington
  * 
  */
-public interface PipelineArchetype<In extends Request, Out extends Request, Context, State, D extends Document<D>>
-		extends PolicyArchetype<In, Context, State, D> {
+public interface PipelineArchetype<In extends Request, Out extends Request, Context, State, D extends Document<D>> {
+
+	PolicyArchetype<In, Context, State> policy();
+
+	D buildDocument(
+			@NonNull Letter<In> input,
+			@NonNull Context context,
+			@NonNull PolicyDecision<State> decision,
+			@NonNull Instant occurredAt);
 
 	PersistResult<State, D> persistDocument(
 			@NonNull Letter<In> input,
@@ -52,19 +60,19 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 	In buildRequest(@NonNull In request, @NonNull RequestHeader header);
 
 	<Emit extends Request> Letter<Emit> buildEnvelope(
-			@NonNull EmissionIntent<? extends Request> emission,
+			@NonNull EmissionIntent<Emit> emission,
 			@NonNull Letter<In> input,
 			@NonNull Context context,
 			@NonNull PolicyDecision<State> decision,
 			@NonNull D document);
 
-	default Collection<Letter<Request>> buildEmissions(
+	default Collection<Letter<? extends Request>> buildEmissions(
 			@NonNull Letter<In> input,
 			@NonNull Context context,
 			@NonNull PolicyDecision<State> decision,
 			@NonNull D document) {
 		return decision.emissionIntents().stream()
-				.map(emission -> buildEnvelope(emission, input, context, decision, document))
+				.<Letter<? extends Request>>map(emission -> buildEnvelope(emission, input, context, decision, document))
 				.toList();
 	}
 
@@ -89,12 +97,13 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 	}
 
 	default PipelineResult<D, In> processPipeline(@NonNull Letter<In> input) {
-		PolicyResult<Letter<In>, Context, State, D> policy = processPolicy(input);
+		PolicyResult<Letter<In>, Context, State> policy = policy().processPolicy(input);
+		D document = buildDocument(input, policy.context(), policy.decision(), policy.occurredAt());
 		PersistResult<State, D> persisted = persistDocument(
 				input,
 				policy.context(),
 				policy.decision(),
-				policy.document());
+				document);
 
 		D persistedDocument = persisted.document();
 		PolicyDecision<State> persistedDecision = persisted.decision();
@@ -102,7 +111,7 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 		persistExecution(input, persistedDecision, policy.occurredAt());
 		persistAttempt(input, persistedDecision, policy.startedAt(), policy.occurredAt(), null);
 
-		Collection<Letter<Request>> emissions = persistedDocument == null
+		Collection<Letter<? extends Request>> emissions = persistedDocument == null
 				? List.of()
 				: buildEmissions(input, policy.context(), persistedDecision, persistedDocument);
 		return new PipelineResult<>(
@@ -117,7 +126,7 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 	default PipelineResult<D, In> recoverPipeline(
 			@NonNull Letter<In> input,
 			@NonNull Throwable throwable) {
-		PolicyResult<Letter<In>, Context, State, D> policy = recoverPolicy(input, throwable);
+		PolicyResult<Letter<In>, Context, State> policy = policy().recoverPolicy(input, throwable);
 		PolicyDecision<State> decision = policy.decision();
 
 		persistExecution(input, decision, policy.occurredAt());
@@ -127,7 +136,7 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 	}
 
 	default Operate<Letter<In>, PipelineResult<D, In>> pipelineOperate() {
-		return this::processPipeline;
+		return new PipelineOperation<>(this);
 	}
 
 	default Retrieve<Letter<In>, PipelineResult<D, In>> pipelineRecover() {

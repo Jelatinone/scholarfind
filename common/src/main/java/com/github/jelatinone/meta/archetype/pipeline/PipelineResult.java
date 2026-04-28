@@ -1,4 +1,4 @@
-package com.github.jelatinone.meta.result;
+package com.github.jelatinone.meta.archetype.pipeline;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -12,7 +12,7 @@ public record PipelineResult<D extends Document<?>, In extends Request>(
 		Letter<In> input,
 		D document,
 		PolicyDecision<?> decision,
-		Collection<Letter<Request>> emissions,
+		Collection<Letter<? extends Request>> emissions,
 		Instant startedAt,
 		Instant occurredAt) {
 }

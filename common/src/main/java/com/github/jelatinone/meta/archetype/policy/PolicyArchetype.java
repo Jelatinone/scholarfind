@@ -5,7 +5,6 @@ import java.time.Instant;
 
 import com.github.jelatinone.meta.archetype.Operate;
 import com.github.jelatinone.meta.archetype.Retrieve;
-import com.github.jelatinone.model.struct.Document;
 import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.model.transit.Letter;
 import com.github.jelatinone.policy.PolicyDecision;
@@ -19,25 +18,39 @@ import lombok.NonNull;
  * 
  * <h1>PolicyArchetype</h1>
  * 
- * Pure policy flow contract for building context, state, and a document
- * candidate from a given {@link Letter}.
+ * Pure policy flow contract for building context, state, and a decision from a
+ * given {@link Letter}.
  * 
  * @author Cody Washington
  * 
  */
-public interface PolicyArchetype<In extends Request, Context, State, D extends Document<D>> {
+public interface PolicyArchetype<In extends Request, Context, State> {
 
-	PolicyPipeline<Context, State> policyPipeline();
-
-	Context buildContext(@NonNull Letter<In> input, @NonNull Instant startedAt);
+	PolicyPipeline<Context, State> pipeline();
 
 	State buildState(@NonNull Context context);
 
-	D buildDocument(
-			@NonNull Letter<In> input,
-			@NonNull Context context,
-			@NonNull PolicyDecision<State> decision,
-			@NonNull Instant occurredAt);
+	Context buildContext(@NonNull Letter<In> input, @NonNull Instant startedAt);
+
+	default PolicyResult<Letter<In>, Context, State> processPolicy(@NonNull Letter<In> input) {
+		Instant startedAt = Instant.now();
+
+		Context context = buildContext(input, startedAt);
+		State state = buildState(context);
+		PolicyDecision<State> decision = pipeline().process(context, state);
+
+		Instant occurredAt = Instant.now();
+		return new PolicyResult<>(input, context, decision, startedAt, occurredAt);
+	}
+
+	default PolicyResult<Letter<In>, Context, State> recoverPolicy(@NonNull Letter<In> input,
+			@NonNull Throwable throwable) {
+		Instant startedAt = Instant.now();
+		PolicyDecision<State> decision = failureDecision(input, throwable);
+		Instant occurredAt = Instant.now();
+
+		return new PolicyResult<>(input, null, decision, startedAt, occurredAt);
+	}
 
 	default PolicyDecision<State> failureDecision(@NonNull Letter<In> input, @NonNull Throwable throwable) {
 		return PolicyDecision.retry(
@@ -47,34 +60,11 @@ public interface PolicyArchetype<In extends Request, Context, State, D extends D
 				RetryDirective.delay(Duration.ofSeconds(30)));
 	}
 
-	default PolicyResult<Letter<In>, Context, State, D> processPolicy(@NonNull Letter<In> input) {
-		Instant startedAt = Instant.now();
-
-		Context context = buildContext(input, startedAt);
-		State state = buildState(context);
-		PolicyDecision<State> decision = policyPipeline().process(context, state);
-
-		Instant occurredAt = Instant.now();
-		D document = buildDocument(input, context, decision, occurredAt);
-
-		return new PolicyResult<>(input, context, decision, document, startedAt, occurredAt);
-	}
-
-	default PolicyResult<Letter<In>, Context, State, D> recoverPolicy(
-			@NonNull Letter<In> input,
-			@NonNull Throwable throwable) {
-		Instant startedAt = Instant.now();
-		PolicyDecision<State> decision = failureDecision(input, throwable);
-		Instant occurredAt = Instant.now();
-
-		return new PolicyResult<>(input, null, decision, null, startedAt, occurredAt);
-	}
-
-	default Operate<Letter<In>, PolicyResult<Letter<In>, Context, State, D>> policyOperate() {
+	default Operate<Letter<In>, PolicyResult<Letter<In>, Context, State>> policyOperate() {
 		return new PolicyOperation<>(this);
 	}
 
-	default Retrieve<Letter<In>, PolicyResult<Letter<In>, Context, State, D>> policyRecover() {
+	default Retrieve<Letter<In>, PolicyResult<Letter<In>, Context, State>> policyRecover() {
 		return this::recoverPolicy;
 	}
 }

@@ -4,11 +4,10 @@ import java.time.Instant;
 
 import com.github.jelatinone.policy.PolicyDecision;
 
-public record PolicyResult<Input, Context, State, Document>(
+public record PolicyResult<Input, Context, State>(
 		Input input,
 		Context context,
 		PolicyDecision<State> decision,
-		Document document,
 		Instant startedAt,
 		Instant occurredAt) {
 }

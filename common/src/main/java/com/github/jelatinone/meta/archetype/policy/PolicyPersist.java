@@ -8,18 +8,18 @@ import lombok.experimental.FieldDefaults;
 
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class PolicyPersist<Input, Context, State, Document>
-		implements Persist<PolicyResult<Input, Context, State, Document>> {
+public final class PolicyPersist<Input, Context, State>
+		implements Persist<PolicyResult<Input, Context, State>> {
 
-	PolicyDisposition<Input, Context, State, Document> disposition;
+	PolicyDisposition<Input, Context, State> disposition;
 
 	@Override
-	public PostResult post(PolicyResult<Input, Context, State, Document> operand) {
+	public PostResult post(PolicyResult<Input, Context, State> operand) {
 		if (operand == null || operand.decision() == null) {
 			return PostResult.FAILURE_FATAL;
 		}
 
-		PolicyResult<Input, Context, State, Document> result = operand;
+		PolicyResult<Input, Context, State> result = operand;
 		try {
 			switch (result.decision().outcome()) {
 				case NEXT ->
