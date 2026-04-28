@@ -1,7 +1,6 @@
 package com.github.jelatinone.meta.archetype;
 
 import com.github.jelatinone.meta.result.CollectionResult;
-import com.github.jelatinone.meta.result.OperationResult;
 import com.github.jelatinone.meta.result.PostResult;
 
 import lombok.NonNull;
@@ -17,12 +16,12 @@ public record Composition<Consumes, Produces>(
 	}
 
 	@Override
-	public OperationResult<Produces> operate(@NonNull Consumes operand) {
+	public Produces operate(@NonNull Consumes operand) {
 		return operation().operate(operand);
 	}
 
 	@Override
-	public @NonNull PostResult post(OperationResult<Produces> operand) {
+	public @NonNull PostResult post(Produces operand) {
 		return persist().post(operand);
 	}
 

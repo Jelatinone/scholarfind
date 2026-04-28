@@ -7,7 +7,6 @@ import static java.util.concurrent.TimeUnit.*;
 import java.util.List;
 
 import com.github.jelatinone.meta.result.CollectionResult;
-import com.github.jelatinone.meta.result.OperationResult;
 import com.github.jelatinone.meta.result.PostResult;
 import com.github.jelatinone.meta.transitory.State;
 import com.github.jelatinone.utility.Locked;
@@ -32,7 +31,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 	@NonFinal
 	Consumes operand = null;
 	@NonFinal
-	OperationResult<Produces> result = null;
+	Produces result = null;
 
 	/**
 	 * Creates a new sequential Task
@@ -188,7 +187,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 	 * 
 	 * @return Previous produced operand
 	 */
-	public OperationResult<Produces> getProduced() {
+	public Produces getProduced() {
 		return result;
 	}
 }

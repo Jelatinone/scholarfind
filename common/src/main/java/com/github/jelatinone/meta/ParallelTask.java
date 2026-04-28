@@ -15,7 +15,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 
 import com.github.jelatinone.meta.result.CollectionResult;
-import com.github.jelatinone.meta.result.OperationResult;
 import com.github.jelatinone.meta.result.PostResult;
 import com.github.jelatinone.meta.transitory.State;
 import com.github.jelatinone.utility.Locked;
@@ -41,7 +40,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 	Collection<CompletableFuture<Void>> _jobs;
 
 	Collection<Consumes> _operands;
-	Collection<OperationResult<Produces>> _results;
+	Collection<Produces> _results;
 
 	Configuration _parallelConfig;
 
@@ -89,7 +88,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 				.supplyAsync(() -> {
 					_operands.add(element);
 
-					OperationResult<Produces> result = operate(element);
+					Produces result = operate(element);
 					_results.add(result);
 
 					return result;
@@ -109,7 +108,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 	 * @param operand Consumable unit of information
 	 * @param result  Produced unit of information
 	 */
-	private void handlePost(final Consumes operand, final OperationResult<Produces> result) {
+	private void handlePost(final Consumes operand, final Produces result) {
 		PostResult currentStatus = post(result);
 		useMessage(String.format("Posted job : %s", currentStatus), ERROR);
 
@@ -291,7 +290,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces> extends Task<C
 	 * 
 	 * @return Previous produced operand
 	 */
-	public Collection<OperationResult<Produces>> getProduced() {
+	public Collection<Produces> getProduced() {
 		return _results;
 	}
 }

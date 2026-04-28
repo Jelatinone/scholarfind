@@ -1,7 +1,5 @@
 package com.github.jelatinone.meta.archetype;
 
-import com.github.jelatinone.meta.result.OperationResult;
-
 /**
  * 
  * <h1>Action</h1>
@@ -51,11 +49,11 @@ public final class Action {
 		@Override
 		public <Next> OperateAction<Consumes, Next> then(Operate<Produces, Next> next) {
 			Operate<Consumes, Next> composed = operand -> {
-				OperationResult<Produces> previous = operation.operate(operand);
+				Produces previous = operation.operate(operand);
 				if (previous == null) {
 					return null;
 				}
-				return next.operate(previous.value());
+				return next.operate(previous);
 			};
 			return new OperateStep<>(source, composed);
 		}

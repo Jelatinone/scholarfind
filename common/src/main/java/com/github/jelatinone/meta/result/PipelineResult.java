@@ -1,15 +1,18 @@
 package com.github.jelatinone.meta.result;
 
+import java.time.Instant;
 import java.util.Collection;
 
-import com.github.jelatinone.models.shared.Request;
-import com.github.jelatinone.models.shared.StageDocument;
-import com.github.jelatinone.models.shared.StageEnvelope;
+import com.github.jelatinone.model.struct.Document;
+import com.github.jelatinone.model.struct.Request;
+import com.github.jelatinone.model.transit.Letter;
 import com.github.jelatinone.policy.PolicyDecision;
 
-public record PipelineResult<Document extends StageDocument<?>, In extends Request>(
-		StageEnvelope<In> input,
-		Document document,
+public record PipelineResult<D extends Document<?>, In extends Request>(
+		Letter<In> input,
+		D document,
 		PolicyDecision<?> decision,
-		Collection<StageEnvelope<Request>> emissions) {
+		Collection<Letter<Request>> emissions,
+		Instant startedAt,
+		Instant occurredAt) {
 }

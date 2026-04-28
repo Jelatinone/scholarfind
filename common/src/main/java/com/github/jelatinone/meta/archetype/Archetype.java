@@ -1,7 +1,6 @@
 package com.github.jelatinone.meta.archetype;
 
 import com.github.jelatinone.meta.result.CollectionResult;
-import com.github.jelatinone.meta.result.OperationResult;
 import com.github.jelatinone.meta.result.PostResult;
 
 import lombok.NonNull;
@@ -34,7 +33,7 @@ public interface Archetype<Consumes, Produces> extends AutoCloseable {
 	 * @param operand Data to be mapped
 	 * @return Mapped result
 	 */
-	OperationResult<Produces> operate(final @NonNull Consumes operand);
+	Produces operate(final @NonNull Consumes operand);
 
 	/**
 	 * Self-callback function to determine the validity of the resulting data
@@ -43,7 +42,7 @@ public interface Archetype<Consumes, Produces> extends AutoCloseable {
 	 * @return Mapped result
 	 */
 	@NonNull
-	PostResult post(final OperationResult<Produces> operand);
+	PostResult post(final Produces operand);
 
 	@Override
 	default void close() throws Exception {

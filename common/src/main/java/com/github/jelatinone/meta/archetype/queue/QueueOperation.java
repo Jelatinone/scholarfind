@@ -3,7 +3,6 @@ package com.github.jelatinone.meta.archetype.queue;
 import com.github.jelatinone.api.Envelope;
 import com.github.jelatinone.meta.archetype.Operate;
 import com.github.jelatinone.meta.archetype.Retrieve;
-import com.github.jelatinone.meta.result.OperationResult;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -17,13 +16,13 @@ public class QueueOperation<Consumes, Produces> implements Operate<Envelope<Cons
 	Retrieve<Consumes, Produces> recovery;
 
 	@Override
-	public OperationResult<Envelope<Produces>> operate(Envelope<Consumes> operand) {
+	public Envelope<Produces> operate(Envelope<Consumes> operand) {
 		try {
-			OperationResult<Produces> output = operation.operate(operand.content());
-			return new OperationResult<>(new Envelope<>(output.value(), operand.acknowledgement()));
+			Produces output = operation.operate(operand.content());
+			return new Envelope<>(output, operand.acknowledgement());
 		} catch (Throwable throwable) {
 			Produces recovered = recovery.recover(operand.content(), throwable);
-			return new OperationResult<>(new Envelope<>(recovered, operand.acknowledgement()));
+			return new Envelope<>(recovered, operand.acknowledgement());
 		}
 	}
 

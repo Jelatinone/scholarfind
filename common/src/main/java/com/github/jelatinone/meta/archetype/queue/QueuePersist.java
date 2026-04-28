@@ -2,7 +2,6 @@ package com.github.jelatinone.meta.archetype.queue;
 
 import com.github.jelatinone.api.Envelope;
 import com.github.jelatinone.meta.archetype.Persist;
-import com.github.jelatinone.meta.result.OperationResult;
 import com.github.jelatinone.meta.result.PostResult;
 
 import lombok.AccessLevel;
@@ -16,12 +15,12 @@ public class QueuePersist<T> implements Persist<Envelope<T>> {
 	QueueDisposition<T> disposition;
 
 	@Override
-	public PostResult post(OperationResult<Envelope<T>> operand) {
-		if (operand == null || operand.value() == null || operand.value().content() == null) {
+	public PostResult post(Envelope<T> operand) {
+		if (operand == null || operand.content() == null) {
 			return PostResult.FAILURE_FATAL;
 		}
 
-		Envelope<T> envelope = operand.value();
+		Envelope<T> envelope = operand;
 		T output = envelope.content();
 		try {
 			switch (disposition.directive(output)) {

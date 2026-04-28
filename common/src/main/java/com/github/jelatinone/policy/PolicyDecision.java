@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.models.shared.ReasonCode;
-import com.github.jelatinone.models.shared.Request;
 
 public record PolicyDecision<State>(
 		State state,
