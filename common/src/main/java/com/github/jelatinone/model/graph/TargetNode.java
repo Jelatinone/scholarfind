@@ -19,6 +19,5 @@ public record TargetNode(
 		UUID targetId,
 		URL canonicalUrl,
 
-		Instant emittedAt,
-		Instant reviewedAt) {
+		Instant emittedAt) {
 }

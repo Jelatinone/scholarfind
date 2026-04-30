@@ -11,6 +11,8 @@ package com.github.jelatinone.model.graph;
 public enum TargetCause {
 	DYNAMIC_DISCOVERY,
 
+	DYNAMIC_EQUIVALENCE_REVIEW,
+
 	DYNAMIC_STAGE_REFLOW,
 
 	ORIGIN,

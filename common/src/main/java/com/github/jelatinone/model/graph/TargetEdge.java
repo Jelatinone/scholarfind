@@ -5,10 +5,10 @@ import java.util.UUID;
 
 /**
  * 
- * <h1>TargetEdge</h1>
+ * <h1>TargetParentEdge</h1>
  * 
- * Unit of child-parent relationship between two {@link TargetNode nodes} within
- * the graph created by a {@link TargetReview review}.
+ * Directional child-parent relationship between two {@link TargetNode nodes}
+ * within the traversal graph created by a {@link TargetReview review}.
  * 
  * @author Cody Washington
  */
@@ -18,8 +18,8 @@ public record TargetEdge(
 		UUID edgeId,
 		UUID reviewId,
 
-		UUID parentNodeId,
-		UUID childNodeId,
+		UUID parentTargetId,
+		UUID childTargetId,
 
 		Instant emittedAt) {
 
