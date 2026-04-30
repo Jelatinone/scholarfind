@@ -12,7 +12,10 @@ public record ScholarshipArchive(
 
 		ArchiveHeader archiveHeader,
 
-		List<Description<?>> descriptionItems,
+		List<Description<?>> itemDescriptions,
+
+		String summary,
+		String description,
 
 		Collection<Requirement<?>> applicationRequirements,
 		Collection<Requirement<?>> eligibilityRequirements
@@ -23,7 +26,9 @@ public record ScholarshipArchive(
 	public ScholarshipArchive withArchiveHeader(ArchiveHeader header) {
 		return new ScholarshipArchive(
 				header,
-				descriptionItems(),
+				itemDescriptions(),
+				summary(),
+				description(),
 				applicationRequirements(),
 				eligibilityRequirements());
 	}

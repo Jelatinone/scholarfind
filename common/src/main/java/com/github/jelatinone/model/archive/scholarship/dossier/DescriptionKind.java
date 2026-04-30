@@ -1,15 +1,33 @@
 package com.github.jelatinone.model.archive.scholarship.dossier;
 
+import java.net.URL;
+
+import com.github.jelatinone.model.archive.scholarship.dossier.description.Award;
+import com.github.jelatinone.model.archive.scholarship.dossier.description.Window;
+
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
+
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public enum DescriptionKind {
 
-	CANONICAL_NAME,
-	ORGANIZATION_NAME,
+	SCHOLARSHIP_NAME(String.class),
+	ORGANIZATION_NAME(String.class),
 
-	NARRATIVE_SUMMARY,
-	NARRATIVE_DESCRIPTION,
+	CANONICAL_URL(URL.class),
+	APPLICATION_URL(URL.class),
 
-	AWARD,
+	AWARD(Award.class),
 
-	APPLICATION_WINDOW
+	APPLICATION_WINDOW(Window.class),
 
+	OTHER_TEXT(String.class);
+
+	Class<?> descriptionType;
+
+	public boolean accepts(Object description) {
+		return descriptionType.isInstance(description);
+	}
 }
