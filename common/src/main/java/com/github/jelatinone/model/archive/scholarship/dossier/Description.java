@@ -4,9 +4,7 @@ import lombok.NonNull;
 
 public record Description<Describes>(
 		@NonNull DescriptionKind descriptionKind,
-		@NonNull Describes description,
-
-		String descriptor) {
+		@NonNull Describes description) {
 
 	public Description {
 		if (!descriptionKind.accepts(description)) {

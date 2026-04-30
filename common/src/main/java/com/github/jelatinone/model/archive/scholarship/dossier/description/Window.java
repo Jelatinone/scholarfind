@@ -4,5 +4,7 @@ import java.time.LocalDate;
 
 public record Window(
 		LocalDate openDate,
-		LocalDate closeDate) {
+		LocalDate closeDate,
+
+		String descriptor) {
 }
