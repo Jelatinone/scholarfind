@@ -1,7 +1,6 @@
-package com.github.jelatinone.model.dossier;
+package com.github.jelatinone.model.archive.scholarship.dossier.requirement;
 
-public enum EducationLevel {
-
+public enum Education {
 	ELEMENTARY_SCHOOL,
 	MIDDLE_SCHOOL,
 	JUNIOR_HIGH,
@@ -44,5 +43,4 @@ public enum EducationLevel {
 	RETURNING_STUDENT,
 	ADULT_LEARNER,
 	CONTINUING_EDUCATION;
-
 }

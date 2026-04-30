@@ -1,6 +1,6 @@
-package com.github.jelatinone.model.dossier;
+package com.github.jelatinone.model.archive.scholarship.dossier.requirement;
 
-public enum DegreeLevel {
+public enum Degree {
 	NO_DEGREE,
 	CERTIFICATE,
 	DIPLOMA,
