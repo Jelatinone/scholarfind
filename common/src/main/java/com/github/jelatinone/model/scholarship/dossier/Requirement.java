@@ -1,4 +1,4 @@
-package com.github.jelatinone.model.archive.scholarship.dossier;
+package com.github.jelatinone.model.scholarship.dossier;
 
 import lombok.NonNull;
 

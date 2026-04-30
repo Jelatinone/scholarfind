@@ -1,4 +1,4 @@
-package com.github.jelatinone.model.archive.scholarship.dossier.description;
+package com.github.jelatinone.model.scholarship.dossier.description;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;

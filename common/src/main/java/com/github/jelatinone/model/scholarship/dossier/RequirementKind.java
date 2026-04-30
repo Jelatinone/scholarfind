@@ -1,11 +1,11 @@
-package com.github.jelatinone.model.archive.scholarship.dossier;
+package com.github.jelatinone.model.scholarship.dossier;
 
 import java.math.BigDecimal;
 
-import com.github.jelatinone.model.archive.scholarship.dossier.requirement.Activity;
-import com.github.jelatinone.model.archive.scholarship.dossier.requirement.Degree;
-import com.github.jelatinone.model.archive.scholarship.dossier.requirement.Education;
-import com.github.jelatinone.model.archive.scholarship.dossier.requirement.Location;
+import com.github.jelatinone.model.scholarship.dossier.requirement.Activity;
+import com.github.jelatinone.model.scholarship.dossier.requirement.Degree;
+import com.github.jelatinone.model.scholarship.dossier.requirement.Education;
+import com.github.jelatinone.model.scholarship.dossier.requirement.Location;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

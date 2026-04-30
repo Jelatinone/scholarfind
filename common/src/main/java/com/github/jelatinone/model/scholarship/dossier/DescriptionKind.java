@@ -1,9 +1,9 @@
-package com.github.jelatinone.model.archive.scholarship.dossier;
+package com.github.jelatinone.model.scholarship.dossier;
 
 import java.net.URL;
 
-import com.github.jelatinone.model.archive.scholarship.dossier.description.Award;
-import com.github.jelatinone.model.archive.scholarship.dossier.description.Window;
+import com.github.jelatinone.model.scholarship.dossier.description.Award;
+import com.github.jelatinone.model.scholarship.dossier.description.Window;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

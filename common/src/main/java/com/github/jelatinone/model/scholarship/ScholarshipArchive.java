@@ -1,12 +1,12 @@
-package com.github.jelatinone.model.archive.scholarship;
+package com.github.jelatinone.model.scholarship;
 
 import java.util.Collection;
 import java.util.List;
 
 import com.github.jelatinone.model.archive.Archive;
 import com.github.jelatinone.model.archive.ArchiveHeader;
-import com.github.jelatinone.model.archive.scholarship.dossier.Description;
-import com.github.jelatinone.model.archive.scholarship.dossier.Requirement;
+import com.github.jelatinone.model.scholarship.dossier.Description;
+import com.github.jelatinone.model.scholarship.dossier.Requirement;
 
 public record ScholarshipArchive(
 

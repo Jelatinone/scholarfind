@@ -1,4 +1,4 @@
-package com.github.jelatinone.model.archive.scholarship.dossier.requirement;
+package com.github.jelatinone.model.scholarship.dossier.requirement;
 
 public enum Education {
 	ELEMENTARY_SCHOOL,
