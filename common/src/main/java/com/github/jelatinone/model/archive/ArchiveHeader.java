@@ -3,14 +3,18 @@ package com.github.jelatinone.model.archive;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.github.jelatinone.model.audit.ExecutionStage;
+
+import lombok.NonNull;
+
 public record ArchiveHeader(
 		long schemaVersion,
 
-		UUID entityId,
-		UUID reviewId,
+		@NonNull UUID entityId,
+		@NonNull UUID reviewId,
 
-		ArchiveState state,
+		@NonNull ArchiveState state,
 
-		String emittedBy,
-		Instant emittedAt) {
+		@NonNull ExecutionStage emittedBy,
+		@NonNull Instant emittedAt) {
 }

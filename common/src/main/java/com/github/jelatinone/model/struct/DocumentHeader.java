@@ -3,8 +3,11 @@ package com.github.jelatinone.model.struct;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.graph.TargetNode;
 import com.github.jelatinone.model.graph.TargetReview;
+
+import lombok.NonNull;
 
 /**
  * 
@@ -24,9 +27,9 @@ import com.github.jelatinone.model.graph.TargetReview;
 public record DocumentHeader(
 		long schemaVersion,
 
-		UUID targetId,
-		UUID reviewId,
+		@NonNull UUID targetId,
+		@NonNull UUID reviewId,
 
-		String emittedBy,
-		Instant emittedAt) {
+		@NonNull ExecutionStage emittedBy,
+		@NonNull Instant emittedAt) {
 }

@@ -6,14 +6,16 @@ import java.util.UUID;
 
 import com.github.jelatinone.meta.transitory.Disposition;
 
+import lombok.NonNull;
+
 public record AttemptEvent(
-		UUID requestId,
-		UUID reviewId,
-		UUID targetId,
+		@NonNull UUID requestId,
+		@NonNull UUID reviewId,
+		@NonNull UUID targetId,
 
 		Collection<AttemptReason> reasons,
-		Disposition disposition,
+		@NonNull Disposition disposition,
 
-		Instant occurredAt,
-		Instant emittedAt) {
+		@NonNull Instant occurredAt,
+		@NonNull Instant emittedAt) {
 }

@@ -6,14 +6,16 @@ import java.util.UUID;
 
 import com.github.jelatinone.policy.StageOutcome;
 
-public record ExecutionEvent(
-		UUID targetId,
+import lombok.NonNull;
 
-		ExecutionStage executionRef,
+public record ExecutionEvent(
+		@NonNull UUID targetId,
+
+		@NonNull ExecutionStage executionRef,
 
 		Collection<AttemptTransition> transitions,
-		StageOutcome outcome,
+		@NonNull StageOutcome outcome,
 
-		Instant attemptAt,
-		Instant emittedAt) {
+		@NonNull Instant attemptAt,
+		@NonNull Instant emittedAt) {
 }

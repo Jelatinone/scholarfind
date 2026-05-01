@@ -4,13 +4,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.github.jelatinone.model.audit.AttemptReason;
 import com.github.jelatinone.model.struct.Request;
-import com.github.jelatinone.models.shared.ReasonCode;
 
 public record PolicyDecision<State>(
 		State state,
 		StageOutcome outcome,
-		Set<ReasonCode> reasonCodes,
+		Set<AttemptReason> reasonCodes,
 		String reasonDetail,
 		RetryDirective retryDirective,
 		List<EmissionIntent<? extends Request>> emissionIntents,
@@ -28,7 +28,7 @@ public record PolicyDecision<State>(
 
 	public static <State> PolicyDecision<State> next(
 			State state,
-			Set<ReasonCode> reasonCodes,
+			Set<AttemptReason> reasonCodes,
 			String reasonDetail,
 			List<EmissionIntent<? extends Request>> emissionIntents) {
 		return new PolicyDecision<>(state, StageOutcome.NEXT, reasonCodes, reasonDetail, null, emissionIntents, Map.of());
@@ -36,14 +36,14 @@ public record PolicyDecision<State>(
 
 	public static <State> PolicyDecision<State> drop(
 			State state,
-			ReasonCode reasonCode,
+			AttemptReason reasonCode,
 			String reasonDetail) {
 		return new PolicyDecision<>(state, StageOutcome.DROP, Set.of(reasonCode), reasonDetail, null, List.of(), Map.of());
 	}
 
 	public static <State> PolicyDecision<State> retry(
 			State state,
-			ReasonCode reasonCode,
+			AttemptReason reasonCode,
 			String reasonDetail,
 			RetryDirective retryDirective) {
 		return new PolicyDecision<>(state, StageOutcome.RETRY, Set.of(reasonCode), reasonDetail, retryDirective, List.of(),
@@ -52,12 +52,12 @@ public record PolicyDecision<State>(
 
 	public static <State> PolicyDecision<State> error(
 			State state,
-			ReasonCode reasonCode,
+			AttemptReason reasonCode,
 			String reasonDetail) {
 		return new PolicyDecision<>(state, StageOutcome.ERROR, Set.of(reasonCode), reasonDetail, null, List.of(), Map.of());
 	}
 
-	public ReasonCode primaryReasonCode() {
+	public AttemptReason primaryReasonCode() {
 		return reasonCodes.stream().findFirst().orElse(null);
 	}
 }

@@ -6,14 +6,17 @@ import java.util.UUID;
 import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.struct.Request;
 
+import lombok.NonNull;
+
 public record Letter<Content extends Request>(
 		long schemaVersion,
 
-		UUID targetId,
-		UUID reviewId,
+		@NonNull UUID targetId,
+		@NonNull UUID reviewId,
 
-		ExecutionStage executionRef,
+		@NonNull ExecutionStage executionRef,
 		Content content,
 
-		Instant emittedAt) {
+		@NonNull Instant emittedAt) {
+	public static final Long SCHEMA_VERSION = 1L;
 }

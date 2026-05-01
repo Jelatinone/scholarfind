@@ -4,6 +4,8 @@ import java.net.URL;
 import java.time.Instant;
 import java.util.UUID;
 
+import lombok.NonNull;
+
 /**
  * 
  * <h1>TargetNode</h1>
@@ -16,8 +18,8 @@ import java.util.UUID;
 public record TargetNode(
 		long schemaVersion,
 
-		UUID targetId,
-		URL canonicalUrl,
+		@NonNull UUID targetId,
+		@NonNull URL canonicalUrl,
 
-		Instant emittedAt) {
+		@NonNull Instant emittedAt) {
 }

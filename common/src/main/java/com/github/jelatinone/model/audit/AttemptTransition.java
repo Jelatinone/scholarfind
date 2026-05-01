@@ -4,9 +4,11 @@ import java.time.Instant;
 
 import com.github.jelatinone.policy.StageOutcome;
 
-public record AttemptTransition(
-		StageOutcome outcome,
-		AttemptReason reason,
+import lombok.NonNull;
 
-		Instant emittedAt) {
+public record AttemptTransition(
+		@NonNull StageOutcome outcome,
+		@NonNull AttemptReason reason,
+
+		@NonNull Instant emittedAt) {
 }

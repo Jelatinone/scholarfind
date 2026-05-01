@@ -2,14 +2,19 @@ package com.github.jelatinone.model.struct;
 
 import java.util.UUID;
 
-public interface Document<Self> {
+import lombok.NonNull;
 
+public interface Document<Self> {
+	@NonNull
 	DocumentHeader documentHeader();
 
+	@NonNull
 	RequestHeader requestHeader();
 
+	@NonNull
 	UUID targetId();
 
+	@NonNull
 	UUID reviewId();
 
 	Self withDocumentHeader(DocumentHeader header);

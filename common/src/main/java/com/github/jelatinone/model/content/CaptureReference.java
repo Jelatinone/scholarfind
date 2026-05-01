@@ -3,11 +3,12 @@ package com.github.jelatinone.model.content;
 import java.time.Instant;
 import java.util.UUID;
 
+import lombok.NonNull;
+
 public record CaptureReference(
-		UUID targetId,
+		@NonNull UUID targetId,
+		@NonNull String contentHash,
 
-		String contentHash,
-
-		Instant emittedAt) {
+		@NonNull Instant emittedAt) {
 
 }

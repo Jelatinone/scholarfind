@@ -3,6 +3,7 @@ package com.github.jelatinone.model.struct;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.graph.TargetNode;
 
 import lombok.NonNull;
@@ -18,13 +19,13 @@ import lombok.NonNull;
 public record RequestHeader(
 		long schemaVersion,
 
-		UUID requestId,
-		UUID targetId,
+		@NonNull UUID requestId,
+		@NonNull UUID targetId,
 
 		int attempt,
 
-		String emittedBy,
-		Instant emittedAt) {
+		@NonNull ExecutionStage emittedBy,
+		@NonNull Instant emittedAt) {
 
 	public static RequestHeader retry(@NonNull RequestHeader current, @NonNull Instant enqueuedAt) {
 		return new RequestHeader(

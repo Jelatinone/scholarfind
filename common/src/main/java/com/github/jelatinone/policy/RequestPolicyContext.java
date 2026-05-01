@@ -2,14 +2,14 @@ package com.github.jelatinone.policy;
 
 import java.util.UUID;
 
-import com.github.jelatinone.models.audit.ProcessingStage;
-import com.github.jelatinone.models.shared.StageDocument;
+import com.github.jelatinone.model.audit.ExecutionStage;
+import com.github.jelatinone.model.struct.Document;
 
-public interface RequestPolicyContext<Document extends StageDocument<Document>> extends PolicyContext<Document> {
+public interface RequestPolicyContext<Doc extends Document<Doc>> extends PolicyContext<Doc> {
 
 	long envelopeSchemaVersion();
 
-	ProcessingStage envelopeStage();
+	ExecutionStage envelopeStage();
 
 	UUID envelopeRequestId();
 

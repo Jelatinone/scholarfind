@@ -1,8 +1,8 @@
 package com.github.jelatinone.policy;
 
-import com.github.jelatinone.models.shared.ReasonCode;
+import com.github.jelatinone.model.audit.AttemptReason;
 
-public enum PolicyReason implements ReasonCode {
+public enum PolicyReason implements AttemptReason {
 	OPERATION_CONTINUITY,
 	SCHEMA_MISMATCH,
 	DOCUMENT_EXPIRED,
@@ -12,7 +12,7 @@ public enum PolicyReason implements ReasonCode {
 	OPERATION_EXCEPTION;
 
 	@Override
-	public String code() {
+	public String reason() {
 		return name();
 	}
 }

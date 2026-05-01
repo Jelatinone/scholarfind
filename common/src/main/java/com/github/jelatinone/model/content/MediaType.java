@@ -1,10 +1,11 @@
 package com.github.jelatinone.model.content;
 
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 
+@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public enum MediaType {
 	TEXT_HTML("text/html"),
@@ -20,8 +21,4 @@ public enum MediaType {
 
 	@Getter
 	String canonicalName;
-
-	MediaType(@NonNull final String canonicalName) {
-		this.canonicalName = canonicalName;
-	}
 }

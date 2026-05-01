@@ -3,6 +3,8 @@ package com.github.jelatinone.model.graph;
 import java.time.Instant;
 import java.util.UUID;
 
+import lombok.NonNull;
+
 /**
  * 
  * <h1>TargetParentEdge</h1>
@@ -15,12 +17,12 @@ import java.util.UUID;
 public record TargetEdge(
 		long schemaVersion,
 
-		UUID edgeId,
-		UUID reviewId,
+		@NonNull UUID edgeId,
+		@NonNull UUID reviewId,
 
-		UUID parentTargetId,
-		UUID childTargetId,
+		@NonNull UUID parentTargetId,
+		@NonNull UUID childTargetId,
 
-		Instant emittedAt) {
+		@NonNull Instant emittedAt) {
 
 }

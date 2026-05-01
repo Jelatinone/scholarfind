@@ -1,16 +1,17 @@
 package com.github.jelatinone.model.scholarship.dossier.description;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
+
+import lombok.NonNull;
 
 public record Award(
-		BigDecimal minimumAmount,
-		BigDecimal maximumAmount,
+		@NonNull BigDecimal minimumAmount,
+		@NonNull BigDecimal maximumAmount,
 
 		String currencyCode,
 
-		Boolean recipientRenewable,
-		BigInteger recipientCount,
+		boolean recipientRenewable,
+		int recipientCount,
 
 		String descriptor) {
 }

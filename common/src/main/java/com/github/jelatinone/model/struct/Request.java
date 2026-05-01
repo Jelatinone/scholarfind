@@ -4,6 +4,8 @@ import java.util.UUID;
 
 import com.github.jelatinone.model.graph.TargetNode;
 
+import lombok.NonNull;
+
 /**
  * 
  * <h1>Request</h1>
@@ -14,11 +16,13 @@ import com.github.jelatinone.model.graph.TargetNode;
  * @author Cody Washington
  */
 public interface Request {
-
+	@NonNull
 	RequestHeader requestHeader();
 
+	@NonNull
 	UUID targetId();
 
+	@NonNull
 	UUID reviewId();
 
 }

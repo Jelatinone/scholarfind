@@ -8,9 +8,11 @@ import com.github.jelatinone.model.archive.ArchiveHeader;
 import com.github.jelatinone.model.scholarship.dossier.Description;
 import com.github.jelatinone.model.scholarship.dossier.Requirement;
 
+import lombok.NonNull;
+
 public record ScholarshipArchive(
 
-		ArchiveHeader archiveHeader,
+		@NonNull ArchiveHeader archiveHeader,
 
 		List<Description<?>> itemDescriptions,
 

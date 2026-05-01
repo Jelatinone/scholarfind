@@ -1,10 +1,11 @@
 package com.github.jelatinone.model.content;
 
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 
+@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public enum MediaEncoding {
 	UTF_8("UTF-8"),
@@ -18,8 +19,4 @@ public enum MediaEncoding {
 
 	@Getter
 	String canonicalName;
-
-	MediaEncoding(@NonNull final String canonicalName) {
-		this.canonicalName = canonicalName;
-	}
 }

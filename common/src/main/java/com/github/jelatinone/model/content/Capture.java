@@ -3,15 +3,17 @@ package com.github.jelatinone.model.content;
 import java.net.URL;
 import java.util.UUID;
 
+import lombok.NonNull;
+
 public record Capture(
-		UUID targetId,
+		@NonNull UUID targetId,
 
-		URL canonicalUrl,
+		@NonNull URL canonicalUrl,
 
-		MediaType mediaType,
-		MediaEncoding mediaEncoding,
-		MediaMetadata mediaMetadata,
+		@NonNull MediaType mediaType,
+		@NonNull MediaEncoding mediaEncoding,
+		@NonNull MediaMetadata mediaMetadata,
 
-		CaptureReference sourceReference,
-		CaptureReference interpretedReference) {
+		@NonNull CaptureReference sourceReference,
+		@NonNull CaptureReference interpretedReference) {
 }

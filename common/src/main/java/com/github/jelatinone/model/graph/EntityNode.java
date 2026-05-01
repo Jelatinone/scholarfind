@@ -3,6 +3,8 @@ package com.github.jelatinone.model.graph;
 import java.time.Instant;
 import java.util.UUID;
 
+import lombok.NonNull;
+
 /**
  * 
  * <h1>TargetEntity</h1>
@@ -15,8 +17,8 @@ import java.util.UUID;
 public record EntityNode(
 		long schemaVersion,
 
-		UUID entityId,
-		UUID reviewId,
+		@NonNull UUID entityId,
+		@NonNull UUID reviewId,
 
-		Instant emittedAt) {
+		@NonNull Instant emittedAt) {
 }

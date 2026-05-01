@@ -2,11 +2,11 @@ package com.github.jelatinone.policy;
 
 import java.time.Instant;
 
-import com.github.jelatinone.models.shared.StageDocument;
+import com.github.jelatinone.model.struct.Document;
 
-public interface PolicyContext<Document extends StageDocument<Document>> {
+public interface PolicyContext<Doc extends Document<Doc>> {
 
-	Document document();
+	Doc document();
 
 	Instant reviewedAt();
 }

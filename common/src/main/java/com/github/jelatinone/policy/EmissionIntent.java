@@ -2,12 +2,13 @@ package com.github.jelatinone.policy;
 
 import java.time.Duration;
 
+import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.struct.Request;
-import com.github.jelatinone.models.audit.ProcessingStage;
+
+import lombok.NonNull;
 
 public record EmissionIntent<Emit extends Request>(
-		Emit request,
-		Duration delay,
-		ProcessingStage forwardRef,
-		String dedupeKey) {
+		@NonNull Emit request,
+		@NonNull Duration delay,
+		@NonNull ExecutionStage executionRef) {
 }
