@@ -9,7 +9,6 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import com.github.jelatinone.acquisition.ContentInterpreter;
 import com.github.jelatinone.acquisition.DetectedContent;
 import com.github.jelatinone.acquisition.InterpretedContent;
-import com.github.jelatinone.models.content.ContentKind;
 
 import lombok.AccessLevel;
 import lombok.NonNull;
@@ -22,7 +21,7 @@ public class PDFContentInterpreter implements ContentInterpreter {
 
   @Override
   public boolean supports(@NonNull DetectedContent contentType) {
-    return contentType.contentKind() == ContentKind.PDF;
+    return contentType.pdf();
   }
 
   @Override

@@ -6,7 +6,6 @@ import org.jsoup.nodes.Document;
 import com.github.jelatinone.acquisition.ContentInterpreter;
 import com.github.jelatinone.acquisition.DetectedContent;
 import com.github.jelatinone.acquisition.InterpretedContent;
-import com.github.jelatinone.models.content.ContentKind;
 
 import lombok.AccessLevel;
 import lombok.NonNull;
@@ -18,12 +17,12 @@ public class HTMLContentInterpreter implements ContentInterpreter {
 
   @Override
   public boolean supports(@NonNull DetectedContent contentType) {
-    return contentType.contentKind() == ContentKind.HTML;
+    return contentType.html();
   }
 
   @Override
   public @NonNull InterpretedContent interpret(byte[] source, @NonNull DetectedContent contentType) {
-    String decodedSource = ContentInterpreter.decode(source, contentType.characterEncoding());
+    String decodedSource = ContentInterpreter.decode(source, contentType.mediaEncoding());
 
     Document interpretedSource = Jsoup.parse(decodedSource);
     String normalizedSource = interpretedSource.text();

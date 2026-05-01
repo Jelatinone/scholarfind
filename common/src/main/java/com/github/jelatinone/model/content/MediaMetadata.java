@@ -1,10 +1,10 @@
 package com.github.jelatinone.model.content;
 
 public record MediaMetadata(
-		int statusCode,
-		int redirectCount,
-		int cookieCount,
+		Integer statusCode,
+		Integer redirectCount,
+		Integer cookieCount,
 
-		long contentLength) {
+		Long contentLength) {
 
 }

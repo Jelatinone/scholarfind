@@ -3,7 +3,7 @@ package com.github.jelatinone.acquisition;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
-import com.github.jelatinone.models.content.CharacterEncoding;
+import com.github.jelatinone.model.content.MediaEncoding;
 
 import lombok.NonNull;
 
@@ -13,11 +13,11 @@ public interface ContentInterpreter {
   @NonNull
   InterpretedContent interpret(byte[] source, @NonNull DetectedContent contentType);
 
-  static String decode(byte[] source, CharacterEncoding encoding) {
+  static String decode(byte[] source, MediaEncoding encoding) {
     Charset charset = StandardCharsets.UTF_8;
-    if (encoding != null && encoding.canonicalName() != null) {
+    if (encoding != null && encoding.getCanonicalName() != null) {
       try {
-        charset = Charset.forName(encoding.canonicalName());
+        charset = Charset.forName(encoding.getCanonicalName());
       } catch (Exception ignored) {
       }
     }

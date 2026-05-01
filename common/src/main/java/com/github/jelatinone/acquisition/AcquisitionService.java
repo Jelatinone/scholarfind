@@ -8,13 +8,13 @@ import java.util.Locale;
 import java.util.UUID;
 
 import com.github.jelatinone.api.store.Store;
-import com.github.jelatinone.models.content.Capture;
-import com.github.jelatinone.models.content.CharacterEncoding;
-import com.github.jelatinone.models.content.ContentDocument;
-import com.github.jelatinone.models.content.ContentKind;
-import com.github.jelatinone.models.content.ContentMediaType;
-import com.github.jelatinone.models.shared.DocumentHeader;
-import com.github.jelatinone.models.shared.FetchReference;
+import com.github.jelatinone.model.content.Capture;
+import com.github.jelatinone.model.content.CaptureReference;
+import com.github.jelatinone.model.content.ContentDocument;
+import com.github.jelatinone.model.content.MediaEncoding;
+import com.github.jelatinone.model.content.MediaMetadata;
+import com.github.jelatinone.model.content.MediaType;
+import com.github.jelatinone.model.struct.DocumentHeader;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -30,8 +30,8 @@ public class AcquisitionService {
   List<ContentInterpreter> interpreters;
 
   Store<ContentDocument, UUID> contentStore;
-  Store<byte[], FetchReference> sourceCaptureStore;
-  Store<byte[], FetchReference> normalizedCaptureStore;
+  Store<byte[], CaptureReference> sourceCaptureStore;
+  Store<byte[], CaptureReference> normalizedCaptureStore;
 
   public AcquiredContent ensureMetadata(@NonNull AcquiredContent current) {
     if (current.hasMetadata()) {
@@ -41,17 +41,17 @@ public class AcquisitionService {
     FetchedMetadata fetched = metadataFetcher.fetch(targetUrl(current));
     DetectedContent detected = detect(fetched.contentTypeHeader());
     Capture capture = mergeCapture(
-        current.capture(),
+        current,
         fetched.effectiveUrl(),
-        fetched.statusCode(),
-        fetched.redirectHopCount(),
-        fetched.setCookieCount(),
         detected,
-        fetched.contentLength(),
-        current.capture() == null ? null : current.capture().sourceSnapshot(),
-        current.capture() == null ? null : current.capture().textSnapshot(),
-        current.capture() == null ? null : current.capture().previewText());
-    return current.withContentDocument(persist(current, capture));
+        new MediaMetadata(
+            fetched.statusCode(),
+            fetched.redirectHopCount(),
+            fetched.setCookieCount(),
+            fetched.contentLength()),
+        null,
+        null);
+    return current.withContentDocument(persist(current, capture, null));
   }
 
   public AcquiredContent ensureContent(@NonNull AcquiredContent current) {
@@ -62,24 +62,13 @@ public class AcquisitionService {
       return withMetadata;
     }
     if (withMetadata.hasSourceSnapshot()) {
-      byte[] source = sourceCaptureStore.get(withMetadata.capture().sourceSnapshot());
-      Capture capture = withMetadata.capture().contentLength() == null
-          ? new Capture(
-              withMetadata.capture().effectiveUrl(),
-              withMetadata.capture().statusCode(),
-              withMetadata.capture().redirectHopCount(),
-              withMetadata.capture().setCookieCount(),
-              withMetadata.capture().sourceSnapshot(),
-              withMetadata.capture().textSnapshot(),
-              withMetadata.capture().contentKind(),
-              withMetadata.capture().mediaType(),
-              withMetadata.capture().characterEncoding(),
-              (long) source.length,
-              withMetadata.capture().previewText())
+      byte[] source = sourceCaptureStore.get(withMetadata.capture().sourceReference());
+      Capture capture = withMetadata.contentLength() == null
+          ? withContentLength(withMetadata.capture(), (long) source.length)
           : withMetadata.capture();
       AcquiredContent hydrated = withMetadata.withHydratedSource(source);
       if (capture != withMetadata.capture()) {
-        hydrated = hydrated.withContentDocument(persist(hydrated, capture));
+        hydrated = hydrated.withContentDocument(persist(hydrated, capture, null));
       }
       return hydrated;
     }
@@ -88,24 +77,25 @@ public class AcquisitionService {
     DetectedContent detected = detect(fetched.metadata().contentTypeHeader());
     InterpretedContent interpreted = interpret(fetched.body(), detected);
 
-    FetchReference sourceSnapshot = sourceCaptureStore.put(interpreted.rawSource());
-    FetchReference textSnapshot = interpreted.normalizedSource() == null || interpreted.normalizedSource().isBlank()
+    CaptureReference sourceSnapshot = sourceCaptureStore.put(interpreted.rawSource());
+    CaptureReference textSnapshot = interpreted.normalizedSource() == null || interpreted.normalizedSource().isBlank()
         ? null
         : normalizedCaptureStore.put(interpreted.normalizedSource().getBytes(StandardCharsets.UTF_8));
 
     Capture capture = mergeCapture(
-        withMetadata.capture(),
+        withMetadata,
         fetched.metadata().effectiveUrl(),
-        fetched.metadata().statusCode(),
-        fetched.metadata().redirectHopCount(),
-        fetched.metadata().setCookieCount(),
         detected,
-        fetched.metadata().contentLength() == null ? (long) interpreted.rawSource().length
-            : fetched.metadata().contentLength(),
+        new MediaMetadata(
+            fetched.metadata().statusCode(),
+            fetched.metadata().redirectHopCount(),
+            fetched.metadata().setCookieCount(),
+            fetched.metadata().contentLength() == null
+                ? (long) interpreted.rawSource().length
+                : fetched.metadata().contentLength()),
         sourceSnapshot,
-        textSnapshot,
-        interpreted.normalizedPreview());
-    ContentDocument document = persist(withMetadata, capture, sourceSnapshot);
+        textSnapshot);
+    ContentDocument document = persist(withMetadata, capture, interpreted.normalizedPreview(), sourceSnapshot);
 
     AcquiredContent hydrated = withMetadata
         .withContentDocument(document)
@@ -124,7 +114,7 @@ public class AcquisitionService {
       return withMetadata;
     }
     if (withMetadata.hasTextSnapshot()) {
-      String text = new String(normalizedCaptureStore.get(withMetadata.capture().textSnapshot()),
+      String text = new String(normalizedCaptureStore.get(withMetadata.capture().interpretedReference()),
           StandardCharsets.UTF_8);
       return withMetadata.withHydratedText(text, true);
     }
@@ -138,65 +128,59 @@ public class AcquisitionService {
     }
 
     DetectedContent detected = new DetectedContent(
-        withContent.capture().contentKind(),
         withContent.capture().mediaType(),
-        withContent.capture().characterEncoding());
+        withContent.capture().mediaEncoding());
     InterpretedContent interpreted = interpret(withContent.hydratedSource(), detected);
     if (interpreted.normalizedSource() == null || interpreted.normalizedSource().isBlank()) {
       return withContent;
     }
 
-    FetchReference textSnapshot = normalizedCaptureStore
+    CaptureReference textSnapshot = normalizedCaptureStore
         .put(interpreted.normalizedSource().getBytes(StandardCharsets.UTF_8));
     Capture capture = new Capture(
-        withContent.capture().effectiveUrl(),
-        withContent.capture().statusCode(),
-        withContent.capture().redirectHopCount(),
-        withContent.capture().setCookieCount(),
-        withContent.capture().sourceSnapshot(),
-        textSnapshot,
-        withContent.capture().contentKind(),
+        withContent.capture().targetId(),
+        withContent.capture().canonicalUrl(),
         withContent.capture().mediaType(),
-        withContent.capture().characterEncoding(),
-        withContent.capture().contentLength(),
-        interpreted.normalizedPreview());
-    ContentDocument document = persist(withContent, capture, withContent.capture().sourceSnapshot());
+        withContent.capture().mediaEncoding(),
+        withContent.capture().mediaMetadata(),
+        withContent.capture().sourceReference(),
+        textSnapshot);
+    ContentDocument document = persist(withContent, capture, interpreted.normalizedPreview(),
+        withContent.capture().sourceReference());
     return withContent.withContentDocument(document)
         .withHydratedText(interpreted.normalizedSource(), true);
   }
 
   public static DetectedContent detect(String contentTypeHeader) {
-    ContentMediaType mediaType = resolveMediaType(contentTypeHeader);
     return new DetectedContent(
-        resolveContentKind(mediaType),
-        mediaType,
+        resolveMediaType(contentTypeHeader),
         resolveEncoding(contentTypeHeader));
   }
 
-  private static ContentMediaType resolveMediaType(String header) {
+  private static MediaType resolveMediaType(String header) {
     if (header == null || header.isBlank()) {
-      return ContentMediaType.OTHER;
+      return MediaType.OTHER;
     }
     String normalized = header.split(";")[0].trim().toLowerCase(Locale.ROOT);
     if (normalized.contains("html")) {
-      return ContentMediaType.TEXT_HTML;
+      return MediaType.TEXT_HTML;
     }
     return switch (normalized) {
-      case "application/pdf" -> ContentMediaType.APPLICATION_PDF;
-      case "text/plain" -> ContentMediaType.TEXT_PLAIN;
-      case "text/markdown" -> ContentMediaType.TEXT_MARKDOWN;
-      case "application/xml" -> ContentMediaType.APPLICATION_XML;
-      case "text/xml" -> ContentMediaType.TEXT_XML;
-      case "application/json" -> ContentMediaType.APPLICATION_JSON;
-      case "text/json" -> ContentMediaType.TEXT_JSON;
-      case "application/octet-stream" -> ContentMediaType.APPLICATION_OCTET_STREAM;
-      default -> ContentMediaType.OTHER;
+      case "application/pdf" -> MediaType.APPLICATION_PDF;
+      case "text/plain" -> MediaType.TEXT_PLAIN;
+      case "text/markdown" -> MediaType.TEXT_MARKDOWN;
+      case "application/xml" -> MediaType.APPLICATION_XML;
+      case "text/xml" -> MediaType.TEXT_XML;
+      case "application/json" -> MediaType.APPLICATION_JSON;
+      case "text/json" -> MediaType.TEXT_JSON;
+      case "application/octet-stream" -> MediaType.APPLICATION_OCTET_STREAM;
+      default -> MediaType.OTHER;
     };
   }
 
-  private static CharacterEncoding resolveEncoding(String header) {
+  private static MediaEncoding resolveEncoding(String header) {
     if (header == null || header.isBlank()) {
-      return CharacterEncoding.UTF_8;
+      return MediaEncoding.UTF_8;
     }
     String[] parts = header.split(";");
     for (String part : parts) {
@@ -206,29 +190,17 @@ public class AcquisitionService {
       }
       String value = normalized.substring("charset=".length()).replace("\"", "");
       return switch (value) {
-        case "utf-8" -> CharacterEncoding.UTF_8;
-        case "utf-16" -> CharacterEncoding.UTF_16;
-        case "utf-16le" -> CharacterEncoding.UTF_16LE;
-        case "utf-16be" -> CharacterEncoding.UTF_16BE;
-        case "us-ascii" -> CharacterEncoding.US_ASCII;
-        case "iso-8859-1" -> CharacterEncoding.ISO_8859_1;
-        case "windows-1252" -> CharacterEncoding.WINDOWS_1252;
-        default -> CharacterEncoding.OTHER;
+        case "utf-8" -> MediaEncoding.UTF_8;
+        case "utf-16" -> MediaEncoding.UTF_16;
+        case "utf-16le" -> MediaEncoding.UTF_16LE;
+        case "utf-16be" -> MediaEncoding.UTF_16BE;
+        case "us-ascii" -> MediaEncoding.US_ASCII;
+        case "iso-8859-1" -> MediaEncoding.ISO_8859_1;
+        case "windows-1252" -> MediaEncoding.WINDOWS_1252;
+        default -> MediaEncoding.OTHER;
       };
     }
-    return CharacterEncoding.UTF_8;
-  }
-
-  private static ContentKind resolveContentKind(ContentMediaType mediaType) {
-    return switch (mediaType == null ? ContentMediaType.OTHER : mediaType) {
-      case TEXT_HTML -> ContentKind.HTML;
-      case APPLICATION_PDF -> ContentKind.PDF;
-      case TEXT_PLAIN -> ContentKind.PLAIN_TEXT;
-      case TEXT_MARKDOWN -> ContentKind.MARKDOWN;
-      case APPLICATION_XML, TEXT_XML -> ContentKind.XML;
-      case APPLICATION_JSON, TEXT_JSON -> ContentKind.JSON;
-      default -> ContentKind.OTHER;
-    };
+    return MediaEncoding.UTF_8;
   }
 
   private InterpretedContent interpret(byte[] source, @NonNull DetectedContent detected) {
@@ -240,52 +212,92 @@ public class AcquisitionService {
     return new InterpretedContent(source, null, null);
   }
 
-  private ContentDocument persist(AcquiredContent current, Capture capture) {
-    return persist(current, capture, capture == null ? null : capture.sourceSnapshot());
+  private ContentDocument persist(AcquiredContent current, Capture capture, CaptureReference sourceSnapshot) {
+    return persist(current, capture, current.previewText(), sourceSnapshot);
   }
 
   private ContentDocument persist(
       AcquiredContent current,
       Capture capture,
-      FetchReference sourceSnapshot) {
+      String previewText,
+      CaptureReference sourceSnapshot) {
+    if (current.requestHeader() == null) {
+      throw new IllegalStateException("Content acquisition requires a request header");
+    }
+    UUID reviewId = current.reviewId();
+    if (reviewId == null) {
+      throw new IllegalStateException("Content acquisition requires a review identifier");
+    }
     ContentDocument document = new ContentDocument(
         new DocumentHeader(
             ContentDocument.SCHEMA_VERSION,
-            UUID.randomUUID(),
-            current.requestHeader().requestId(),
-            current.target().targetId(),
+            capture.targetId(),
+            reviewId,
+            current.requestHeader().emittedBy(),
             Instant.now()),
         current.requestHeader(),
-        current.target(),
         capture,
+        previewText,
         sourceSnapshot == null ? null : sourceSnapshot.contentHash());
     contentStore.put(document);
     return document;
   }
 
   private static Capture mergeCapture(
-      Capture current,
+      AcquiredContent current,
       URL effectiveUrl,
-      Integer statusCode,
-      Integer redirectHopCount,
-      Integer setCookieCount,
       DetectedContent detected,
-      Long contentLength,
-      FetchReference sourceSnapshot,
-      FetchReference textSnapshot,
-      String previewText) {
+      MediaMetadata metadata,
+      CaptureReference sourceSnapshot,
+      CaptureReference textSnapshot) {
+    Capture existing = current.capture();
+    URL canonicalUrl = effectiveUrl != null
+        ? effectiveUrl
+        : existing == null ? current.targetUrl() : existing.canonicalUrl();
     return new Capture(
-        effectiveUrl,
-        statusCode,
-        redirectHopCount,
-        setCookieCount,
-        sourceSnapshot != null ? sourceSnapshot : current == null ? null : current.sourceSnapshot(),
-        textSnapshot != null ? textSnapshot : current == null ? null : current.textSnapshot(),
-        detected.contentKind(),
+        targetId(current, existing),
+        canonicalUrl,
         detected.mediaType(),
-        detected.characterEncoding(),
-        contentLength != null ? contentLength : current == null ? null : current.contentLength(),
-        previewText != null ? previewText : current == null ? null : current.previewText());
+        detected.mediaEncoding(),
+        mergeMetadata(existing == null ? null : existing.mediaMetadata(), metadata),
+        sourceSnapshot != null ? sourceSnapshot : existing == null ? null : existing.sourceReference(),
+        textSnapshot != null ? textSnapshot : existing == null ? null : existing.interpretedReference());
+  }
+
+  private static Capture withContentLength(Capture capture, Long contentLength) {
+    return new Capture(
+        capture.targetId(),
+        capture.canonicalUrl(),
+        capture.mediaType(),
+        capture.mediaEncoding(),
+        mergeMetadata(capture.mediaMetadata(), new MediaMetadata(null, null, null, contentLength)),
+        capture.sourceReference(),
+        capture.interpretedReference());
+  }
+
+  private static MediaMetadata mergeMetadata(MediaMetadata current, MediaMetadata next) {
+    if (current == null) {
+      return next;
+    }
+    if (next == null) {
+      return current;
+    }
+    return new MediaMetadata(
+        next.statusCode() != null ? next.statusCode() : current.statusCode(),
+        next.redirectCount() != null ? next.redirectCount() : current.redirectCount(),
+        next.cookieCount() != null ? next.cookieCount() : current.cookieCount(),
+        next.contentLength() != null ? next.contentLength() : current.contentLength());
+  }
+
+  private static UUID targetId(AcquiredContent current, Capture existing) {
+    UUID targetId = current.targetId();
+    if (targetId != null) {
+      return targetId;
+    }
+    if (existing != null) {
+      return existing.targetId();
+    }
+    throw new IllegalStateException("Content acquisition requires a target identifier");
   }
 
   private static URL targetUrl(AcquiredContent current) {

@@ -25,11 +25,12 @@ import lombok.NonNull;
  * 
  */
 public record DocumentHeader(
-		long schemaVersion,
+    long schemaVersion,
 
-		@NonNull UUID targetId,
-		@NonNull UUID reviewId,
+    @NonNull UUID targetId,
+    @NonNull UUID reviewId,
 
-		@NonNull ExecutionStage emittedBy,
-		@NonNull Instant emittedAt) {
+    @NonNull ExecutionStage emittedBy,
+    @NonNull Instant emittedAt) {
+  public static final long SCHEMA_VERSION = 1L;
 }

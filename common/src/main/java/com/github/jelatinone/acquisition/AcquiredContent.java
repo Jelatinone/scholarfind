@@ -4,20 +4,20 @@ import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import java.util.UUID;
 
-import com.github.jelatinone.models.content.Capture;
-import com.github.jelatinone.models.content.CharacterEncoding;
-import com.github.jelatinone.models.content.ContentDocument;
-import com.github.jelatinone.models.content.ContentKind;
-import com.github.jelatinone.models.content.ContentMediaType;
-import com.github.jelatinone.models.shared.RequestHeader;
-import com.github.jelatinone.models.shared.TargetReference;
-import com.github.jelatinone.models.shared.TraceReference;
+import com.github.jelatinone.model.content.Capture;
+import com.github.jelatinone.model.content.ContentDocument;
+import com.github.jelatinone.model.content.MediaEncoding;
+import com.github.jelatinone.model.content.MediaMetadata;
+import com.github.jelatinone.model.content.MediaType;
+import com.github.jelatinone.model.graph.TargetNode;
+import com.github.jelatinone.model.struct.RequestHeader;
 
 public record AcquiredContent(
     RequestHeader requestHeader,
-    TargetReference target,
-    TraceReference trace,
+    TargetNode target,
+    UUID reviewId,
     ContentDocument contentDocument,
     byte[] hydratedSource,
     String hydratedText,
@@ -29,22 +29,33 @@ public record AcquiredContent(
         : contentDocument.capture();
   }
 
+  public UUID targetId() {
+    if (target != null) {
+      return target.targetId();
+    }
+    if (requestHeader != null) {
+      return requestHeader.targetId();
+    }
+    return capture() == null
+        ? null
+        : capture().targetId();
+  }
+
   public URL targetUrl() {
-    return trace != null && trace.normalizedUrl() != null
-        ? trace.normalizedUrl()
-        : effectiveUrl();
+    if (target != null) {
+      return target.canonicalUrl();
+    }
+    return effectiveUrl();
   }
 
   public URL traceUrl() {
-    return trace == null
-        ? null
-        : trace.normalizedUrl();
+    return targetUrl();
   }
 
   public URL effectiveUrl() {
     return capture() == null
         ? null
-        : capture().effectiveUrl();
+        : capture().canonicalUrl();
   }
 
   public String traceHost() {
@@ -55,14 +66,15 @@ public record AcquiredContent(
   }
 
   public boolean hasMetadata() {
+    MediaMetadata metadata = mediaMetadata();
     return capture() != null
-        && capture().effectiveUrl() != null
-        && capture().statusCode() != null
-        && capture().redirectHopCount() != null
-        && capture().setCookieCount() != null
-        && capture().contentKind() != null
+        && capture().canonicalUrl() != null
+        && metadata != null
+        && metadata.statusCode() != null
+        && metadata.redirectCount() != null
+        && metadata.cookieCount() != null
         && capture().mediaType() != null
-        && capture().characterEncoding() != null;
+        && capture().mediaEncoding() != null;
   }
 
   public boolean hasHydratedSource() {
@@ -72,7 +84,7 @@ public record AcquiredContent(
 
   public boolean hasSourceSnapshot() {
     return capture() != null
-        && capture().sourceSnapshot() != null;
+        && capture().sourceReference() != null;
   }
 
   public boolean hasHydratedText() {
@@ -82,7 +94,7 @@ public record AcquiredContent(
 
   public boolean hasTextSnapshot() {
     return capture() != null
-        && capture().textSnapshot() != null;
+        && capture().interpretedReference() != null;
   }
 
   public boolean hasCompleteText() {
@@ -98,51 +110,49 @@ public record AcquiredContent(
   }
 
   public Integer statusCode() {
-    return capture() == null
+    return mediaMetadata() == null
         ? null
-        : capture().statusCode();
+        : mediaMetadata().statusCode();
   }
 
   public Integer redirectHopCount() {
-    return capture() == null
+    return mediaMetadata() == null
         ? null
-        : capture().redirectHopCount();
+        : mediaMetadata().redirectCount();
   }
 
   public Integer setCookieCount() {
-    return capture() == null
+    return mediaMetadata() == null
         ? null
-        : capture().setCookieCount();
+        : mediaMetadata().cookieCount();
   }
 
-  public ContentKind contentKind() {
-    return capture() == null
-        ? null
-        : capture().contentKind();
-  }
-
-  public ContentMediaType mediaType() {
+  public MediaType mediaType() {
     return capture() == null
         ? null
         : capture().mediaType();
   }
 
-  public CharacterEncoding characterEncoding() {
+  public MediaEncoding characterEncoding() {
+    return mediaEncoding();
+  }
+
+  public MediaEncoding mediaEncoding() {
     return capture() == null
         ? null
-        : capture().characterEncoding();
+        : capture().mediaEncoding();
   }
 
   public Long contentLength() {
-    return capture() == null
+    return mediaMetadata() == null
         ? null
-        : capture().contentLength();
+        : mediaMetadata().contentLength();
   }
 
   public String previewText() {
-    return capture() == null
+    return contentDocument == null
         ? null
-        : capture().previewText();
+        : contentDocument.previewText();
   }
 
   public boolean hasText() {
@@ -158,28 +168,36 @@ public record AcquiredContent(
     return Optional.of(new String(hydratedSource, resolveCharset()));
   }
 
+  private MediaMetadata mediaMetadata() {
+    return capture() == null
+        ? null
+        : capture().mediaMetadata();
+  }
+
   private Charset resolveCharset() {
-    CharacterEncoding encoding = characterEncoding();
-    if (encoding == null || encoding.canonicalName() == null) {
+    MediaEncoding encoding = mediaEncoding();
+    if (encoding == null || encoding.getCanonicalName() == null) {
       return StandardCharsets.UTF_8;
     }
     try {
-      return Charset.forName(encoding.canonicalName());
+      return Charset.forName(encoding.getCanonicalName());
     } catch (Exception exception) {
       return StandardCharsets.UTF_8;
     }
   }
 
   public AcquiredContent withContentDocument(ContentDocument nextDocument) {
-    return new AcquiredContent(requestHeader, target, trace, nextDocument, hydratedSource, hydratedText, completeText);
+    return new AcquiredContent(requestHeader, target, reviewId, nextDocument, hydratedSource, hydratedText,
+        completeText);
   }
 
   public AcquiredContent withHydratedSource(byte[] nextSource) {
-    return new AcquiredContent(requestHeader, target, trace, contentDocument, nextSource, hydratedText, completeText);
+    return new AcquiredContent(requestHeader, target, reviewId, contentDocument, nextSource, hydratedText,
+        completeText);
   }
 
   public AcquiredContent withHydratedText(String nextText, boolean nextCompleteText) {
-    return new AcquiredContent(requestHeader, target, trace, contentDocument, hydratedSource, nextText,
+    return new AcquiredContent(requestHeader, target, reviewId, contentDocument, hydratedSource, nextText,
         nextCompleteText);
   }
 }

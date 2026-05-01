@@ -15,15 +15,12 @@ public class TextContentInterpreter implements ContentInterpreter {
 
   @Override
   public boolean supports(@NonNull DetectedContent contentType) {
-    return switch (contentType.contentKind()) {
-      case PLAIN_TEXT, MARKDOWN, XML, JSON -> true;
-      default -> false;
-    };
+    return contentType.textLike();
   }
 
   @Override
   public @NonNull InterpretedContent interpret(byte[] source, @NonNull DetectedContent contentType) {
-    String normalizedText = ContentInterpreter.decode(source, contentType.characterEncoding());
+    String normalizedText = ContentInterpreter.decode(source, contentType.mediaEncoding());
     return new InterpretedContent(
         source,
         normalizedText,

@@ -17,34 +17,35 @@ import lombok.NonNull;
  * @author Cody Washington
  */
 public record RequestHeader(
-		long schemaVersion,
+    long schemaVersion,
 
-		@NonNull UUID requestId,
-		@NonNull UUID targetId,
+    @NonNull UUID requestId,
+    @NonNull UUID targetId,
 
-		int attempt,
+    int attempt,
 
-		@NonNull ExecutionStage emittedBy,
-		@NonNull Instant emittedAt) {
+    @NonNull ExecutionStage emittedBy,
+    @NonNull Instant emittedAt) {
+  public static final long SCHEMA_VERSION = 1L;
 
-	public static RequestHeader retry(@NonNull RequestHeader current, @NonNull Instant enqueuedAt) {
-		return new RequestHeader(
-				current.schemaVersion(),
-				current.requestId(),
-				current.targetId(),
-				current.attempt() + 1,
-				current.emittedBy(),
-				enqueuedAt);
-	}
+  public static RequestHeader retry(@NonNull RequestHeader current, @NonNull Instant enqueuedAt) {
+    return new RequestHeader(
+        current.schemaVersion(),
+        current.requestId(),
+        current.targetId(),
+        current.attempt() + 1,
+        current.emittedBy(),
+        enqueuedAt);
+  }
 
-	public static RequestHeader next(@NonNull RequestHeader current, @NonNull Instant enqueuedAt, long schemaVersion) {
-		return new RequestHeader(
-				schemaVersion,
-				current.requestId(),
-				current.targetId(),
-				0,
-				current.emittedBy(),
-				enqueuedAt);
-	}
+  public static RequestHeader next(@NonNull RequestHeader current, @NonNull Instant enqueuedAt, long schemaVersion) {
+    return new RequestHeader(
+        schemaVersion,
+        current.requestId(),
+        current.targetId(),
+        0,
+        current.emittedBy(),
+        enqueuedAt);
+  }
 
 }

@@ -8,13 +8,14 @@ import com.github.jelatinone.model.audit.ExecutionStage;
 import lombok.NonNull;
 
 public record ArchiveHeader(
-		long schemaVersion,
+    long schemaVersion,
 
-		@NonNull UUID entityId,
-		@NonNull UUID reviewId,
+    @NonNull UUID entityId,
+    @NonNull UUID reviewId,
 
-		@NonNull ArchiveState state,
+    @NonNull ArchiveState state,
 
-		@NonNull ExecutionStage emittedBy,
-		@NonNull Instant emittedAt) {
+    @NonNull ExecutionStage emittedBy,
+    @NonNull Instant emittedAt) {
+  public static final long SCHEMA_VERSION = 1L;
 }

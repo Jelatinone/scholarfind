@@ -14,4 +14,6 @@ public interface RequestPolicyContext<Doc extends Document<Doc>> extends PolicyC
 	UUID envelopeRequestId();
 
 	UUID envelopeTargetId();
+
+	UUID envelopeReviewId();
 }

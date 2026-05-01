@@ -16,10 +16,11 @@ import lombok.NonNull;
  * @author Cody Washington
  */
 public record TargetNode(
-		long schemaVersion,
+    long schemaVersion,
 
-		@NonNull UUID targetId,
-		@NonNull URL canonicalUrl,
+    @NonNull UUID targetId,
+    @NonNull URL canonicalUrl,
 
-		@NonNull Instant emittedAt) {
+    @NonNull Instant emittedAt) {
+  public static final long SCHEMA_VERSION = 1L;
 }

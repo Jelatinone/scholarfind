@@ -14,6 +14,6 @@ public record Capture(
 		@NonNull MediaEncoding mediaEncoding,
 		@NonNull MediaMetadata mediaMetadata,
 
-		@NonNull CaptureReference sourceReference,
-		@NonNull CaptureReference interpretedReference) {
+		CaptureReference sourceReference,
+		CaptureReference interpretedReference) {
 }

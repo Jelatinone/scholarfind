@@ -1,11 +1,24 @@
 package com.github.jelatinone.acquisition;
 
-import com.github.jelatinone.models.content.CharacterEncoding;
-import com.github.jelatinone.models.content.ContentKind;
-import com.github.jelatinone.models.content.ContentMediaType;
+import com.github.jelatinone.model.content.MediaEncoding;
+import com.github.jelatinone.model.content.MediaType;
 
 public record DetectedContent(
-    ContentKind contentKind,
-    ContentMediaType mediaType,
-    CharacterEncoding characterEncoding) {
+    MediaType mediaType,
+    MediaEncoding mediaEncoding) {
+
+  public boolean html() {
+    return mediaType == MediaType.TEXT_HTML;
+  }
+
+  public boolean pdf() {
+    return mediaType == MediaType.APPLICATION_PDF;
+  }
+
+  public boolean textLike() {
+    return switch (mediaType == null ? MediaType.OTHER : mediaType) {
+      case TEXT_PLAIN, TEXT_MARKDOWN, APPLICATION_XML, TEXT_XML, APPLICATION_JSON, TEXT_JSON -> true;
+      default -> false;
+    };
+  }
 }

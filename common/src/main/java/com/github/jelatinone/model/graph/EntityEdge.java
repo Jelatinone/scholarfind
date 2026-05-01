@@ -15,11 +15,12 @@ import lombok.NonNull;
  * @author Cody Washington
  */
 public record EntityEdge(
-		long schemaVersion,
+    long schemaVersion,
 
-		@NonNull UUID targetId,
-		@NonNull UUID entityId,
+    @NonNull UUID targetId,
+    @NonNull UUID entityId,
 
-		@NonNull UUID reviewId,
-		@NonNull Instant emittedAt) {
+    @NonNull UUID reviewId,
+    @NonNull Instant emittedAt) {
+  public static final long SCHEMA_VERSION = 1L;
 }
