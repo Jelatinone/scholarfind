@@ -16,6 +16,6 @@ public record ExecutionEvent(
 		Collection<AttemptTransition> transitions,
 		@NonNull StageOutcome outcome,
 
-		@NonNull Instant attemptAt,
+		@NonNull Instant occurredAt,
 		@NonNull Instant emittedAt) {
 }
