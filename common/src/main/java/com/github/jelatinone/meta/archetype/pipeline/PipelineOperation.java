@@ -11,13 +11,13 @@ import lombok.experimental.FieldDefaults;
 
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class PipelineOperation<In extends Request, Out extends Request, Context, State, D extends Document<D>>
-		implements Operate<Letter<In>, PipelineResult<D, In>> {
+public class PipelineOperation<In extends Request, Out extends Request, Context, State, Doc extends Document<Doc>>
+    implements Operate<Letter<In>, PipelineResult<Doc, In>> {
 
-	PipelineArchetype<In, Out, Context, State, D> archetype;
+  PipelineArchetype<In, Out, Context, State, Doc> archetype;
 
-	@Override
-	public PipelineResult<D, In> operate(Letter<In> operand) {
-		return archetype.processPipeline(operand);
-	}
+  @Override
+  public PipelineResult<Doc, In> operate(Letter<In> operand) {
+    return archetype.processPipeline(operand);
+  }
 }
