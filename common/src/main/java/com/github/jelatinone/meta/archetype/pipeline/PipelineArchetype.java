@@ -3,9 +3,8 @@ package com.github.jelatinone.meta.archetype.pipeline;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
-import com.github.jelatinone.meta.archetype.Operate;
-import com.github.jelatinone.meta.archetype.Retrieve;
 import com.github.jelatinone.meta.archetype.policy.PolicyArchetype;
 import com.github.jelatinone.meta.archetype.policy.PolicyResult;
 import com.github.jelatinone.meta.result.PersistResult;
@@ -28,116 +27,120 @@ import lombok.NonNull;
  * @author Cody Washington
  * 
  */
-public interface PipelineArchetype<In extends Request, Out extends Request, Context, State, Doc extends Document<Doc>> {
+public interface PipelineArchetype<In extends Request, Out extends Request, Context, State, Documents extends Document<Documents>> {
 
-  PolicyArchetype<In, Context, State> policy();
+	PersistResult<State, Documents> persistDocument(
+			@NonNull Letter<In> input,
+			@NonNull Context context,
+			@NonNull PolicyDecision.Next<State> decision,
+			@NonNull Instant occurredAt);
 
-  Doc buildDocument(
-      @NonNull Letter<In> input,
-      @NonNull Context context,
-      @NonNull PolicyDecision<State> decision,
-      @NonNull Instant occurredAt);
+	void persistExecution(
+			@NonNull Letter<In> input,
+			@NonNull PolicyDecision<?> decision,
+			@NonNull Instant occurredAt);
 
-  PersistResult<State, Doc> persistDocument(
-      @NonNull Letter<In> input,
-      @NonNull Context context,
-      @NonNull PolicyDecision<State> decision,
-      @NonNull Doc document);
+	void persistAttempt(
+			@NonNull Letter<In> input,
+			@NonNull PolicyDecision<?> decision,
+			@NonNull Instant initializedAt,
+			@NonNull Instant occurredAt,
+			Throwable throwable);
 
-  void persistExecution(
-      @NonNull Letter<In> input,
-      @NonNull PolicyDecision<?> decision,
-      @NonNull Instant occurredAt);
+	In buildRequest(@NonNull In request, @NonNull RequestHeader header);
 
-  void persistAttempt(
-      @NonNull Letter<In> input,
-      @NonNull PolicyDecision<?> decision,
-      @NonNull Instant startedAt,
-      @NonNull Instant occurredAt,
-      Throwable throwable);
+	<Emit extends Request> Letter<Emit> buildEnvelope(
+			@NonNull Emission<Emit> emission,
+			@NonNull Letter<In> input,
+			@NonNull Context context,
+			@NonNull Documents document);
 
-  In buildRequest(@NonNull In request, @NonNull RequestHeader header);
+	default Collection<Letter<? extends Request>> buildEmissions(
+			@NonNull Letter<In> input,
+			@NonNull Context context,
+			@NonNull Set<Emission<? extends Request>> emissions,
+			@NonNull Documents document) {
+		return emissions.stream()
+				.<Letter<? extends Request>>map(emission -> buildEnvelope(emission, input, context, document))
+				.toList();
+	}
 
-  <Emit extends Request> Letter<Emit> buildEnvelope(
-      @NonNull Emission<Emit> emission,
-      @NonNull Letter<In> input,
-      @NonNull Context context,
-      @NonNull PolicyDecision<State> decision,
-      @NonNull Doc document);
+	default Letter<In> retryEnvelope(
+			@NonNull PipelineResult<Documents, In> output) {
+		In payload = output.input().content();
 
-  default Collection<Letter<? extends Request>> buildEmissions(
-      @NonNull Letter<In> input,
-      @NonNull Context context,
-      @NonNull PolicyDecision<State> decision,
-      @NonNull Doc document) {
-    return decision.emissions().stream()
-        .<Letter<? extends Request>>map(emission -> buildEnvelope(emission, input, context, decision, document))
-        .toList();
-  }
+		RequestHeader nextHeader = RequestHeader.retry(payload.requestHeader(), Instant.now());
+		In nextRequest = buildRequest(payload, nextHeader);
+		return new Letter<>(
+				output.input().schemaVersion(),
+				output.input().targetId(),
+				output.input().reviewId(),
+				output.input().executionRef(),
+				nextRequest,
+				Instant.now());
+	}
 
-  default Letter<In> retryEnvelope(
-      @NonNull PipelineResult<Doc, In> output) {
-    In payload = output.input().content();
+	default Letter<In> errorEnvelope(@NonNull PipelineResult<Documents, In> output) {
+		return output.input();
+	}
 
-    RequestHeader nextHeader = RequestHeader.retry(payload.requestHeader(), Instant.now());
-    In nextRequest = buildRequest(payload, nextHeader);
-    return new Letter<>(
-        output.input().schemaVersion(),
-        output.input().targetId(),
-        output.input().reviewId(),
-        output.input().executionRef(),
-        nextRequest,
-        Instant.now());
-  }
+	private PipelineResult<Documents, In> processNext(
+			Letter<In> input,
+			Context context,
+			PolicyDecision.Next<State> decision,
+			PolicyResult<Letter<In>, Context, State> policy) {
 
-  default Letter<In> errorEnvelope(@NonNull PipelineResult<Doc, In> output) {
-    return output.input();
-  }
+		PersistResult<State, Documents> persisted = persistDocument(
+				input,
+				context,
+				decision,
+				policy.emittedAt());
 
-  default PipelineResult<Doc, In> processPipeline(@NonNull Letter<In> input) {
-    PolicyResult<Letter<In>, Context, State> policy = policy().processPolicy(input);
-    Doc document = buildDocument(input, policy.context(), policy.decision(), policy.occurredAt());
-    PersistResult<State, Doc> persisted = persistDocument(
-        input,
-        policy.context(),
-        policy.decision(),
-        document);
+		Documents persistedDocument = persisted.document();
+		PolicyDecision<State> persistedDecision = persisted.decision();
 
-    Doc persistedDocument = persisted.document();
-    PolicyDecision<State> persistedDecision = persisted.decision();
+		persistExecution(input, persistedDecision, policy.emittedAt());
+		persistAttempt(input, persistedDecision, policy.initializedAt(), policy.emittedAt(), null);
 
-    persistExecution(input, persistedDecision, policy.occurredAt());
-    persistAttempt(input, persistedDecision, policy.startedAt(), policy.occurredAt(), null);
+		Collection<Letter<? extends Request>> emissions = persistedDocument == null
+				? List.of()
+				: buildEmissions(input, context, decision.emissions(), persistedDocument);
 
-    Collection<Letter<? extends Request>> emissions = persistedDocument == null
-        ? List.of()
-        : buildEmissions(input, policy.context(), persistedDecision, persistedDocument);
-    return new PipelineResult<>(
-        input,
-        persistedDocument,
-        persistedDecision,
-        emissions,
-        policy.startedAt(),
-        policy.occurredAt());
-  }
+		return new PipelineResult<>(
+				input,
+				persistedDocument,
+				persistedDecision,
+				emissions,
+				policy.initializedAt(),
+				policy.emittedAt());
+	}
 
-  default PipelineResult<Doc, In> recoverPipeline(
-      @NonNull Letter<In> input,
-      @NonNull Throwable throwable) {
-    PolicyResult<Letter<In>, Context, State> policy = policy().recoverPolicy(input, throwable);
-    PolicyDecision<State> decision = policy.decision();
+	private PipelineResult<Documents, In> processTerminal(
+			Letter<In> input,
+			PolicyDecision<State> decision,
+			PolicyResult<Letter<In>, Context, State> policy) {
 
-    persistExecution(input, decision, policy.occurredAt());
-    persistAttempt(input, decision, policy.startedAt(), policy.occurredAt(), throwable);
+		persistExecution(input, decision, policy.emittedAt());
+		persistAttempt(input, decision, policy.initializedAt(), policy.emittedAt(), null);
 
-    return new PipelineResult<>(input, null, decision, List.of(), policy.startedAt(), policy.occurredAt());
-  }
+		return new PipelineResult<>(
+				input,
+				null,
+				decision,
+				List.of(),
+				policy.initializedAt(),
+				policy.emittedAt());
+	}
 
-  default Operate<Letter<In>, PipelineResult<Doc, In>> pipelineOperate() {
-    return new PipelineOperation<>(this);
-  }
+	default PipelineResult<Documents, In> processPipeline(@NonNull PolicyResult<Letter<In>, Context, State> policy) {
+		Letter<In> input = policy.input();
+		PolicyDecision<State> decision = policy.decision();
 
-  default Retrieve<Letter<In>, PipelineResult<Doc, In>> pipelineRecover() {
-    return this::recoverPipeline;
-  }
+		return switch (decision) {
+			case PolicyDecision.Next<State> next -> processNext(input, policy.context(), next, policy);
+			case PolicyDecision.Drop<State> drop -> processTerminal(input, drop, policy);
+			case PolicyDecision.Retry<State> retry -> processTerminal(input, retry, policy);
+			case PolicyDecision.Error<State> error -> processTerminal(input, error, policy);
+		};
+	}
 }

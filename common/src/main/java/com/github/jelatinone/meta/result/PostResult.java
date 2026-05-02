@@ -1,10 +1,10 @@
 package com.github.jelatinone.meta.result;
 
 public enum PostResult {
-  SUCCESS,
 
-  FAILURE_RETRY,
+	SUCCESS,
 
-  FAILURE_FATAL
+	FAILURE_RETRY,
 
+	FAILURE_FATAL
 }

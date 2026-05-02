@@ -1,9 +1,10 @@
 package com.github.jelatinone.meta.transitory;
 
 public enum Directive {
-  COMPLETE,
 
-  RETRY,
+	COMPLETE,
 
-  ERROR
+	RETRY,
+
+	ERROR
 }

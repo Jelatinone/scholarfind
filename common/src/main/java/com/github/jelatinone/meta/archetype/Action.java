@@ -30,6 +30,8 @@ public final class Action {
 
 		<Next> OperateAction<Consumes, Next> then(Operate<Produces, Next> operation);
 
+		OperateAction<Consumes, Produces> handle(Retrieve<Consumes, Produces> recover);
+
 		Archetype<Consumes, Produces> to(Persist<Produces> sink);
 	}
 
@@ -54,6 +56,17 @@ public final class Action {
 					return null;
 				}
 				return next.operate(previous);
+			};
+			return new OperateStep<>(source, composed);
+		}
+
+		public OperateAction<Consumes, Produces> handle(Retrieve<Consumes, Produces> recover) {
+			Operate<Consumes, Produces> composed = operand -> {
+				Produces previous = operation.operate(operand);
+				if (previous == null) {
+					return recover.recover(operand, null);
+				}
+				return previous;
 			};
 			return new OperateStep<>(source, composed);
 		}

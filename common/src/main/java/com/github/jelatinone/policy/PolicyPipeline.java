@@ -13,21 +13,17 @@ public final class PolicyPipeline<Context, State> {
 		this.policies = List.copyOf(policies);
 	}
 
-	public List<Policy<Context, State>> policies() {
-		return policies;
-	}
-
 	public PolicyDecision<State> process(Context context, State state) {
 		State current = state;
 		for (Policy<Context, State> policy : policies) {
 			PolicyStep<State> step = policy.apply(context, current);
 			switch (step) {
-				case PolicyStep.Continue<State>(State nextState) -> current = nextState;
+				case PolicyStep.Continue<State>(State next) -> current = next;
 				case PolicyStep.Decide<State>(PolicyDecision<State> decision) -> {
 					return decision;
 				}
 			}
 		}
-		return PolicyDecision.next(current);
+		return new PolicyDecision.Next<State>(current);
 	}
 }

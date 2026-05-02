@@ -13,17 +13,20 @@ import lombok.experimental.FieldDefaults;
 
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class DocumentSchemaPolicy<Doc extends Document<Doc>, Context extends PolicyContext<Doc>, State>
-    implements Policy<Context, State> {
+public final class DocumentSchemaPolicy<Documents extends Document<Documents>, Context extends PolicyContext<Documents>, State>
+		implements Policy<Context, State> {
 
-  long documentSchemaVersion;
+	long documentSchemaVersion;
 
-  @Override
-  public PolicyStep<State> apply(Context context, State state) {
-    if (context.document().documentHeader().schemaVersion() != documentSchemaVersion) {
-      return new PolicyStep.Decide<>(
-          PolicyDecision.drop(state, PolicyReason.SCHEMA_MISMATCH, "Stage document schema version mismatch"));
-    }
-    return new PolicyStep.Continue<>(state);
-  }
+	@Override
+	public PolicyStep<State> apply(Context context, State state) {
+		if (context.document().documentHeader().schemaVersion() != documentSchemaVersion) {
+			return new PolicyStep.Decide<>(
+					new PolicyDecision.Drop<State>(
+							state,
+							PolicyReason.SCHEMA_MISMATCH,
+							"Stage document schema version mismatch"));
+		}
+		return new PolicyStep.Continue<>(state);
+	}
 }

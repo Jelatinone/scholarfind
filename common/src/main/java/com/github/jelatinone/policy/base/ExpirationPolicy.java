@@ -15,7 +15,7 @@ import lombok.experimental.FieldDefaults;
 
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class ExpirationPolicy<Doc extends Document<Doc>, Context extends PolicyContext<Doc>, State>
+public final class ExpirationPolicy<Documents extends Document<Documents>, Context extends PolicyContext<Documents>, State>
 		implements Policy<Context, State> {
 	int expirationDays;
 
@@ -29,7 +29,10 @@ public final class ExpirationPolicy<Doc extends Document<Doc>, Context extends P
 		Instant expiresAt = discoveredAt.plusSeconds((long) expirationDays * 24 * 60 * 60);
 		if (expiresAt.isBefore(Instant.now())) {
 			return new PolicyStep.Decide<>(
-					PolicyDecision.drop(state, PolicyReason.DOCUMENT_EXPIRED, "Target expired before stage processing"));
+					new PolicyDecision.Drop<State>(
+							state,
+							PolicyReason.DOCUMENT_EXPIRED,
+							"Target expired before stage processing"));
 		}
 		return new PolicyStep.Continue<>(state);
 	}

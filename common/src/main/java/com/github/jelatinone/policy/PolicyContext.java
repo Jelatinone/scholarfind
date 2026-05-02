@@ -4,9 +4,9 @@ import java.time.Instant;
 
 import com.github.jelatinone.model.struct.Document;
 
-public interface PolicyContext<Doc extends Document<Doc>> {
+public interface PolicyContext<Documents extends Document<Documents>> {
 
-	Doc document();
+	Documents document();
 
 	Instant reviewedAt();
 }

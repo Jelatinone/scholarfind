@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.UUID;
 
-import com.github.jelatinone.meta.transitory.Disposition;
+import javax.lang.model.element.ModuleElement.Directive;
 
 import lombok.NonNull;
 
@@ -14,7 +14,7 @@ public record AttemptEvent(
 		@NonNull UUID targetId,
 
 		Collection<AttemptReason> reasons,
-		@NonNull Disposition disposition,
+		@NonNull Directive disposition,
 
 		@NonNull Instant occurredAt,
 		@NonNull Instant emittedAt) {

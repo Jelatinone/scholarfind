@@ -11,9 +11,9 @@ public interface Infrastructure<In extends Request, Out extends Request> extends
 
 	RetryableQueue<Letter<In>> input();
 
-	Router output();
+	Router router();
 
-	Store<AttemptEvent, String> eventStore();
+	Store<AttemptEvent, String> attemptStore();
 
 	Store<ExecutionEvent, String> executionStore();
 }

@@ -7,7 +7,9 @@ import com.github.jelatinone.policy.PolicyDecision;
 public record PolicyResult<Input, Context, State>(
 		Input input,
 		Context context,
+
 		PolicyDecision<State> decision,
-		Instant startedAt,
-		Instant occurredAt) {
+
+		Instant initializedAt,
+		Instant emittedAt) {
 }

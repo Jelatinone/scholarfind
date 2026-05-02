@@ -1,7 +1,17 @@
 package com.github.jelatinone.meta.archetype;
 
-@FunctionalInterface
-public interface Retrieve<Input, Output> {
+import lombok.NonNull;
 
-	Output recover(Input input, Throwable throwable);
+@FunctionalInterface
+public interface Retrieve<Consumes, Produces> {
+
+	/**
+	 * Performs an operation on `consumable` data and maps to a `producible` a
+	 * result and guarantees the existence of a valid result
+	 * 
+	 * @param operand Data to be mapped
+	 * @return Mapped result
+	 */
+	@NonNull
+	Produces recover(Consumes input, Throwable throwable);
 }
