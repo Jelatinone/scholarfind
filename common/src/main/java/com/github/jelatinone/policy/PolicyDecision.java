@@ -10,7 +10,7 @@ import com.github.jelatinone.model.transit.Emission;
 
 public record PolicyDecision<State>(
     State state,
-    StageOutcome outcome,
+    StageOutcome outcome, // TODO: Convert to interface and remove
 
     Set<AttemptReason> reasons,
     String details,

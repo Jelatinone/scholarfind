@@ -15,7 +15,6 @@ import com.github.jelatinone.model.struct.RequestHeader;
 import com.github.jelatinone.model.transit.Emission;
 import com.github.jelatinone.model.transit.Letter;
 import com.github.jelatinone.policy.PolicyDecision;
-import com.github.jelatinone.policy.RetryDirective;
 
 import lombok.NonNull;
 
@@ -77,8 +76,7 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
   }
 
   default Letter<In> retryEnvelope(
-      @NonNull PipelineResult<Doc, In> output,
-      @NonNull RetryDirective retryDirective) {
+      @NonNull PipelineResult<Doc, In> output) {
     In payload = output.input().content();
 
     RequestHeader nextHeader = RequestHeader.retry(payload.requestHeader(), Instant.now());
