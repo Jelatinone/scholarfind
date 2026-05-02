@@ -117,20 +117,17 @@ public non-sealed abstract class SequentialTask<Consumes, Produces> extends Task
 						useMessage(String.format("Posted work : %s", currentStatus), ERROR);
 
 						switch (currentStatus) {
-							case SUCCESS -> {
-
+							case PostResult.Success ignored -> {
 								_attempts.remove(operand);
 								useMessage(String.format("Completed work : %s", operand), INFO);
 							}
 
-							case FAILURE_FATAL -> {
-
+							case PostResult.Fatal ignored -> {
 								_attempts.remove(operand);
 								useMessage(String.format("Failed work : %s", operand), ERROR);
 							}
 
-							case FAILURE_RETRY -> {
-
+							case PostResult.Retry ignored -> {
 								int attempt = _attempts.getOrDefault(operand, 0) + 1;
 								if (attempt < _taskConfig.logicalRetries) {
 									long delay = _taskConfig.retryScheduler.compute(attempt);

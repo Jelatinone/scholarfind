@@ -16,12 +16,11 @@ public class QueuePersist<T> implements Persist<Envelope<T>> {
 
 	@Override
 	public PostResult post(Envelope<T> operand) {
-		if (operand == null || operand.content() == null) {
-			return PostResult.FAILURE_FATAL;
+		if (operand == null) {
+			return new PostResult.Retry(new NullPointerException("Missing envelope"));
 		}
 
-		Envelope<T> envelope = operand;
-		T output = envelope.content();
+		T output = operand.content();
 		try {
 			switch (disposition.directive(output)) {
 				case COMPLETE ->
@@ -31,10 +30,10 @@ public class QueuePersist<T> implements Persist<Envelope<T>> {
 				case ERROR ->
 					disposition.error(output);
 			}
-			envelope.acknowledgement().success();
-			return PostResult.SUCCESS;
+			operand.acknowledgement().success();
+			return new PostResult.Success();
 		} catch (Exception exception) {
-			return PostResult.FAILURE_RETRY;
+			return new PostResult.Fatal(exception);
 		}
 	}
 }

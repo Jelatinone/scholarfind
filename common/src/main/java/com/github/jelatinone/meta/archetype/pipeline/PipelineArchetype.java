@@ -7,7 +7,6 @@ import java.util.Set;
 
 import com.github.jelatinone.meta.archetype.policy.PolicyArchetype;
 import com.github.jelatinone.meta.archetype.policy.PolicyResult;
-import com.github.jelatinone.meta.result.PersistResult;
 import com.github.jelatinone.model.struct.Document;
 import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.model.struct.RequestHeader;

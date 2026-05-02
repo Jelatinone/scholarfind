@@ -16,9 +16,10 @@ public final class PolicyPersist<Input, Context, State> implements Persist<Polic
 
 	@Override
 	public PostResult post(PolicyResult<Input, Context, State> operand) {
-		if (operand == null || operand.decision() == null) {
-			return PostResult.FAILURE_FATAL;
+		if (operand == null) {
+			return new PostResult.Fatal(new NullPointerException("Missing policy result"));
 		}
+
 		try {
 			switch (operand.decision()) {
 				case PolicyDecision.Next<State> ignored ->
@@ -30,9 +31,9 @@ public final class PolicyPersist<Input, Context, State> implements Persist<Polic
 				case PolicyDecision.Error<State> ignored ->
 					disposition.error(operand);
 			}
-			return PostResult.SUCCESS;
+			return new PostResult.Success();
 		} catch (Exception exception) {
-			return PostResult.FAILURE_RETRY;
+			return new PostResult.Fatal(exception);
 		}
 	}
 }
