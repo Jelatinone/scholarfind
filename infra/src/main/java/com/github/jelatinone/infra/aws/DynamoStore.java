@@ -29,6 +29,7 @@ import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 public class DynamoStore<Value, Key> implements Store<Value, Key> {
   DynamoDbClient client;
   String table;
+
   DynamoSerializer<Value, Key> serializer;
 
   static Logger _logger = LoggerFactory.getLogger(DynamoStore.class);

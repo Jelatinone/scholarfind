@@ -84,7 +84,7 @@ public record AcquiredContent(
 
   public boolean hasSourceSnapshot() {
     return capture() != null
-        && capture().sourceReference() != null;
+        && capture().sourceCapture() != null;
   }
 
   public boolean hasHydratedText() {
@@ -94,7 +94,7 @@ public record AcquiredContent(
 
   public boolean hasTextSnapshot() {
     return capture() != null
-        && capture().interpretedReference() != null;
+        && capture().interpretedCapture() != null;
   }
 
   public boolean hasCompleteText() {
@@ -149,16 +149,8 @@ public record AcquiredContent(
         : mediaMetadata().contentLength();
   }
 
-  public String previewText() {
-    return contentDocument == null
-        ? null
-        : contentDocument.previewText();
-  }
-
   public boolean hasText() {
-    return hasHydratedText()
-        || hasTextSnapshot()
-        || previewText() != null && !previewText().isBlank();
+    return hasHydratedText() || hasTextSnapshot();
   }
 
   public Optional<String> decodedSource() {

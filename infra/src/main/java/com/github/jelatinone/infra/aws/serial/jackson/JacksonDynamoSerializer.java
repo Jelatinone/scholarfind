@@ -1,4 +1,4 @@
-package com.github.jelatinone.infra.aws.jackson;
+package com.github.jelatinone.infra.aws.serial.jackson;
 
 import java.util.Map;
 import java.util.function.Function;
@@ -8,17 +8,17 @@ import com.github.jelatinone.infra.aws.serial.DynamoSerializer;
 
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
-public final class JacksonDynamoSerializer<Value, Key> implements DynamoSerializer<Value, Key> {
-  private final Class<Value> type;
-  private final Function<Key, String> keyEncoder;
-  private final Function<Value, Key> valueKeyExtractor;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
 
-  public JacksonDynamoSerializer(Class<Value> type, Function<Key, String> keyEncoder,
-      Function<Value, Key> valueKeyExtractor) {
-    this.type = type;
-    this.keyEncoder = keyEncoder;
-    this.valueKeyExtractor = valueKeyExtractor;
-  }
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+public final class JacksonDynamoSerializer<Value, Key> implements DynamoSerializer<Value, Key> {
+  Class<Value> type;
+
+  Function<Key, String> keyEncoder;
+  Function<Value, Key> keyExtractor;
 
   @Override
   public Value decodeItem(Map<String, AttributeValue> item) throws Exception {
@@ -34,7 +34,7 @@ public final class JacksonDynamoSerializer<Value, Key> implements DynamoSerializ
 
   @Override
   public Map<String, AttributeValue> encodeItem(Value value) throws Exception {
-    Key key = valueKeyExtractor.apply(value);
+    Key key = keyExtractor.apply(value);
     return Map.of(
         "id", AttributeValue.fromS(keyEncoder.apply(key)),
         "payload", AttributeValue.fromS(JacksonMapper.mapper.writeValueAsString(value)));
@@ -42,7 +42,7 @@ public final class JacksonDynamoSerializer<Value, Key> implements DynamoSerializ
 
   @Override
   public Key deriveKey(Value value) {
-    return valueKeyExtractor.apply(value);
+    return keyExtractor.apply(value);
   }
 
   @Override

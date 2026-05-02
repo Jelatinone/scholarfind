@@ -6,9 +6,17 @@ import java.util.UUID;
 import lombok.NonNull;
 
 public record CaptureReference(
-		@NonNull UUID targetId,
-		@NonNull String contentHash,
+    @NonNull UUID targetId,
 
-		@NonNull Instant emittedAt) {
+    @NonNull String storeKey,
+    @NonNull String contentHash,
 
+    @NonNull Instant emittedAt) {
+
+  public CaptureReference(
+      UUID targetId,
+      String contentHash,
+      Instant emittedAt) {
+    this(targetId, "/", contentHash, emittedAt);
+  }
 }

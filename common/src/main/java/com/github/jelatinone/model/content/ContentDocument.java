@@ -13,7 +13,6 @@ public record ContentDocument(
     @NonNull RequestHeader requestHeader,
     @NonNull Capture capture,
 
-    String previewText,
     String contentHash) implements Document<ContentDocument> {
 
   public static final long SCHEMA_VERSION = 1L;
@@ -30,11 +29,11 @@ public record ContentDocument(
 
   @Override
   public ContentDocument withDocumentHeader(DocumentHeader header) {
-    return new ContentDocument(header, requestHeader, capture, previewText, contentHash);
+    return new ContentDocument(header, requestHeader, capture, contentHash);
   }
 
   @Override
   public ContentDocument withRequestHeader(RequestHeader header) {
-    return new ContentDocument(documentHeader, header, capture, previewText, contentHash);
+    return new ContentDocument(documentHeader, header, capture, contentHash);
   }
 }

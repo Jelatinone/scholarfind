@@ -44,11 +44,6 @@ public final class RequestSchemaPolicy<Doc extends Document<Doc>, Context extend
           "Payload target identifier does not match the request header");
     }
 
-    if (!context.envelopeRequestId().equals(document.requestHeader().requestId())) {
-      return reject(state, PolicyReason.REQUEST_REJECTED,
-          "Envelope request identifier does not match the payload request header");
-    }
-
     if (!context.envelopeTargetId().equals(document.targetId())) {
       return reject(state, PolicyReason.REQUEST_REJECTED,
           "Envelope target identifier does not match the payload document");

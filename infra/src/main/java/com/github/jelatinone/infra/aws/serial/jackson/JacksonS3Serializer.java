@@ -1,4 +1,4 @@
-package com.github.jelatinone.infra.aws.jackson;
+package com.github.jelatinone.infra.aws.serial.jackson;
 
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -8,40 +8,32 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.github.jelatinone.infra.JacksonMapper;
 import com.github.jelatinone.infra.aws.serial.S3Serializer;
 
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.experimental.FieldDefaults;
+
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public final class JacksonS3Serializer<Value, Key> implements S3Serializer<Value, Key> {
-  private final JavaType type;
-  private final BiFunction<Value, byte[], Key> valueKeyExtractor;
-  private final Function<Key, String> keyEncoder;
-  private final String contentType;
-  private final String contentEncoding;
-  private final Function<Value, Map<String, String>> metadataFactory;
+  JavaType type;
+
+  BiFunction<Value, byte[], Key> keyExtractor;
+  Function<Key, String> keyEncoder;
+  Function<Value, Map<String, String>> metadataEncoder;
+
+  String contentType;
+  String contentEncoding;
 
   public JacksonS3Serializer(
       Class<Value> type,
-      Function<Value, Key> valueKeyExtractor,
+      Function<Value, Key> keyExtractor,
       Function<Key, String> keyEncoder) {
     this(
         JacksonMapper.mapper.getTypeFactory().constructType(type),
-        (value, encoded) -> valueKeyExtractor.apply(value),
-        keyEncoder,
+        (value, encoded) -> keyExtractor.apply(value),
+        keyEncoder, value -> Map.of(),
         "application/json",
-        "utf-8",
-        value -> Map.of());
-  }
-
-  public JacksonS3Serializer(
-      JavaType type,
-      BiFunction<Value, byte[], Key> valueKeyExtractor,
-      Function<Key, String> keyEncoder,
-      String contentType,
-      String contentEncoding,
-      Function<Value, Map<String, String>> metadataFactory) {
-    this.type = type;
-    this.valueKeyExtractor = valueKeyExtractor;
-    this.keyEncoder = keyEncoder;
-    this.contentType = contentType;
-    this.contentEncoding = contentEncoding;
-    this.metadataFactory = metadataFactory;
+        "utf-8");
   }
 
   @Override
@@ -55,13 +47,13 @@ public final class JacksonS3Serializer<Value, Key> implements S3Serializer<Value
   @Override
   public EncodedValue<Key> encode(Value value) throws Exception {
     byte[] bytes = JacksonMapper.mapper.writeValueAsBytes(value);
-    Key key = valueKeyExtractor.apply(value, bytes);
+    Key key = keyExtractor.apply(value, bytes);
     return new EncodedValue<>(
         key,
         bytes,
         contentType,
         contentEncoding,
-        metadataFactory.apply(value));
+        metadataEncoder.apply(value));
   }
 
   @Override

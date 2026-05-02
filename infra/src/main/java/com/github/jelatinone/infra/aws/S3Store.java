@@ -19,6 +19,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 public class S3Store<Value, Key> implements Store<Value, Key> {
   S3Client client;
   String bucket;
+
   S3Serializer<Value, Key> serializer;
 
   @Override

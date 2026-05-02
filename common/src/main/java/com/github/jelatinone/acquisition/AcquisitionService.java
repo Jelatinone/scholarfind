@@ -62,7 +62,7 @@ public class AcquisitionService {
       return withMetadata;
     }
     if (withMetadata.hasSourceSnapshot()) {
-      byte[] source = sourceCaptureStore.get(withMetadata.capture().sourceReference());
+      byte[] source = sourceCaptureStore.get(withMetadata.capture().sourceCapture());
       Capture capture = withMetadata.contentLength() == null
           ? withContentLength(withMetadata.capture(), (long) source.length)
           : withMetadata.capture();
@@ -95,7 +95,7 @@ public class AcquisitionService {
                 : fetched.metadata().contentLength()),
         sourceSnapshot,
         textSnapshot);
-    ContentDocument document = persist(withMetadata, capture, interpreted.normalizedPreview(), sourceSnapshot);
+    ContentDocument document = persist(withMetadata, capture, sourceSnapshot);
 
     AcquiredContent hydrated = withMetadata
         .withContentDocument(document)
@@ -114,7 +114,7 @@ public class AcquisitionService {
       return withMetadata;
     }
     if (withMetadata.hasTextSnapshot()) {
-      String text = new String(normalizedCaptureStore.get(withMetadata.capture().interpretedReference()),
+      String text = new String(normalizedCaptureStore.get(withMetadata.capture().interpretedCapture()),
           StandardCharsets.UTF_8);
       return withMetadata.withHydratedText(text, true);
     }
@@ -143,10 +143,9 @@ public class AcquisitionService {
         withContent.capture().mediaType(),
         withContent.capture().mediaEncoding(),
         withContent.capture().mediaMetadata(),
-        withContent.capture().sourceReference(),
+        withContent.capture().sourceCapture(),
         textSnapshot);
-    ContentDocument document = persist(withContent, capture, interpreted.normalizedPreview(),
-        withContent.capture().sourceReference());
+    ContentDocument document = persist(withContent, capture, withContent.capture().sourceCapture());
     return withContent.withContentDocument(document)
         .withHydratedText(interpreted.normalizedSource(), true);
   }
@@ -212,14 +211,9 @@ public class AcquisitionService {
     return new InterpretedContent(source, null, null);
   }
 
-  private ContentDocument persist(AcquiredContent current, Capture capture, CaptureReference sourceSnapshot) {
-    return persist(current, capture, current.previewText(), sourceSnapshot);
-  }
-
   private ContentDocument persist(
       AcquiredContent current,
       Capture capture,
-      String previewText,
       CaptureReference sourceSnapshot) {
     if (current.requestHeader() == null) {
       throw new IllegalStateException("Content acquisition requires a request header");
@@ -237,7 +231,6 @@ public class AcquisitionService {
             Instant.now()),
         current.requestHeader(),
         capture,
-        previewText,
         sourceSnapshot == null ? null : sourceSnapshot.contentHash());
     contentStore.put(document);
     return document;
@@ -260,8 +253,8 @@ public class AcquisitionService {
         detected.mediaType(),
         detected.mediaEncoding(),
         mergeMetadata(existing == null ? null : existing.mediaMetadata(), metadata),
-        sourceSnapshot != null ? sourceSnapshot : existing == null ? null : existing.sourceReference(),
-        textSnapshot != null ? textSnapshot : existing == null ? null : existing.interpretedReference());
+        sourceSnapshot != null ? sourceSnapshot : existing == null ? null : existing.sourceCapture(),
+        textSnapshot != null ? textSnapshot : existing == null ? null : existing.interpretedCapture());
   }
 
   private static Capture withContentLength(Capture capture, Long contentLength) {
@@ -271,8 +264,8 @@ public class AcquisitionService {
         capture.mediaType(),
         capture.mediaEncoding(),
         mergeMetadata(capture.mediaMetadata(), new MediaMetadata(null, null, null, contentLength)),
-        capture.sourceReference(),
-        capture.interpretedReference());
+        capture.sourceCapture(),
+        capture.interpretedCapture());
   }
 
   private static MediaMetadata mergeMetadata(MediaMetadata current, MediaMetadata next) {

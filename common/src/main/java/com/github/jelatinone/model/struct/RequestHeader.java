@@ -19,8 +19,8 @@ import lombok.NonNull;
 public record RequestHeader(
     long schemaVersion,
 
-    @NonNull UUID requestId,
     @NonNull UUID targetId,
+    @NonNull UUID reviewId,
 
     int attempt,
 
@@ -31,8 +31,8 @@ public record RequestHeader(
   public static RequestHeader retry(@NonNull RequestHeader current, @NonNull Instant enqueuedAt) {
     return new RequestHeader(
         current.schemaVersion(),
-        current.requestId(),
         current.targetId(),
+        current.reviewId(),
         current.attempt() + 1,
         current.emittedBy(),
         enqueuedAt);
@@ -41,8 +41,8 @@ public record RequestHeader(
   public static RequestHeader next(@NonNull RequestHeader current, @NonNull Instant enqueuedAt, long schemaVersion) {
     return new RequestHeader(
         schemaVersion,
-        current.requestId(),
         current.targetId(),
+        current.reviewId(),
         0,
         current.emittedBy(),
         enqueuedAt);

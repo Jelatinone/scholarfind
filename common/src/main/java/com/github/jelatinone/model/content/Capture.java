@@ -6,14 +6,14 @@ import java.util.UUID;
 import lombok.NonNull;
 
 public record Capture(
-		@NonNull UUID targetId,
+    @NonNull UUID targetId,
 
-		@NonNull URL canonicalUrl,
+    @NonNull URL canonicalUrl,
 
-		@NonNull MediaType mediaType,
-		@NonNull MediaEncoding mediaEncoding,
-		@NonNull MediaMetadata mediaMetadata,
+    @NonNull MediaType mediaType,
+    @NonNull MediaEncoding mediaEncoding,
+    @NonNull MediaMetadata mediaMetadata,
 
-		CaptureReference sourceReference,
-		CaptureReference interpretedReference) {
+    CaptureReference sourceCapture,
+    CaptureReference interpretedCapture) {
 }
