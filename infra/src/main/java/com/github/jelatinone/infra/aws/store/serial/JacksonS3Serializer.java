@@ -1,4 +1,4 @@
-package com.github.jelatinone.infra.aws.serial.jackson;
+package com.github.jelatinone.infra.aws.store.serial;
 
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -6,7 +6,6 @@ import java.util.function.Function;
 
 import com.fasterxml.jackson.databind.JavaType;
 import com.github.jelatinone.infra.JacksonMapper;
-import com.github.jelatinone.infra.aws.serial.S3Serializer;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

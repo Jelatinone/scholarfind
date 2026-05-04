@@ -1,4 +1,4 @@
-package com.github.jelatinone.infra.aws;
+package com.github.jelatinone.infra.aws.store;
 
 import java.util.Map;
 import java.util.function.Consumer;
@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.jelatinone.api.store.Store;
-import com.github.jelatinone.infra.aws.serial.DynamoSerializer;
+import com.github.jelatinone.infra.aws.store.serial.DynamoSerializer;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

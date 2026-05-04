@@ -7,7 +7,7 @@ import java.util.UUID;
 import com.github.jelatinone.api.queue.Queue;
 import com.github.jelatinone.api.queue.RetryableQueue;
 import com.github.jelatinone.api.store.Store;
-import com.github.jelatinone.infra.aws.DynamoStore;
+import com.github.jelatinone.infra.aws.store.DynamoStore;
 import com.github.jelatinone.infra.construct.ExecutionRouter;
 import com.github.jelatinone.infra.queue.IngestRequestQueue;
 import com.github.jelatinone.infra.queue.InvestigateRequestQueue;

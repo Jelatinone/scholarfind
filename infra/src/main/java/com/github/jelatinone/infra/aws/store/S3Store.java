@@ -1,7 +1,7 @@
-package com.github.jelatinone.infra.aws;
+package com.github.jelatinone.infra.aws.store;
 
 import com.github.jelatinone.api.store.Store;
-import com.github.jelatinone.infra.aws.serial.S3Serializer;
+import com.github.jelatinone.infra.aws.store.serial.S3Serializer;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

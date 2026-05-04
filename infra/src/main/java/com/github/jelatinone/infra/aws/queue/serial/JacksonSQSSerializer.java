@@ -1,8 +1,7 @@
-package com.github.jelatinone.infra.aws.serial.jackson;
+package com.github.jelatinone.infra.aws.queue.serial;
 
 import com.fasterxml.jackson.databind.JavaType;
 import com.github.jelatinone.infra.JacksonMapper;
-import com.github.jelatinone.infra.aws.serial.SQSSerializer;
 
 import java.util.Map;
 import lombok.AccessLevel;

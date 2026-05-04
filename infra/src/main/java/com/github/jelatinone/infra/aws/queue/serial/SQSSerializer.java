@@ -1,4 +1,4 @@
-package com.github.jelatinone.infra.aws.serial;
+package com.github.jelatinone.infra.aws.queue.serial;
 
 import java.util.Map;
 
