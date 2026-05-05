@@ -19,6 +19,7 @@ public record TargetNode(
     long schemaVersion,
 
     @NonNull UUID targetId,
+
     @NonNull URL canonicalUrl,
 
     @NonNull Instant emittedAt) {

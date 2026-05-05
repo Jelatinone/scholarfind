@@ -144,7 +144,8 @@ public class AcquisitionService {
         withContent.capture().mediaEncoding(),
         withContent.capture().mediaMetadata(),
         withContent.capture().sourceCapture(),
-        textSnapshot);
+        textSnapshot,
+        Instant.now());
     ContentDocument document = persist(withContent, capture, withContent.capture().sourceCapture());
     return withContent.withContentDocument(document)
         .withHydratedText(interpreted.normalizedSource(), true);
@@ -254,7 +255,8 @@ public class AcquisitionService {
         detected.mediaEncoding(),
         mergeMetadata(existing == null ? null : existing.mediaMetadata(), metadata),
         sourceSnapshot != null ? sourceSnapshot : existing == null ? null : existing.sourceCapture(),
-        textSnapshot != null ? textSnapshot : existing == null ? null : existing.interpretedCapture());
+        textSnapshot != null ? textSnapshot : existing == null ? null : existing.interpretedCapture(),
+        Instant.now());
   }
 
   private static Capture withContentLength(Capture capture, Long contentLength) {
@@ -265,7 +267,8 @@ public class AcquisitionService {
         capture.mediaEncoding(),
         mergeMetadata(capture.mediaMetadata(), new MediaMetadata(null, null, null, contentLength)),
         capture.sourceCapture(),
-        capture.interpretedCapture());
+        capture.interpretedCapture(),
+        Instant.now());
   }
 
   private static MediaMetadata mergeMetadata(MediaMetadata current, MediaMetadata next) {
