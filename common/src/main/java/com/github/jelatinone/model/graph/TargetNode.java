@@ -23,4 +23,8 @@ public record TargetNode(
 
     @NonNull Instant emittedAt) {
   public static final long SCHEMA_VERSION = 1L;
+
+  public TargetNode(UUID targetId, URL canonicalUrl, Instant emittedAt) {
+    this(SCHEMA_VERSION, targetId, canonicalUrl, emittedAt);
+  }
 }

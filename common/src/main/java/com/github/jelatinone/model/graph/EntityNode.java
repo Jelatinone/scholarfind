@@ -18,8 +18,13 @@ public record EntityNode(
     long schemaVersion,
 
     @NonNull UUID entityId,
+
     @NonNull UUID reviewId,
 
     @NonNull Instant emittedAt) {
   public static final long SCHEMA_VERSION = 1L;
+
+  public EntityNode(UUID entityId, UUID reviewId, Instant emittedAt) {
+    this(SCHEMA_VERSION, entityId, reviewId, emittedAt);
+  }
 }

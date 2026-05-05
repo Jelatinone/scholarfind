@@ -17,10 +17,16 @@ import lombok.NonNull;
 public record EntityEdge(
     long schemaVersion,
 
+    @NonNull UUID edgeId,
+
     @NonNull UUID targetId,
     @NonNull UUID entityId,
 
     @NonNull UUID reviewId,
     @NonNull Instant emittedAt) {
   public static final long SCHEMA_VERSION = 1L;
+
+  public EntityEdge(UUID edgeId, UUID targetId, UUID entityId, UUID reviewId, Instant emittedAt) {
+    this(SCHEMA_VERSION, edgeId, targetId, entityId, reviewId, emittedAt);
+  }
 }

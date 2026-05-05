@@ -33,4 +33,8 @@ public record DocumentHeader(
     @NonNull ExecutionStage emittedBy,
     @NonNull Instant emittedAt) {
   public static final long SCHEMA_VERSION = 1L;
+
+  public DocumentHeader(UUID targetId, UUID reviewId, ExecutionStage emittedBy, Instant emittedAt) {
+    this(SCHEMA_VERSION, targetId, reviewId, emittedBy, emittedAt);
+  }
 }

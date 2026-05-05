@@ -19,11 +19,12 @@ public record TargetReview(
     @NonNull UUID reviewId,
     @NonNull UUID targetId,
 
-    @NonNull UUID causeReviewId,
-    @NonNull UUID causeEdgeId,
-
     @NonNull TargetCause causedBy,
 
     @NonNull Instant emittedAt) {
   public static final long SCHEMA_VERSION = 1L;
+
+  public TargetReview(UUID reviewId, UUID targetId, TargetCause causedBy, Instant emittedAt) {
+    this(SCHEMA_VERSION, reviewId, targetId, causedBy, emittedAt);
+  }
 }

@@ -18,6 +18,7 @@ public record TargetEdge(
     long schemaVersion,
 
     @NonNull UUID edgeId,
+
     @NonNull UUID reviewId,
 
     @NonNull UUID parentTargetId,
@@ -25,4 +26,8 @@ public record TargetEdge(
 
     @NonNull Instant emittedAt) {
   public static final long SCHEMA_VERSION = 1L;
+
+  public TargetEdge(UUID edgeId, UUID reviewId, UUID parentTargetId, UUID childTargetId, Instant emittedAt) {
+    this(SCHEMA_VERSION, edgeId, reviewId, parentTargetId, childTargetId, emittedAt);
+  }
 }

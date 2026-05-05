@@ -28,6 +28,10 @@ public record RequestHeader(
     @NonNull Instant emittedAt) {
   public static final long SCHEMA_VERSION = 1L;
 
+  public RequestHeader(UUID targetId, UUID reviewId, int attempt, ExecutionStage emittedBy, Instant emittedAt) {
+    this(SCHEMA_VERSION, targetId, reviewId, attempt, emittedBy, emittedAt);
+  }
+
   public static RequestHeader retry(@NonNull RequestHeader current, @NonNull Instant enqueuedAt) {
     return new RequestHeader(
         current.schemaVersion(),
