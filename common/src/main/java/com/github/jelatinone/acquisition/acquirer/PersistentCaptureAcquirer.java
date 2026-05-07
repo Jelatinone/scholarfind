@@ -1,6 +1,7 @@
 package com.github.jelatinone.acquisition.acquirer;
 
 import java.net.URL;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
@@ -24,7 +25,7 @@ import lombok.experimental.FieldDefaults;
 
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class PersistentAcquirer implements Acquirer {
+public final class PersistentCaptureAcquirer implements Acquirer {
 
 	BodyFetcher bodyFetcher;
 	MetadataFetcher metadataFetcher;
@@ -32,11 +33,36 @@ public final class PersistentAcquirer implements Acquirer {
 	Set<Interpreter<?>> interpreters;
 
 	Store<Capture, UUID> captureStore;
+	Duration captureStalenessTimeout;
 
 	@Override
 	public Metadata metadata(@NonNull Acquisition current) {
+		Capture storedCapture = captureStore.get(current.targetId());
+		if (storedCapture != null && storedCapture.emittedAt().minus(captureStalenessTimeout).isBefore(Instant.now())) {
+			Metadata metadata = new Metadata(
+					storedCapture.targetId(),
+					storedCapture.reviewId(),
+					storedCapture.effectiveUrl(),
+					storedCapture.mediaType(),
+					storedCapture.mediaEncoding(),
+					storedCapture.mediaMetadata(),
+					storedCapture.emittedAt());
+			return metadata;
+		}
+
 		URL resolvedUrl = current.resolvedUrl();
 		FetchedMetadata fetchedMetadata = metadataFetcher.fetchMetadata(resolvedUrl);
+		Instant fetchedAt = Instant.now();
+
+		Capture capture = new Capture.Metadata(
+				current.targetId(),
+				current.reviewId(),
+				resolvedUrl,
+				fetchedMetadata.mediaType(),
+				fetchedMetadata.mediaEncoding(),
+				fetchedMetadata.mediaMetadata(),
+				fetchedAt);
+		captureStore.put(current.targetId(), capture);
 
 		Metadata acquisition = new Metadata(
 				current.targetId(),
@@ -51,19 +77,45 @@ public final class PersistentAcquirer implements Acquirer {
 
 	@Override
 	public Interpreted interpreted(@NonNull Acquisition current) {
-		URL resolvedUrl = current.resolvedUrl();
-		FetchedBody fetchedBody = bodyFetcher.fetchBody(resolvedUrl);
+		Capture storedCapture = captureStore.get(current.targetId());
+		if (storedCapture != null && storedCapture.emittedAt().minus(captureStalenessTimeout).isBefore(Instant.now())) {
+			switch (storedCapture) {
+				case Capture.Resolved resolved -> {
+					Interpreted interpreted = new Interpreted(
+							resolved.targetId(),
+							resolved.reviewId(),
+							resolved.effectiveUrl(),
+							resolved.mediaType(),
+							resolved.mediaEncoding(),
+							resolved.mediaMetadata(),
+							resolved.emittedAt(),
+							resolved.sourceBytes(),
+							resolved.sourceHash());
+					return interpreted;
+				}
 
+				default -> {
+				}
+			}
+		}
+		URL resolvedUrl = current.resolvedUrl();
+
+		FetchedBody fetchedBody = bodyFetcher.fetchBody(resolvedUrl);
 		Instant fetchedAt = Instant.now();
 
-		Capture capture = new Capture(
+		Capture capture = new Capture.Resolved(
 				current.targetId(),
 				current.reviewId(),
+				resolvedUrl,
 				fetchedBody.sourceBytes(),
+				fetchedBody.sourceHash(),
+				fetchedBody.mediaType(),
+				fetchedBody.mediaEncoding(),
+				fetchedBody.mediaMetadata(),
 				fetchedAt);
 		captureStore.put(current.targetId(), capture);
 
-		Interpreted uninterpreted = new Interpreted(
+		Interpreted interpreted = new Interpreted(
 				current.targetId(),
 				current.reviewId(),
 				fetchedBody.effectiveUrl(),
@@ -73,15 +125,12 @@ public final class PersistentAcquirer implements Acquirer {
 				fetchedAt,
 				fetchedBody.sourceBytes(),
 				fetchedBody.sourceHash());
-		Interpreted interpreted = interpreters.stream()
+		return interpreters.stream()
 				.filter((interpreter) -> interpreter.supports(fetchedBody.mediaType()))
-				.map((interpreter) -> interpreter.interpret(uninterpreted))
+				.map((interpreter) -> interpreter.interpret(interpreted))
 				.reduce(
-						uninterpreted,
+						interpreted,
 						(acquisition, projection) -> acquisition.withProjection(projection),
 						(left, right) -> right);
-
-		return interpreted;
 	}
-
 }

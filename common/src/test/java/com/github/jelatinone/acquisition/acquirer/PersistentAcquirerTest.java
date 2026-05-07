@@ -1,9 +1,11 @@
 package com.github.jelatinone.acquisition.acquirer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 
@@ -26,7 +28,7 @@ class PersistentAcquirerTest {
 
 	@Test
 	void metadata_mapsFetcherOutput() {
-		PersistentAcquirer acquirer = new PersistentAcquirer(
+		PersistentCaptureAcquirer acquirer = new PersistentCaptureAcquirer(
 				url -> new FetchedBody(CanonicalTestFixtures.url("https://ignored.com"), new byte[0], "ignored",
 						MediaType.TEXT_PLAIN,
 						MediaEncoding.UTF_8,
@@ -35,7 +37,8 @@ class PersistentAcquirerTest {
 						MediaEncoding.UTF_8,
 						AcquisitionTestFixtures.mediaMetadata("text/html", 25)),
 				Set.of(),
-				new MockStore<>());
+				new MockStore<>(),
+				Duration.ofDays(30L));
 
 		Acquisition.Metadata metadata = acquirer.metadata(new Acquisition.Initial(
 				StructTestFixtures.TARGET_ID,
@@ -49,7 +52,7 @@ class PersistentAcquirerTest {
 	@Test
 	void interpreted_persistsCaptureAndAddsMatchingInterpreterProjection() {
 		MockStore<Capture, UUID> store = new MockStore<>();
-		PersistentAcquirer acquirer = new PersistentAcquirer(
+		PersistentCaptureAcquirer acquirer = new PersistentCaptureAcquirer(
 				url -> new FetchedBody(
 						CanonicalTestFixtures.url("https://example.com/final"),
 						"hello".getBytes(),
@@ -63,7 +66,8 @@ class PersistentAcquirerTest {
 						MediaEncoding.UTF_8,
 						AcquisitionTestFixtures.mediaMetadata("text/plain", 5)),
 				Set.<Interpreter<?>>of(new TextInterpreter()),
-				store);
+				store,
+				Duration.ofDays(30L));
 
 		Acquisition.Interpreted interpreted = acquirer.interpreted(new Acquisition.Initial(
 				StructTestFixtures.TARGET_ID,
@@ -71,9 +75,10 @@ class PersistentAcquirerTest {
 				CanonicalTestFixtures.url("https://example.com/start")));
 		Capture capture = store.get(StructTestFixtures.TARGET_ID);
 
+		assertInstanceOf(Capture.Resolved.class, capture);
 		assertEquals("https://example.com/final", interpreted.effectiveUrl().toExternalForm());
 		assertEquals(1, interpreted.sourceProjections().size());
 		assertNotNull(capture);
-		assertTrue(new String(capture.sourceBytes()).contains("hello"));
+		assertTrue(new String(((Capture.Resolved) capture).sourceBytes()).contains("hello"));
 	}
 }

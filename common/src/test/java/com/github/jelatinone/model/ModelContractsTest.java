@@ -180,8 +180,10 @@ class ModelContractsTest {
 				Set.of(Category.ARCHIVE),
 				Category.ARCHIVE,
 				true);
-		Capture capture = new Capture(StructTestFixtures.TARGET_ID,
-				StructTestFixtures.REVIEW_ID, "body".getBytes(), StructTestFixtures.NOW);
+		Capture capture = new Capture.Resolved(StructTestFixtures.TARGET_ID,
+				StructTestFixtures.REVIEW_ID, CanonicalTestFixtures.url("https://example.com"), "body".getBytes(), "hash",
+				MediaType.TEXT_PLAIN,
+				MediaEncoding.UTF_8, new MediaMetadata(200, 0, 0, null, null), StructTestFixtures.NOW);
 		MediaMetadata mediaMetadata = AcquisitionTestFixtures.mediaMetadata("text/plain", 4);
 
 		assertEquals("OpenAI", description.description());
