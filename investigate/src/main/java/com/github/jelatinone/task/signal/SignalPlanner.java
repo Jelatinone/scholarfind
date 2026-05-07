@@ -4,8 +4,8 @@ import java.util.*;
 
 import com.github.jelatinone.acquisition.AcquiredContent;
 import com.github.jelatinone.acquisition.AcquisitionService;
-import com.github.jelatinone.models.investigate.ClassificationKind;
-import com.github.jelatinone.models.investigate.ClassificationStub;
+import com.github.jelatinone.model.investigate.Category;
+import com.github.jelatinone.model.investigate.Classification;
 import com.github.jelatinone.task.evidence.EvidenceRule;
 import com.github.jelatinone.task.policy.ClassificationConfiguration;
 import com.github.jelatinone.task.score.ScoreRule;
@@ -38,14 +38,14 @@ public final class SignalPlanner {
 		_extractors = List.copyOf(configuration.signalExtractors());
 	}
 
-	public ClassificationStub classify(@NonNull AcquiredContent acquisition) {
+	public Classification.Collected classify(@NonNull AcquiredContent acquisition) {
 		AcquiredContent currentAcquisition = ensure(acquisition, _configuration.plannerConfiguration().initialTier());
-		Map<ClassificationKind, Double> contributions = new HashMap<>();
+		Map<Category, Double> contributions = new HashMap<>();
 		Set<SignalIdentity> executed = new HashSet<>();
 
 		while (true) {
-			ClassificationStub stub = buildStub(contributions);
-			if (stub.confidence() >= _configuration.dominanceConfiguration().minimumConfidence()) {
+			Classification.Collected stub = buildStub(contributions);
+			if (stub.contenderConfidence() >= _configuration.dominanceConfiguration().minimumConfidence()) {
 				return stub;
 			}
 
@@ -85,7 +85,7 @@ public final class SignalPlanner {
 
 	private Candidate locateCandidate(
 			AcquiredContent acquisition,
-			ClassificationStub stub,
+			Classification.Collected stub,
 			Set<SignalIdentity> executed,
 			boolean mustBeCostless) {
 		return _extractors.stream()
@@ -109,7 +109,7 @@ public final class SignalPlanner {
 	private Candidate buildCandidate(
 			SignalExtractor extractor,
 			AcquiredContent acquisition,
-			ClassificationStub stub) {
+			Classification.Collected stub) {
 		double potential = potential(extractor.identity(), stub);
 		if (potential <= 0D) {
 			return null;
@@ -122,7 +122,7 @@ public final class SignalPlanner {
 	private void apply(
 			SignalExtractor extractor,
 			AcquiredContent acquisition,
-			Map<ClassificationKind, Double> contributions) {
+			Map<Category, Double> contributions) {
 		Optional<SignalValue> value = extractor.extract(acquisition);
 		List<EvidenceRule> rules = _configuration.evidenceConfiguration().rulesFor(extractor.identity());
 		rules.forEach(rule -> {
@@ -137,10 +137,10 @@ public final class SignalPlanner {
 		});
 	}
 
-	private double potential(SignalIdentity signal, ClassificationStub stub) {
-		Set<ClassificationKind> contenders = stub.contenders().isEmpty()
-				? EnumSet.copyOf(Arrays.asList(ClassificationKind.values()))
-				: stub.contenders();
+	private double potential(SignalIdentity signal, Classification.Collected stub) {
+		Set<Category> contenders = stub.contenderCategories().isEmpty()
+				? EnumSet.copyOf(Arrays.asList(Category.values()))
+				: stub.contenderCategories();
 
 		return _configuration.evidenceConfiguration().rulesFor(signal).stream()
 				.filter(rule -> contenders.contains(rule.classification()))
@@ -152,24 +152,24 @@ public final class SignalPlanner {
 				.sum();
 	}
 
-	private ClassificationStub buildStub(Map<ClassificationKind, Double> contributions) {
+	private Classification.Collected buildStub(Map<Category, Double> contributions) {
 		if (contributions.isEmpty()) {
-			return new ClassificationStub(
+			return new Classification.Collected(
 					Map.of(),
 					0D,
-					EnumSet.copyOf(Arrays.asList(ClassificationKind.values())));
+					EnumSet.copyOf(Arrays.asList(Category.values())));
 		}
 		double leader = contributions.values().stream()
 				.mapToDouble(Double::doubleValue)
 				.max()
 				.orElse(0D);
-		EnumSet<ClassificationKind> contenders = contributions.entrySet().stream()
+		EnumSet<Category> contenders = contributions.entrySet().stream()
 				.filter(entry -> leader - entry.getValue() <= _configuration.dominanceConfiguration().dominanceEpsilon())
 				.map(Map.Entry::getKey)
 				.collect(
-						() -> EnumSet.noneOf(ClassificationKind.class),
+						() -> EnumSet.noneOf(Category.class),
 						EnumSet::add,
 						EnumSet::addAll);
-		return new ClassificationStub(Map.copyOf(contributions), leader, contenders);
+		return new Classification.Collected(Map.copyOf(contributions), leader, contenders);
 	}
 }

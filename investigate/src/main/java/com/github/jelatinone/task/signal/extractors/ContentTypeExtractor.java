@@ -3,8 +3,8 @@ package com.github.jelatinone.task.signal.extractors;
 import java.util.Optional;
 
 import com.github.jelatinone.acquisition.AcquiredContent;
-import com.github.jelatinone.models.content.ContentMediaType;
-import com.github.jelatinone.models.investigate.ClassificationStub;
+import com.github.jelatinone.model.investigate.Classification;
+import com.github.jelatinone.model.content.MediaType;
 import com.github.jelatinone.task.signal.SignalExtractor;
 import com.github.jelatinone.task.signal.SignalIdentity;
 import com.github.jelatinone.task.signal.SignalPattern;
@@ -30,14 +30,14 @@ public final class ContentTypeExtractor implements SignalExtractor {
   }
 
   @Override
-  public double cost(@NonNull AcquiredContent acquisition, @NonNull ClassificationStub stub,
+  public double cost(@NonNull AcquiredContent acquisition, @NonNull Classification.Collected stub,
       @NonNull SignalPattern pattern) {
     return SignalExtractor.metadataCost(acquisition, pattern);
   }
 
   @Override
   public Optional<SignalValue> extract(@NonNull AcquiredContent acquisition) {
-    ContentMediaType mediaType = acquisition.mediaType();
+    MediaType mediaType = acquisition.mediaType();
     return mediaType == null
         ? Optional.empty()
         : Optional.of(new SignalValue.EnumSignal<>(mediaType));

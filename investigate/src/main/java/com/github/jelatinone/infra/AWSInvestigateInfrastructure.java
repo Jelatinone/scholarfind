@@ -5,34 +5,35 @@ import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
+import com.github.jelatinone.acquisition.AcquisitionService;
 import com.github.jelatinone.acquisition.BodyFetcher;
 import com.github.jelatinone.acquisition.ContentInterpreter;
-import com.github.jelatinone.acquisition.AcquisitionService;
+import com.github.jelatinone.acquisition.MetadataFetcher;
+import com.github.jelatinone.acquisition.PersistentAcquisitionService;
 import com.github.jelatinone.acquisition.fetch.HTTPBodyFetcher;
 import com.github.jelatinone.acquisition.fetch.HTTPMetadataFetcher;
-import com.github.jelatinone.acquisition.MetadataFetcher;
 import com.github.jelatinone.api.queue.Queue;
 import com.github.jelatinone.api.queue.RetryableQueue;
 import com.github.jelatinone.api.store.Store;
+import com.github.jelatinone.infra.aws.queue.SQSQueue.SQSQueueDescriptor;
+import com.github.jelatinone.infra.aws.store.DynamoStore;
+import com.github.jelatinone.infra.aws.store.S3Store;
+import com.github.jelatinone.infra.aws.store.serial.ByteArrayS3Serializer;
+import com.github.jelatinone.infra.aws.store.serial.JacksonDynamoSerializer;
 import com.github.jelatinone.infra.construct.ExecutionRouter;
-import com.github.jelatinone.infra.queue.AnnotateRequestQueue;
-import com.github.jelatinone.infra.queue.IngestRequestQueue;
-import com.github.jelatinone.infra.queue.InvestigateRequestQueue;
-import com.github.jelatinone.infra.repository.AttemptEventStore;
-import com.github.jelatinone.infra.repository.CaptureDocumentStore;
-import com.github.jelatinone.infra.repository.ContentDocumentStore;
-import com.github.jelatinone.infra.repository.InvestigateDocumentStore;
-import com.github.jelatinone.infra.store.StageExecutionRecordStore;
+import com.github.jelatinone.infra.queue.LetterQueue;
+import com.github.jelatinone.infra.store.AttemptEventStore;
+import com.github.jelatinone.infra.store.ExecutionEventStore;
 import com.github.jelatinone.meta.construct.Router;
-import com.github.jelatinone.models.annotate.AnnotateRequest;
-import com.github.jelatinone.models.audit.AttemptEvent;
-import com.github.jelatinone.models.audit.ProcessingStage;
-import com.github.jelatinone.models.audit.StageExecution;
-import com.github.jelatinone.models.content.ContentDocument;
-import com.github.jelatinone.models.ingest.IngestRequest;
-import com.github.jelatinone.models.investigate.InvestigateDocument;
-import com.github.jelatinone.models.investigate.InvestigateRequest;
-import com.github.jelatinone.models.shared.StageEnvelope;
+import com.github.jelatinone.model.annotate.AnnotateRequest;
+import com.github.jelatinone.model.audit.AttemptEvent;
+import com.github.jelatinone.model.audit.ExecutionEvent;
+import com.github.jelatinone.model.audit.ExecutionStage;
+import com.github.jelatinone.model.content.CaptureReference;
+import com.github.jelatinone.model.content.ContentDocument;
+import com.github.jelatinone.model.investigate.InvestigateDocument;
+import com.github.jelatinone.model.investigate.InvestigateRequest;
+import com.github.jelatinone.model.transit.Letter;
 import com.github.jelatinone.task.InvestigateInfrastructure;
 
 import lombok.AccessLevel;
@@ -58,16 +59,13 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
   S3Client s3Client;
 
   Router router;
-
-  RetryableQueue<StageEnvelope<InvestigateRequest>> inQueue;
+  RetryableQueue<Letter<InvestigateRequest>> input;
 
   @SuppressWarnings("unused")
-  Queue<StageEnvelope<AnnotateRequest>> annotateQueue;
-  @SuppressWarnings("unused")
-  Queue<StageEnvelope<IngestRequest>> ingestQueue;
+  Queue<Letter<AnnotateRequest>> annotateQueue;
 
-  Store<AttemptEvent, String> eventStore;
-  Store<StageExecution, String> executionStore;
+  Store<AttemptEvent, String> attemptStore;
+  Store<ExecutionEvent, String> executionStore;
   Store<InvestigateDocument, UUID> investigateStore;
   Store<ContentDocument, UUID> contentStore;
   AcquisitionService acquisitionService;
@@ -78,7 +76,6 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
     @Builder.Default
     String inQueueName = "queue_investigate",
         annotateQueueName = "queue_annotate",
-        ingestQueueName = "queue_ingest",
         retryQueueName = "queue_investigate_retry",
         errorQueueName = "queue_investigate_error";
 
@@ -107,23 +104,23 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
   }
 
   @Override
-  public RetryableQueue<StageEnvelope<InvestigateRequest>> input() {
-    return inQueue;
-  }
-
-  @Override
-  public Router output() {
+  public Router router() {
     return router;
   }
 
   @Override
-  public Store<AttemptEvent, String> eventStore() {
-    return eventStore;
+  public Store<AttemptEvent, String> attemptStore() {
+    return attemptStore;
   }
 
   @Override
-  public Store<StageExecution, String> executionStore() {
+  public Store<ExecutionEvent, String> executionStore() {
     return executionStore;
+  }
+
+  @Override
+  public RetryableQueue<Letter<InvestigateRequest>> input() {
+    return input;
   }
 
   @Override
@@ -170,15 +167,28 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
         .followRedirects(HttpClient.Redirect.NEVER)
         .build();
 
-    ContentDocumentStore contentStore = new ContentDocumentStore(dynamoClient, config.contentStoreName);
-    CaptureDocumentStore sourceCaptureStore = new CaptureDocumentStore(
+    Store<ContentDocument, UUID> contentStore = new DynamoStore<>(
+        dynamoClient,
+        config.contentStoreName,
+        new JacksonDynamoSerializer<>(
+            ContentDocument.class,
+            UUID::toString,
+            ContentDocument::targetId));
+    Store<InvestigateDocument, UUID> investigateStore = new DynamoStore<>(
+        dynamoClient,
+        config.investigateStoreName,
+        new JacksonDynamoSerializer<>(
+            InvestigateDocument.class,
+            UUID::toString,
+            InvestigateDocument::targetId));
+    Store<byte[], CaptureReference> sourceCaptureStore = new S3Store<>(
         s3Client,
         config.captureBucketName,
-        config.sourceCapturePrefix);
-    CaptureDocumentStore textCaptureStore = new CaptureDocumentStore(
+        new ByteArrayS3Serializer(config.sourceCapturePrefix));
+    Store<byte[], CaptureReference> textCaptureStore = new S3Store<>(
         s3Client,
         config.captureBucketName,
-        config.textCapturePrefix);
+        new ByteArrayS3Serializer(config.textCapturePrefix));
     MetadataFetcher metadataFetcher = new HTTPMetadataFetcher(
         httpClient,
         config.callTimeout,
@@ -189,7 +199,7 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
         config.callTimeout,
         config.maxRedirects,
         config.userAgent);
-    AcquisitionService acquisitionService = new AcquisitionService(
+    AcquisitionService acquisitionService = new PersistentAcquisitionService(
         metadataFetcher,
         bodyFetcher,
         config.interpreters,
@@ -197,19 +207,18 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
         sourceCaptureStore,
         textCaptureStore);
 
-    IngestRequestQueue ingestRequestQueue = new IngestRequestQueue(
-        sqsClient,
-        resolveQueueUrl(sqsClient, config.ingestQueueName),
-        null,
-        null);
-    InvestigateRequestQueue investigateRequestQueue = new InvestigateRequestQueue(
-        sqsClient,
-        resolveQueueUrl(sqsClient, config.inQueueName),
-        resolveQueueUrl(sqsClient, config.retryQueueName),
-        resolveQueueUrl(sqsClient, config.errorQueueName));
-    AnnotateRequestQueue annotateRequestQueue = new AnnotateRequestQueue(
-        sqsClient,
-        resolveQueueUrl(sqsClient, config.annotateQueueName));
+    LetterQueue<InvestigateRequest> investigateQueue = new LetterQueue<>(
+        descriptor(sqsClient, config.inQueueName),
+        descriptor(sqsClient, config.inQueueName),
+        descriptor(sqsClient, config.retryQueueName),
+        descriptor(sqsClient, config.errorQueueName),
+        InvestigateRequest.class);
+    LetterQueue<AnnotateRequest> annotateQueue = new LetterQueue<>(
+        descriptor(sqsClient, config.annotateQueueName),
+        descriptor(sqsClient, config.annotateQueueName),
+        descriptor(sqsClient, config.annotateQueueName),
+        descriptor(sqsClient, config.annotateQueueName),
+        AnnotateRequest.class);
 
     return new AWSInvestigateInfrastructure(
         metrics,
@@ -218,21 +227,22 @@ public final class AWSInvestigateInfrastructure implements InvestigateInfrastruc
         s3Client,
         ExecutionRouter.of(
             ExecutionRouter.bind(
-                ProcessingStage.INGEST,
-                IngestRequest.class,
-                ingestRequestQueue::send),
-            ExecutionRouter.bind(
-                ProcessingStage.ANNOTATE,
+                ExecutionStage.ANNOTATE,
                 AnnotateRequest.class,
-                annotateRequestQueue::send)),
-        investigateRequestQueue,
-        annotateRequestQueue,
-        ingestRequestQueue,
+                annotateQueue::send)),
+        investigateQueue,
+        annotateQueue,
         new AttemptEventStore(dynamoClient, config.attemptEventStoreName),
-        new StageExecutionRecordStore(dynamoClient, config.executionStoreName),
-        new InvestigateDocumentStore(dynamoClient, config.investigateStoreName),
+        new ExecutionEventStore(dynamoClient, config.executionStoreName),
+        investigateStore,
         contentStore,
         acquisitionService);
+  }
+
+  private static SQSQueueDescriptor descriptor(
+      final @NonNull SqsClient sqsClient,
+      final @NonNull String canonicalName) {
+    return new SQSQueueDescriptor(sqsClient, resolveQueueUrl(sqsClient, canonicalName));
   }
 
   private static String resolveQueueUrl(final @NonNull SqsClient sqsClient, final @NonNull String canonicalName) {

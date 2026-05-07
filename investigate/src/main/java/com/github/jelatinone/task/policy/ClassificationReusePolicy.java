@@ -1,7 +1,7 @@
 package com.github.jelatinone.task.policy;
 
-import com.github.jelatinone.models.investigate.ClassificationStub;
-import com.github.jelatinone.models.investigate.InvestigateDocument;
+import com.github.jelatinone.model.investigate.Classification;
+import com.github.jelatinone.model.investigate.InvestigateDocument;
 import com.github.jelatinone.policy.Policy;
 import com.github.jelatinone.policy.PolicyStep;
 import com.github.jelatinone.task.InvestigateContext;
@@ -12,7 +12,7 @@ public final class ClassificationReusePolicy implements Policy<InvestigateContex
   @Override
   public PolicyStep<InvestigateState> apply(InvestigateContext context, InvestigateState state) {
     InvestigateDocument retrieved = context.retrievedInvestigate();
-    if (retrieved == null || retrieved.classification() == null || retrieved.reviewedAt() == null) {
+    if (retrieved == null || retrieved.classification() == null || retrieved.documentHeader() == null) {
       return new PolicyStep.Continue<>(state);
     }
 
@@ -20,13 +20,16 @@ public final class ClassificationReusePolicy implements Policy<InvestigateContex
       return new PolicyStep.Continue<>(state);
     }
 
-    if (retrieved.reviewedAt()
+    if (retrieved.documentHeader().emittedAt()
         .isBefore(context.reviewedAt().minus(context.classificationConfiguration().reuseWindowDays()))) {
       return new PolicyStep.Continue<>(state);
     }
 
-    ClassificationStub classification = retrieved.classification();
-    double confidence = classification.contributions().values().stream()
+    if (!(retrieved.classification() instanceof Classification.Collected classification)) {
+      return new PolicyStep.Continue<>(state);
+    }
+
+    double confidence = classification.categoryEstimates().values().stream()
         .mapToDouble(Double::doubleValue)
         .max()
         .orElse(0D);
@@ -34,9 +37,6 @@ public final class ClassificationReusePolicy implements Policy<InvestigateContex
       return new PolicyStep.Continue<>(state);
     }
 
-    InvestigateState nextState = state
-        .withClassification(classification, confidence, true)
-        .withDiscoveredTargetCount(retrieved.discoveredTargetCount());
-    return new PolicyStep.Continue<>(nextState);
+    return new PolicyStep.Continue<>(state.withClassification(classification, confidence, true));
   }
 }

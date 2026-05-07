@@ -2,11 +2,11 @@ package com.github.jelatinone.task.score;
 
 import java.util.Map;
 
-import com.github.jelatinone.models.investigate.ClassificationKind;
+import com.github.jelatinone.model.investigate.Category;
 
 public record ScoreRuleConfiguration(
-    Map<ClassificationKind, ScoreRule> rules) {
-  public ScoreRule policyFor(ClassificationKind classification) {
+    Map<Category, ScoreRule> rules) {
+  public ScoreRule policyFor(Category classification) {
     return rules.get(classification);
   }
 }

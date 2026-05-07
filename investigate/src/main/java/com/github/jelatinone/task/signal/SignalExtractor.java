@@ -3,7 +3,7 @@ package com.github.jelatinone.task.signal;
 import java.util.Optional;
 
 import com.github.jelatinone.acquisition.AcquiredContent;
-import com.github.jelatinone.models.investigate.ClassificationStub;
+import com.github.jelatinone.model.investigate.Classification;
 
 import lombok.NonNull;
 
@@ -17,7 +17,7 @@ public interface SignalExtractor {
 
   boolean supports(@NonNull AcquiredContent acquisition);
 
-  double cost(@NonNull AcquiredContent acquisition, @NonNull ClassificationStub stub, @NonNull SignalPattern pattern);
+  double cost(@NonNull AcquiredContent acquisition, @NonNull Classification.Collected stub, @NonNull SignalPattern pattern);
 
   Optional<SignalValue> extract(@NonNull AcquiredContent acquisition);
 

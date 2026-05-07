@@ -3,8 +3,8 @@ package com.github.jelatinone.task.signal.extractors;
 import java.util.Optional;
 
 import com.github.jelatinone.acquisition.AcquiredContent;
-import com.github.jelatinone.models.content.ContentKind;
-import com.github.jelatinone.models.investigate.ClassificationStub;
+import com.github.jelatinone.model.investigate.Classification;
+import com.github.jelatinone.model.content.MediaType;
 import com.github.jelatinone.task.signal.SignalExtractor;
 import com.github.jelatinone.task.signal.SignalIdentity;
 import com.github.jelatinone.task.signal.SignalPattern;
@@ -32,20 +32,22 @@ public final class TextWordCountExtractor implements SignalExtractor {
 
   @Override
   public boolean supports(@NonNull AcquiredContent context) {
-    ContentKind contentKind = context.contentKind();
-    return contentKind == null
-        || contentKind == ContentKind.HTML
-        || contentKind == ContentKind.PDF
-        || contentKind == ContentKind.PLAIN_TEXT
-        || contentKind == ContentKind.MARKDOWN
-        || contentKind == ContentKind.XML
-        || contentKind == ContentKind.JSON;
+    MediaType mediaType = context.mediaType();
+    return mediaType == null
+        || mediaType == MediaType.TEXT_HTML
+        || mediaType == MediaType.APPLICATION_PDF
+        || mediaType == MediaType.TEXT_PLAIN
+        || mediaType == MediaType.TEXT_MARKDOWN
+        || mediaType == MediaType.APPLICATION_XML
+        || mediaType == MediaType.TEXT_XML
+        || mediaType == MediaType.APPLICATION_JSON
+        || mediaType == MediaType.TEXT_JSON;
   }
 
   @Override
   public double cost(
       @NonNull AcquiredContent context,
-      @NonNull ClassificationStub stub,
+      @NonNull Classification.Collected stub,
       @NonNull SignalPattern pattern) {
     return SignalExtractor.textCost(context, pattern);
   }

@@ -1,29 +1,27 @@
 package com.github.jelatinone.task;
 
-import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
+import java.util.Collection;
 import java.util.Set;
-import java.util.UUID;
 
-import com.github.jelatinone.meta.ParallelTask;
-import com.github.jelatinone.meta.PipelineTask;
-import com.github.jelatinone.meta.Task;
+import com.github.jelatinone.meta.archetype.pipeline.PersistResult;
+import com.github.jelatinone.meta.archetype.pipeline.PipelineArchetype;
+import com.github.jelatinone.meta.archetype.pipeline.PipelineResult;
+import com.github.jelatinone.meta.archetype.policy.PolicyArchetype;
+import com.github.jelatinone.model.annotate.AnnotateRequest;
+import com.github.jelatinone.model.audit.ExecutionEvent;
+import com.github.jelatinone.model.audit.ExecutionStage;
+import com.github.jelatinone.model.investigate.Classification;
+import com.github.jelatinone.model.investigate.InvestigateDocument;
+import com.github.jelatinone.model.investigate.InvestigateRequest;
+import com.github.jelatinone.model.struct.DocumentHeader;
+import com.github.jelatinone.model.struct.Request;
+import com.github.jelatinone.model.struct.RequestHeader;
 import com.github.jelatinone.model.transit.Emission;
-import com.github.jelatinone.models.annotate.AnnotateRequest;
-import com.github.jelatinone.models.audit.ProcessingStage;
-import com.github.jelatinone.models.ingest.IngestRequest;
-import com.github.jelatinone.models.investigate.ClassificationStub;
-import com.github.jelatinone.models.investigate.InvestigateDocument;
-import com.github.jelatinone.models.investigate.InvestigateRequest;
-import com.github.jelatinone.models.shared.DocumentHeader;
-import com.github.jelatinone.models.shared.Request;
-import com.github.jelatinone.models.shared.RequestHeader;
-import com.github.jelatinone.models.shared.StageEnvelope;
-import com.github.jelatinone.models.shared.TargetReference;
-import com.github.jelatinone.models.shared.TraceReference;
+import com.github.jelatinone.model.transit.Letter;
 import com.github.jelatinone.policy.PolicyDecision;
 import com.github.jelatinone.policy.PolicyPipeline;
+import com.github.jelatinone.policy.StageOutcome;
 import com.github.jelatinone.task.policy.ClassificationConfiguration;
 
 import lombok.AccessLevel;
@@ -32,8 +30,9 @@ import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class InvestigateTask extends
-    PipelineTask<InvestigateRequest, AnnotateRequest, InvestigateContext, InvestigateState, InvestigateDocument, InvestigateInfrastructure> {
+public final class InvestigateTask implements
+    PolicyArchetype<InvestigateRequest, InvestigateContext, InvestigateState>,
+    PipelineArchetype<InvestigateRequest, AnnotateRequest, InvestigateContext, InvestigateState, InvestigateDocument> {
 
   @Builder
   @FieldDefaults(level = AccessLevel.PUBLIC, makeFinal = true)
@@ -44,185 +43,146 @@ public final class InvestigateTask extends
     @NonNull
     InvestigateInfrastructure infrastructure;
 
-    @Builder.Default
-    Duration retryTimeout = Duration.ofMinutes(5);
-
-    @Builder.Default
-    Duration expirationTimeout = Duration.ofDays(30);
-
-    @Builder.Default
-    int transitionHistory = 25;
-
-    @Builder.Default
-    int maxAttempts = 5;
-
     @NonNull
     ClassificationConfiguration classificationConfiguration;
   }
 
-  Configuration _investigateConfig;
+  Configuration config;
 
-  public InvestigateTask(
-      final InvestigateTask.Configuration investigateConfig,
-      final ParallelTask.Configuration parallelConfig,
-      final Task.Configuration taskConfig) {
-    super(PipelineTask.Configuration
-        .<InvestigateRequest, AnnotateRequest, InvestigateContext, InvestigateState, InvestigateDocument, InvestigateInfrastructure>builder()
-        .policyPipeline(investigateConfig.policyPipeline)
-        .infrastructure(investigateConfig.infrastructure)
-        .retryDuration(investigateConfig.retryTimeout)
-        .transitionHistory(investigateConfig.transitionHistory)
-        .processingStage(ProcessingStage.INVESTIGATE)
-        .build(),
-        parallelConfig,
-        taskConfig);
-    _investigateConfig = investigateConfig;
+  public InvestigateTask(@NonNull Configuration config) {
+    this.config = config;
+  }
+
+  public PipelineResult<InvestigateDocument, InvestigateRequest> process(@NonNull Letter<InvestigateRequest> input) {
+    return processPipeline(processPolicy(input));
   }
 
   @Override
-  protected InvestigateContext buildContext(
-      @NonNull StageEnvelope<InvestigateRequest> input,
-      @NonNull Instant startedAt) {
-    InvestigateRequest request = input.payload();
-    RequestHeader requestHeader = request == null
-        ? null
-        : request.requestHeader();
-    TargetReference target = request == null
-        ? null
-        : request.target();
-    UUID requestId = requestHeader == null
-        ? input.requestId()
-        : requestHeader.requestId();
-    UUID targetId = target == null
-        ? input.targetId()
-        : target.targetId();
-
-    InvestigateDocument currentDocument = InvestigateDocument.builder()
-        .documentHeader(new DocumentHeader(
-            InvestigateDocument.SCHEMA_VERSION,
-            UUID.randomUUID(),
-            requestId,
-            targetId,
-            startedAt))
-        .requestHeader(requestHeader)
-        .target(target)
-        .trace(new TraceReference(
-            target == null
-                ? null
-                : target.normalizedUrl(),
-            null,
-            _taskConfig.name,
-            target == null
-                ? null
-                : target.depth()))
-        .reviewedAt(startedAt)
-        .classification(new ClassificationStub(Map.of(), 0D, Set.of()))
-        .confidence(0D)
-        .discoveredTargetCount(0)
-        .build();
-
-    return new InvestigateContext(
-        currentDocument,
-        _investigateConfig.classificationConfiguration,
-        _infrastructure.acquisitionService(),
-        startedAt,
-        targetId == null
-            ? null
-            : _infrastructure.investigateStore().get(targetId),
-        targetId == null
-            ? null
-            : _infrastructure.contentStore().get(targetId),
-        input.schemaVersion(),
-        input.stage(),
-        input.requestId(),
-        input.targetId());
+  public PolicyDecision<InvestigateState> process(InvestigateContext context, InvestigateState state) {
+    return config.policyPipeline.process(context, state);
   }
 
   @Override
-  protected InvestigateState buildState(@NonNull InvestigateContext context) {
+  public InvestigateState buildState(@NonNull InvestigateContext context) {
     return InvestigateState.initial(context.reviewedAt());
   }
 
   @Override
-  protected InvestigateDocument buildDocument(
-      @NonNull StageEnvelope<InvestigateRequest> input,
+  public InvestigateContext buildContext(@NonNull Letter<InvestigateRequest> input, @NonNull Instant startedAt) {
+    InvestigateRequest request = input.content();
+    return new InvestigateContext(
+        new InvestigateDocument(
+            new DocumentHeader(
+                InvestigateDocument.SCHEMA_VERSION,
+                input.targetId(),
+                input.reviewId(),
+                input.executionRef(),
+                startedAt),
+            request.requestHeader(),
+            input.targetId(),
+            input.reviewId(),
+            emptyClassification(),
+            Set.of()),
+        request.target(),
+        config.classificationConfiguration,
+        config.infrastructure.acquisitionService(),
+        startedAt,
+        config.infrastructure.investigateStore().get(input.targetId()),
+        config.infrastructure.contentStore().get(input.targetId()),
+        input.schemaVersion(),
+        input.executionRef(),
+        input.targetId(),
+        input.reviewId());
+  }
+
+  @Override
+  public PersistResult<InvestigateState, InvestigateDocument> persistDocument(
+      @NonNull Letter<InvestigateRequest> input,
       @NonNull InvestigateContext context,
-      @NonNull PolicyDecision<InvestigateState> decision,
+      @NonNull PolicyDecision.Next<InvestigateState> decision,
       @NonNull Instant occurredAt) {
-    DocumentHeader header = context.document().documentHeader();
-    DocumentHeader nextHeader = new DocumentHeader(
-        header.schemaVersion(),
-        header.documentId(),
-        header.requestId(),
-        header.targetId(),
-        occurredAt);
-    return new InvestigateDocument(
-        nextHeader,
-        context.document().requestHeader(),
-        context.document().target(),
-        context.document().trace(),
+    Classification classification = decision.state() == null
+        ? context.document().classification()
+        : decision.state().classification();
+    InvestigateDocument document = new InvestigateDocument(
+        new DocumentHeader(
+            InvestigateDocument.SCHEMA_VERSION,
+            input.targetId(),
+            input.reviewId(),
+            input.executionRef(),
+            occurredAt),
+        input.content().requestHeader(),
+        input.targetId(),
+        input.reviewId(),
+        classification,
+        Set.of());
+    config.infrastructure.investigateStore().put(document);
+    return new PersistResult<>(document, decision);
+  }
+
+  @Override
+  public void persistExecution(
+      @NonNull Letter<InvestigateRequest> input,
+      @NonNull PolicyDecision<?> decision,
+      @NonNull Instant occurredAt) {
+    config.infrastructure.executionStore().put(new ExecutionEvent(
+        input.targetId(),
+        input.executionRef(),
+        Set.of(),
+        outcome(decision),
         occurredAt,
-        decision.state() == null
-            ? context.document().classification()
-            : decision.state().classification(),
-        decision.state() == null
-            ? context.document().confidence()
-            : decision.state().confidence(),
-        decision.state() == null
-            ? context.document().discoveredTargetCount()
-            : decision.state().discoveredTargetCount());
+        Instant.now()));
   }
 
   @Override
-  protected void persistStageDocument(@NonNull InvestigateDocument document) {
-    _infrastructure.investigateStore().put(document);
+  public void persistAttempt(
+      @NonNull Letter<InvestigateRequest> input,
+      @NonNull PolicyDecision<?> decision,
+      @NonNull Instant initializedAt,
+      @NonNull Instant occurredAt,
+      Throwable throwable) {
+    // Attempt audit is intentionally left untouched until common.model.audit is rewritten.
   }
 
-  @SuppressWarnings("unchecked")
   @Override
-  protected <Emit extends Request> StageEnvelope<Emit> buildEnvelope(
-      @NonNull Emission<? extends Request> emission,
-      @NonNull StageEnvelope<InvestigateRequest> input,
+  public InvestigateRequest buildRequest(@NonNull InvestigateRequest request, @NonNull RequestHeader header) {
+    return new InvestigateRequest(header, request.target());
+  }
+
+  @Override
+  public <Emit extends Request> Letter<Emit> buildEnvelope(
+      @NonNull Emission<Emit> emission,
+      @NonNull Letter<InvestigateRequest> input,
       @NonNull InvestigateContext context,
-      @NonNull PolicyDecision<InvestigateState> decision,
       @NonNull InvestigateDocument document) {
-    Instant emittedAt = Instant.now();
-    return switch (emission.forwardRef()) {
-      case INGEST -> {
-        if (!(emission.request() instanceof IngestRequest request)) {
-          throw unsupportedEmission(emission);
-        }
-        RequestHeader nextHeader = RequestHeader.next(
-            document.requestHeader(),
-            IngestRequest.SCHEMA_VERSION,
-            emittedAt);
-        IngestRequest routed = new IngestRequest(nextHeader, request.target(), request.provenance(),
-            request.priority());
-        yield StageEnvelope.of(
-            ProcessingStage.INGEST,
-            document.documentHeader().documentId().toString(),
-            (Emit) routed);
-      }
-      case ANNOTATE -> {
-        if (!(emission.request() instanceof AnnotateRequest request)) {
-          throw unsupportedEmission(emission);
-        }
-        RequestHeader nextHeader = RequestHeader.next(
-            document.requestHeader(),
-            InvestigateRequest.SCHEMA_VERSION,
-            emittedAt);
-        AnnotateRequest routed = new AnnotateRequest(nextHeader, request.target(), request.classification());
-        yield StageEnvelope.of(
-            ProcessingStage.INVESTIGATE,
-            document.documentHeader().documentId().toString(),
-            (Emit) routed);
-      }
-      default -> throw unsupportedEmission(emission);
+    Emit request = emission.request();
+    return new Letter<>(
+        request.targetId(),
+        request.reviewId(),
+        emission.executionRef(),
+        request,
+        Instant.now());
+  }
+
+  @Override
+  public Collection<Letter<? extends Request>> buildEmissions(
+      @NonNull Letter<InvestigateRequest> input,
+      @NonNull InvestigateContext context,
+      @NonNull java.util.Set<Emission<? extends Request>> emissions,
+      @NonNull InvestigateDocument document) {
+    return PipelineArchetype.super.buildEmissions(input, context, emissions, document);
+  }
+
+  private static StageOutcome outcome(PolicyDecision<?> decision) {
+    return switch (decision) {
+      case PolicyDecision.Next<?> ignored -> StageOutcome.NEXT;
+      case PolicyDecision.Drop<?> ignored -> StageOutcome.DROP;
+      case PolicyDecision.Retry<?> ignored -> StageOutcome.RETRY;
+      case PolicyDecision.Error<?> ignored -> StageOutcome.ERROR;
     };
   }
 
-  @Override
-  protected InvestigateRequest buildRequest(InvestigateRequest request, RequestHeader nextHeader) {
-    return new InvestigateRequest(nextHeader, request.target());
+  private static Classification.Collected emptyClassification() {
+    return new Classification.Collected(java.util.Map.of(), 0D, java.util.Set.of());
   }
 }

@@ -18,6 +18,7 @@ public record InvestigateDocument(
     Set<UUID> discoveredEdges
 
 ) implements Document<InvestigateDocument> {
+  public static final long SCHEMA_VERSION = 1L;
 
   @Override
   public InvestigateDocument withDocumentHeader(DocumentHeader header) {

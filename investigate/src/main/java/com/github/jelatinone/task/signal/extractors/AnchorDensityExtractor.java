@@ -6,9 +6,8 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
 import com.github.jelatinone.acquisition.AcquiredContent;
-import com.github.jelatinone.models.content.ContentKind;
-import com.github.jelatinone.models.content.ContentMediaType;
-import com.github.jelatinone.models.investigate.ClassificationStub;
+import com.github.jelatinone.model.investigate.Classification;
+import com.github.jelatinone.model.content.MediaType;
 import com.github.jelatinone.task.signal.SignalExtractor;
 import com.github.jelatinone.task.signal.SignalIdentity;
 import com.github.jelatinone.task.signal.SignalPattern;
@@ -34,7 +33,7 @@ public final class AnchorDensityExtractor implements SignalExtractor {
 	}
 
 	@Override
-	public double cost(@NonNull AcquiredContent acquisition, @NonNull ClassificationStub stub,
+	public double cost(@NonNull AcquiredContent acquisition, @NonNull Classification.Collected stub,
 			@NonNull SignalPattern pattern) {
 		return SignalExtractor.contentCost(acquisition, pattern);
 	}
@@ -58,6 +57,6 @@ public final class AnchorDensityExtractor implements SignalExtractor {
 	}
 
 	public static boolean isHTMLCapable(@NonNull AcquiredContent acquisition) {
-		return acquisition.contentKind() == ContentKind.HTML || acquisition.mediaType() == ContentMediaType.TEXT_HTML;
+		return acquisition.mediaType() == MediaType.TEXT_HTML;
 	}
 }

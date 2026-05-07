@@ -2,17 +2,19 @@ package com.github.jelatinone.task;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.github.jelatinone.model.investigate.Category;
+import com.github.jelatinone.model.investigate.Classification;
+import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.model.transit.Emission;
-import com.github.jelatinone.models.investigate.ClassificationStub;
-import com.github.jelatinone.models.shared.Request;
 
 public record InvestigateState(
     Instant reviewedAt,
-    ClassificationStub classification,
+    Classification.Collected classification,
     double confidence,
     int discoveredTargetCount,
     boolean classificationResolved,
@@ -22,7 +24,7 @@ public record InvestigateState(
   public static InvestigateState initial(Instant reviewedAt) {
     return new InvestigateState(
         reviewedAt,
-        new ClassificationStub(Map.of(), 0D, Set.of()),
+        new Classification.Collected(Map.of(), 0D, Set.copyOf(EnumSet.allOf(Category.class))),
         0D,
         0,
         false,
@@ -30,7 +32,7 @@ public record InvestigateState(
         List.of());
   }
 
-  public InvestigateState withClassification(ClassificationStub nextClassification, double nextConfidence,
+  public InvestigateState withClassification(Classification.Collected nextClassification, double nextConfidence,
       boolean reused) {
     return new InvestigateState(
         reviewedAt,

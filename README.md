@@ -53,10 +53,9 @@ Today, this repository contains the core backend foundation:
 | ------------- | -------------------------------------------------------------------------------- |
 | `common`      | Shared models, pipeline framework, policy engine, and acquisition logic          |
 | `infra`       | AWS-backed infrastructure implementations, queues, stores, and serializers       |
-| `ingest`      | Early-stage admission, canonicalization, dedupe, depth-budget, and routing       |
 | `investigate` | Progressive source classification using signal extraction and staged acquisition |
 
-Planned modules still exist in the project vision, and have some related implementation (see `infra`, `common.models`), even if they are not yet checked into this repository in full:
+Planned modules still exist in the project vision, and have some related implementation (see `infra`, `common.model`), even if they are not yet checked into this repository in full:
 
 | Planned Stage | Purpose                                                              |
 | ------------- | -------------------------------------------------------------------- |
@@ -79,7 +78,6 @@ Logically, the pipeline looks like this:
 
 | Stage       | Purpose                                                                      |
 | ----------- | ---------------------------------------------------------------------------- |
-| Ingest      | Data deduplication, canonicalization, idempotency, and admission correctness |
 | Investigate | Lightweight source classification and elimination round                      |
 | Annotation  | Full content extraction and complete scholarship interpretation              |
 | Publish     | Record updates, merge logic, and normalized output publication               |
@@ -93,7 +91,6 @@ Current repository status:
 | ------------- | ------ |
 | `common`      | 🛠️     |
 | `infra`       | ✅     |
-| `ingest`      | ✅     |
 | `investigate` | ✅     |
 | `annotate`    | 🛠️     |
 | `publish`     | ❌     |
@@ -116,14 +113,6 @@ Notable existing capabilities by module:
 - Queue abstractions and concrete SQS adapters
 - Dynamo and S3-backed store implementations
 - Jackson serializers for queue and persistence payloads
-
-### `ingest`
-
-- Canonical target admission
-- Deduplication and reschedule timeout handling
-- Depth-budget enforcement
-- Provenance-aware ingest decisions
-- Transactional persistence coordination with target records
 
 ### `investigate`
 

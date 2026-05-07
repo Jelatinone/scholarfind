@@ -3,7 +3,7 @@ package com.github.jelatinone.task.signal.extractors;
 import java.util.Optional;
 
 import com.github.jelatinone.acquisition.AcquiredContent;
-import com.github.jelatinone.models.investigate.ClassificationStub;
+import com.github.jelatinone.model.investigate.Classification;
 import com.github.jelatinone.task.signal.SignalExtractor;
 import com.github.jelatinone.task.signal.SignalIdentity;
 import com.github.jelatinone.task.signal.SignalPattern;
@@ -30,7 +30,7 @@ public final class StatusCodeExtractor implements SignalExtractor {
   }
 
   @Override
-  public double cost(@NonNull AcquiredContent context, @NonNull ClassificationStub stub,
+  public double cost(@NonNull AcquiredContent context, @NonNull Classification.Collected stub,
       @NonNull SignalPattern pattern) {
     return SignalExtractor.metadataCost(context, pattern);
   }
