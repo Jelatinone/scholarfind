@@ -5,6 +5,8 @@ public record MediaMetadata(
 		Integer redirectCount,
 		Integer cookieCount,
 
+		String contentHeader,
+
 		Long contentLength) {
 
 }

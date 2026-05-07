@@ -5,7 +5,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.UUID;
 
 import com.github.jelatinone.model.graph.TargetNode;
@@ -13,6 +15,14 @@ import com.github.jelatinone.model.graph.TargetNode;
 public final class Canonical {
 
 	private Canonical() {
+	}
+
+	public static String hash(byte[] bytes) {
+		try {
+			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+		} catch (Exception exception) {
+			throw new IllegalStateException(exception);
+		}
 	}
 
 	public static URL canonicalizeURL(String value) {

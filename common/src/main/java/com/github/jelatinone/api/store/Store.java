@@ -2,9 +2,9 @@ package com.github.jelatinone.api.store;
 
 public interface Store<Body, Key> extends AutoCloseable {
 
-  Key put(Body body);
+	void put(Key key, Body body);
 
-  Body get(Key key);
+	Body get(Key key);
 
-  void delete(Key key);
+	void delete(Key key);
 }

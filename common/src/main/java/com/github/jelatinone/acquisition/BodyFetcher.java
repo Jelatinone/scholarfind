@@ -6,5 +6,5 @@ import lombok.NonNull;
 
 public interface BodyFetcher {
 
-  FetchedBody fetch(@NonNull URL url);
+	FetchedBody fetchBody(@NonNull URL canonicalUrl);
 }

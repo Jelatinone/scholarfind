@@ -6,5 +6,5 @@ import lombok.NonNull;
 
 public interface MetadataFetcher {
 
-  FetchedMetadata fetch(@NonNull URL url);
+	FetchedMetadata fetchMetadata(@NonNull URL canonicalUrl);
 }
