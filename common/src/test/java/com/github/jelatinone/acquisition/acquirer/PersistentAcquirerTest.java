@@ -15,7 +15,7 @@ import com.github.jelatinone.acquisition.FetchedMetadata;
 import com.github.jelatinone.acquisition.Interpreter;
 import com.github.jelatinone.acquisition.interpreter.TextInterpreter;
 import com.github.jelatinone.fixtures.Tests;
-import com.github.jelatinone.infra.mock.MockStore;
+import com.github.jelatinone.mock.MockStore;
 import com.github.jelatinone.model.content.Capture;
 import com.github.jelatinone.model.content.MediaEncoding;
 import com.github.jelatinone.model.content.MediaType;

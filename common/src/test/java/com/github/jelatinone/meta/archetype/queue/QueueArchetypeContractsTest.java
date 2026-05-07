@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.jelatinone.api.Acknowledgement;
 import com.github.jelatinone.api.Envelope;
-import com.github.jelatinone.infra.mock.MockQueue;
+import com.github.jelatinone.mock.MockQueue;
 import com.github.jelatinone.meta.result.CollectionResult;
 import com.github.jelatinone.meta.result.PostResult;
 import com.github.jelatinone.meta.transitory.Directive;

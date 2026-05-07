@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.github.jelatinone.api.store.Store;
-import com.github.jelatinone.infra.mock.MockStore;
+import com.github.jelatinone.mock.MockStore;
 import com.github.jelatinone.meta.construct.Infrastructure;
 import com.github.jelatinone.meta.construct.Router;
 import com.github.jelatinone.meta.result.CollectionResult;
