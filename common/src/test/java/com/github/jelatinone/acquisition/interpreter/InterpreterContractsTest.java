@@ -16,7 +16,7 @@ import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.Test;
 
 import com.github.jelatinone.acquisition.Projection;
-import com.github.jelatinone.fixtures.Tests;
+import com.github.jelatinone.fixtures.AcquisitionTestFixtures;
 import com.github.jelatinone.model.content.MediaEncoding;
 import com.github.jelatinone.model.content.MediaType;
 
@@ -25,11 +25,11 @@ class InterpreterContractsTest {
 	@Test
 	void textInterpreter_supportsConfiguredTextTypes_andBuildsPreview() {
 		TextInterpreter interpreter = new TextInterpreter();
-		var acquisition = Tests.acquisition(
+		var acquisition = AcquisitionTestFixtures.acquisition(
 				"  hello world  ".getBytes(),
 				MediaType.TEXT_PLAIN,
 				MediaEncoding.UTF_8,
-				Tests.mediaMetadata("text/plain", 15));
+				AcquisitionTestFixtures.mediaMetadata("text/plain", 15));
 
 		assertTrue(interpreter.supports(MediaType.TEXT_PLAIN));
 		assertFalse(interpreter.supports(MediaType.APPLICATION_PDF));
@@ -41,11 +41,11 @@ class InterpreterContractsTest {
 	@Test
 	void htmlInterpreter_parsesDocumentAndText() {
 		HtmlInterpreter interpreter = new HtmlInterpreter();
-		var acquisition = Tests.acquisition(
+		var acquisition = AcquisitionTestFixtures.acquisition(
 				"<html><body><h1>Hello</h1><p>World</p></body></html>".getBytes(),
 				MediaType.TEXT_HTML,
 				MediaEncoding.UTF_8,
-				Tests.mediaMetadata("text/html", 52));
+				AcquisitionTestFixtures.mediaMetadata("text/html", 52));
 
 		Projection.Interpreted<org.jsoup.nodes.Document> interpreted = interpreter.interpret(acquisition);
 
@@ -59,11 +59,11 @@ class InterpreterContractsTest {
 	void pdfInterpreter_extractsTextWithoutLeakingClosedDocumentState() throws Exception {
 		PdfInterpreter interpreter = new PdfInterpreter();
 		byte[] pdfBytes = createPdf("Hello PDF");
-		var acquisition = Tests.acquisition(
+		var acquisition = AcquisitionTestFixtures.acquisition(
 				pdfBytes,
 				MediaType.APPLICATION_PDF,
 				MediaEncoding.UTF_8,
-				Tests.mediaMetadata("application/pdf", pdfBytes.length));
+				AcquisitionTestFixtures.mediaMetadata("application/pdf", pdfBytes.length));
 
 		assertTrue(interpreter.supports(MediaType.APPLICATION_PDF));
 		assertFalse(interpreter.supports(MediaType.TEXT_HTML));

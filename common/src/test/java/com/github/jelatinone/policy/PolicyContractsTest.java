@@ -10,7 +10,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.jelatinone.fixtures.Tests;
+import com.github.jelatinone.fixtures.StructTestFixtures;
 import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.investigate.InvestigateDocument;
 import com.github.jelatinone.policy.base.AttemptsPolicy;
@@ -29,7 +29,8 @@ class PolicyContractsTest {
 						new PolicyDecision.Drop<>(state + 1, PolicyReason.REQUEST_REJECTED, "stopped"))));
 
 		PolicyDecision<Integer> decision = pipeline
-				.process(new SimpleContext(Tests.document(0, ExecutionStage.INVESTIGATE), Tests.NOW), 1);
+				.process(new SimpleContext(StructTestFixtures.document(0, ExecutionStage.INVESTIGATE), StructTestFixtures.NOW),
+						1);
 
 		PolicyDecision.Drop<Integer> drop = assertInstanceOf(PolicyDecision.Drop.class, decision);
 		assertEquals(3, drop.state());
@@ -44,7 +45,8 @@ class PolicyContractsTest {
 				(context, state) -> new PolicyStep.Continue<>(state + 3)));
 
 		PolicyDecision<Integer> decision = pipeline
-				.process(new SimpleContext(Tests.document(0, ExecutionStage.INVESTIGATE), Tests.NOW), 1);
+				.process(new SimpleContext(StructTestFixtures.document(0, ExecutionStage.INVESTIGATE),
+						StructTestFixtures.NOW), 1);
 
 		PolicyDecision.Next<Integer> next = assertInstanceOf(PolicyDecision.Next.class, decision);
 		assertEquals(6, next.state());
@@ -53,13 +55,14 @@ class PolicyContractsTest {
 
 	@Test
 	void basePolicies_validateSchemasAttemptsAndExpiration() {
-		InvestigateDocument document = Tests.document(0, ExecutionStage.INVESTIGATE);
-		SimpleContext context = new SimpleContext(document, Tests.NOW);
+		InvestigateDocument document = StructTestFixtures.document(0, ExecutionStage.INVESTIGATE);
+		SimpleContext context = new SimpleContext(document, StructTestFixtures.NOW);
 
 		PolicyStep<Integer> continueStep = new DocumentSchemaPolicy<InvestigateDocument, SimpleContext, Integer>(1L)
 				.apply(context, 7);
 		PolicyStep<Integer> attemptsDrop = new AttemptsPolicy<InvestigateDocument, SimpleContext, Integer>(2)
-				.apply(new SimpleContext(Tests.document(2, ExecutionStage.INVESTIGATE), Tests.NOW), 7);
+				.apply(new SimpleContext(StructTestFixtures.document(2, ExecutionStage.INVESTIGATE),
+						StructTestFixtures.NOW), 7);
 		var staleHeader = new com.github.jelatinone.model.struct.DocumentHeader(
 				document.documentHeader().schemaVersion(),
 				document.documentHeader().targetId(),
@@ -68,9 +71,9 @@ class PolicyContractsTest {
 				Instant.parse("2026-05-01T00:00:00Z"));
 		PolicyStep<Integer> expiredDrop = new ExpirationPolicy<InvestigateDocument, SimpleContext, Integer>(1)
 				.apply(new SimpleContext(
-						Tests.document(0, ExecutionStage.INVESTIGATE)
+						StructTestFixtures.document(0, ExecutionStage.INVESTIGATE)
 								.withDocumentHeader(staleHeader),
-						Tests.NOW), 7);
+						StructTestFixtures.NOW), 7);
 
 		assertInstanceOf(PolicyStep.Continue.class, continueStep);
 		assertEquals(PolicyReason.ATTEMPTS_EXCEEDED,
@@ -84,7 +87,7 @@ class PolicyContractsTest {
 	@SuppressWarnings("unchecked")
 	@Test
 	void requestSchemaPolicy_rejectsMismatchedEnvelopeFields() {
-		InvestigateDocument document = Tests.document(0, ExecutionStage.INVESTIGATE);
+		InvestigateDocument document = StructTestFixtures.document(0, ExecutionStage.INVESTIGATE);
 		RequestSchemaPolicy<InvestigateDocument, SimpleRequestContext, Integer> policy = new RequestSchemaPolicy<>(
 				document.requestHeader().schemaVersion(),
 				ExecutionStage.INVESTIGATE,
@@ -92,14 +95,14 @@ class PolicyContractsTest {
 
 		PolicyStep<Integer> continueStep = policy.apply(new SimpleRequestContext(
 				document,
-				Tests.NOW,
+				StructTestFixtures.NOW,
 				1L,
 				ExecutionStage.INVESTIGATE,
 				document.targetId(),
 				document.reviewId()), 1);
 		PolicyStep<Integer> mismatchStep = policy.apply(new SimpleRequestContext(
 				document,
-				Tests.NOW,
+				StructTestFixtures.NOW,
 				99L,
 				ExecutionStage.INVESTIGATE,
 				document.targetId(),

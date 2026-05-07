@@ -10,7 +10,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.jelatinone.fixtures.Tests;
+import com.github.jelatinone.fixtures.StructTestFixtures;
 import com.github.jelatinone.meta.archetype.policy.PolicyResult;
 import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.investigate.InvestigateDocument;
@@ -25,15 +25,15 @@ class PipelineArchetypeContractsTest {
 	@Test
 	void processPipeline_persistsDocument_andBuildsEmissions() {
 		TestPipelineArchetype archetype = new TestPipelineArchetype();
-		InvestigateDocument document = Tests.document(0, ExecutionStage.INVESTIGATE);
-		InvestigateRequest request = Tests.request(0, ExecutionStage.INVESTIGATE);
+		InvestigateDocument document = StructTestFixtures.document(0, ExecutionStage.INVESTIGATE);
+		InvestigateRequest request = StructTestFixtures.request(0, ExecutionStage.INVESTIGATE);
 		Emission<InvestigateRequest> emission = new Emission<>(request, java.time.Duration.ZERO, ExecutionStage.ANNOTATE);
 		PolicyResult<Letter<InvestigateRequest>, String, Integer> policy = new PolicyResult<>(
-				Tests.letter(0, ExecutionStage.INVESTIGATE),
+				StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE),
 				"context",
 				new PolicyDecision.Next<>(7, null, null, java.util.Set.of(emission)),
-				Tests.NOW,
-				Tests.NOW);
+				StructTestFixtures.NOW,
+				StructTestFixtures.NOW);
 		archetype.persistedDocument = document;
 
 		PipelineResult<InvestigateDocument, InvestigateRequest> result = archetype.processPipeline(policy);
@@ -48,12 +48,12 @@ class PipelineArchetypeContractsTest {
 	void retryEnvelope_incrementsAttempt_andErrorEnvelope_returnsOriginalInput() {
 		TestPipelineArchetype archetype = new TestPipelineArchetype();
 		PipelineResult<InvestigateDocument, InvestigateRequest> output = new PipelineResult<>(
-				Tests.letter(1, ExecutionStage.INVESTIGATE),
-				Tests.document(1, ExecutionStage.INVESTIGATE),
+				StructTestFixtures.letter(1, ExecutionStage.INVESTIGATE),
+				StructTestFixtures.document(1, ExecutionStage.INVESTIGATE),
 				new PolicyDecision.Next<>(1),
 				List.of(),
-				Tests.NOW,
-				Tests.NOW);
+				StructTestFixtures.NOW,
+				StructTestFixtures.NOW);
 
 		Letter<InvestigateRequest> retry = archetype.retryEnvelope(output);
 
@@ -102,7 +102,8 @@ class PipelineArchetypeContractsTest {
 				String context,
 				InvestigateDocument document) {
 			Emit request = emission.request();
-			return new Letter<>(request.targetId(), request.reviewId(), emission.executionRef(), request, Tests.NOW);
+			return new Letter<>(request.targetId(), request.reviewId(), emission.executionRef(), request,
+					StructTestFixtures.NOW);
 		}
 
 		@Override

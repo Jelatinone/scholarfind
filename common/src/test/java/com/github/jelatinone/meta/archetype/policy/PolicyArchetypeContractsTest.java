@@ -9,7 +9,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.jelatinone.fixtures.Tests;
+import com.github.jelatinone.fixtures.StructTestFixtures;
 import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
 import com.github.jelatinone.policy.PolicyDecision;
@@ -22,7 +22,7 @@ class PolicyArchetypeContractsTest {
 		TestPolicyArchetype archetype = new TestPolicyArchetype();
 
 		PolicyResult<com.github.jelatinone.model.transit.Letter<InvestigateRequest>, String, Integer> result = archetype
-				.processPolicy(Tests.letter(0, ExecutionStage.INVESTIGATE));
+				.processPolicy(StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE));
 
 		assertEquals("INVESTIGATE", result.context());
 		assertEquals(12, assertInstanceOf(PolicyDecision.Next.class, result.decision()).state());
@@ -60,13 +60,15 @@ class PolicyArchetypeContractsTest {
 					}
 				});
 
-		var result = operation.operate(Tests.letter(0, ExecutionStage.INVESTIGATE));
+		var result = operation.operate(StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE));
 
 		assertInstanceOf(com.github.jelatinone.meta.result.PostResult.Success.class, persist.post(result));
 		assertEquals(List.of("next"), callbacks);
 		assertEquals(PolicyReason.OPERATION_EXCEPTION,
 				assertInstanceOf(PolicyDecision.Error.class,
-						archetype.recoverPolicy(Tests.letter(0, ExecutionStage.INVESTIGATE), new IllegalStateException("boom"))
+						archetype
+								.recoverPolicy(StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE),
+										new IllegalStateException("boom"))
 								.decision())
 						.reason());
 	}

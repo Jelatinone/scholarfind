@@ -16,7 +16,9 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.jelatinone.fixtures.Tests;
+import com.github.jelatinone.fixtures.AcquisitionTestFixtures;
+import com.github.jelatinone.fixtures.CanonicalTestFixtures;
+import com.github.jelatinone.fixtures.StructTestFixtures;
 import com.github.jelatinone.meta.transitory.Directive;
 import com.github.jelatinone.model.archive.ArchiveHeader;
 import com.github.jelatinone.model.archive.ArchiveState;
@@ -72,13 +74,13 @@ class ModelContractsTest {
 
 	@Test
 	void graphRecords_defaultSchemaVersionsAndPayloads() {
-		Instant now = Tests.NOW;
+		Instant now = StructTestFixtures.NOW;
 		UUID edgeId = UUID.randomUUID();
 		UUID entityId = UUID.randomUUID();
-		UUID targetId = Tests.TARGET_ID;
-		UUID reviewId = Tests.REVIEW_ID;
+		UUID targetId = StructTestFixtures.TARGET_ID;
+		UUID reviewId = StructTestFixtures.REVIEW_ID;
 
-		TargetNode node = new TargetNode(targetId, Tests.url("https://example.com"), now);
+		TargetNode node = new TargetNode(targetId, CanonicalTestFixtures.url("https://example.com"), now);
 		TargetReview review = new TargetReview(reviewId, targetId, new TargetCause.Origin("seed"), now);
 		TargetEdge edge = new TargetEdge(edgeId, reviewId, UUID.randomUUID(), targetId, now);
 		EntityNode entity = new EntityNode(entityId, reviewId, now);
@@ -94,20 +96,21 @@ class ModelContractsTest {
 
 	@Test
 	void structTransitAndInvestigateModels_updateHeaders() {
-		RequestHeader requestHeader = Tests.requestHeader(1, ExecutionStage.INVESTIGATE);
-		DocumentHeader documentHeader = Tests.documentHeader(ExecutionStage.INVESTIGATE);
-		InvestigateRequest request = new InvestigateRequest(requestHeader, Tests.TARGET_ID, Tests.REVIEW_ID);
-		InvestigateDocument document = Tests.document(1, ExecutionStage.INVESTIGATE);
+		RequestHeader requestHeader = StructTestFixtures.requestHeader(1, ExecutionStage.INVESTIGATE);
+		DocumentHeader documentHeader = StructTestFixtures.documentHeader(ExecutionStage.INVESTIGATE);
+		InvestigateRequest request = new InvestigateRequest(requestHeader, StructTestFixtures.TARGET_ID,
+				StructTestFixtures.REVIEW_ID);
+		InvestigateDocument document = StructTestFixtures.document(1, ExecutionStage.INVESTIGATE);
 		Letter<InvestigateRequest> letter = new Letter<>(
 				request.targetId(),
 				request.reviewId(),
 				ExecutionStage.INVESTIGATE,
 				request,
-				Tests.NOW);
+				StructTestFixtures.NOW);
 		Emission<InvestigateRequest> emission = new Emission<>(request, Duration.ofSeconds(5), ExecutionStage.ANNOTATE);
 
-		assertEquals(2, RequestHeader.retry(requestHeader, Tests.NOW).attempt());
-		assertEquals(0, RequestHeader.next(requestHeader, Tests.NOW, 99L).attempt());
+		assertEquals(2, RequestHeader.retry(requestHeader, StructTestFixtures.NOW).attempt());
+		assertEquals(0, RequestHeader.next(requestHeader, StructTestFixtures.NOW, 99L).attempt());
 		assertEquals(documentHeader, document.documentHeader());
 		assertEquals(requestHeader, request.requestHeader());
 		assertEquals(documentHeader, document.withDocumentHeader(documentHeader).documentHeader());
@@ -119,22 +122,22 @@ class ModelContractsTest {
 	@Test
 	void auditRecords_bindDomainDirective_andReasons() {
 		AttemptTransition transition = new AttemptTransition(StageOutcome.RETRY, PolicyReason.OPERATION_EXCEPTION,
-				Tests.NOW);
+				StructTestFixtures.NOW);
 		ExecutionEvent executionEvent = new ExecutionEvent(
-				Tests.TARGET_ID,
+				StructTestFixtures.TARGET_ID,
 				ExecutionStage.INVESTIGATE,
 				Set.of(transition),
 				StageOutcome.NEXT,
-				Tests.NOW,
-				Tests.NOW);
+				StructTestFixtures.NOW,
+				StructTestFixtures.NOW);
 		AttemptEvent attemptEvent = new AttemptEvent(
 				UUID.randomUUID(),
-				Tests.REVIEW_ID,
-				Tests.TARGET_ID,
+				StructTestFixtures.REVIEW_ID,
+				StructTestFixtures.TARGET_ID,
 				Set.of(PolicyReason.REQUEST_REJECTED),
 				Directive.ERROR,
-				Tests.NOW,
-				Tests.NOW);
+				StructTestFixtures.NOW,
+				StructTestFixtures.NOW);
 
 		assertEquals("REQUEST_REJECTED", PolicyReason.REQUEST_REJECTED.reason());
 		assertEquals(Directive.ERROR, attemptEvent.disposition());
@@ -145,10 +148,10 @@ class ModelContractsTest {
 	void archiveAndScholarshipModels_preserveHeaders() {
 		ArchiveHeader header = new ArchiveHeader(
 				UUID.randomUUID(),
-				Tests.REVIEW_ID,
+				StructTestFixtures.REVIEW_ID,
 				ArchiveState.ACTIVE,
 				ExecutionStage.PUBLISH,
-				Tests.NOW);
+				StructTestFixtures.NOW);
 		ScholarshipArchive archive = new ScholarshipArchive(
 				header,
 				Set.of(new Description<>(DescriptionKind.SCHOLARSHIP_NAME, "Hope Scholarship")),
@@ -177,8 +180,9 @@ class ModelContractsTest {
 				Set.of(Category.ARCHIVE),
 				Category.ARCHIVE,
 				true);
-		Capture capture = new Capture(Tests.TARGET_ID, Tests.REVIEW_ID, "body".getBytes(), Tests.NOW);
-		MediaMetadata mediaMetadata = Tests.mediaMetadata("text/plain", 4);
+		Capture capture = new Capture(StructTestFixtures.TARGET_ID,
+				StructTestFixtures.REVIEW_ID, "body".getBytes(), StructTestFixtures.NOW);
+		MediaMetadata mediaMetadata = AcquisitionTestFixtures.mediaMetadata("text/plain", 4);
 
 		assertEquals("OpenAI", description.description());
 		assertEquals(Activity.STEM, requirement.requirement());
@@ -190,7 +194,7 @@ class ModelContractsTest {
 		assertFalse(DescriptionKind.APPLICATION_WINDOW.accepts(Education.GRADUATE));
 		assertEquals(Category.ARCHIVE, classification.mostPragmaticCategory());
 		assertEquals(4L, mediaMetadata.contentLength());
-		assertEquals(Tests.TARGET_ID, capture.targetId());
+		assertEquals(StructTestFixtures.TARGET_ID, capture.targetId());
 
 		assertThrows(IllegalArgumentException.class,
 				() -> new Description<>(DescriptionKind.CANONICAL_URL, "not-a-url"));

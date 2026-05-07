@@ -6,7 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.jelatinone.fixtures.Tests;
+import com.github.jelatinone.fixtures.AcquisitionTestFixtures;
+import com.github.jelatinone.fixtures.CanonicalTestFixtures;
+import com.github.jelatinone.fixtures.StructTestFixtures;
 import com.github.jelatinone.model.content.MediaEncoding;
 import com.github.jelatinone.model.content.MediaType;
 
@@ -22,22 +24,22 @@ class AcquisitionContractsTest {
 	@Test
 	void acquisitions_preserveResolvedUrlAndAppendProjections() {
 		Acquisition.Initial initial = new Acquisition.Initial(
-				Tests.TARGET_ID,
-				Tests.REVIEW_ID,
-				Tests.url("https://example.com/start"));
+				StructTestFixtures.TARGET_ID,
+				StructTestFixtures.REVIEW_ID,
+				CanonicalTestFixtures.url("https://example.com/start"));
 		Acquisition.Metadata metadata = new Acquisition.Metadata(
-				Tests.TARGET_ID,
-				Tests.REVIEW_ID,
-				Tests.url("https://example.com/final"),
+				StructTestFixtures.TARGET_ID,
+				StructTestFixtures.REVIEW_ID,
+				CanonicalTestFixtures.url("https://example.com/final"),
 				MediaType.TEXT_HTML,
 				MediaEncoding.UTF_8,
-				Tests.mediaMetadata("text/html", 10),
-				Tests.NOW);
-		Acquisition.Interpreted interpreted = Tests.acquisition(
+				AcquisitionTestFixtures.mediaMetadata("text/html", 10),
+				StructTestFixtures.NOW);
+		Acquisition.Interpreted interpreted = AcquisitionTestFixtures.acquisition(
 				"<html>Hello</html>".getBytes(),
 				MediaType.TEXT_HTML,
 				MediaEncoding.UTF_8,
-				Tests.mediaMetadata("text/html", 18));
+				AcquisitionTestFixtures.mediaMetadata("text/html", 18));
 		Projection.Normalized projection = new Projection.Normalized(MediaType.TEXT_HTML, "Hello");
 
 		Acquisition.Interpreted withProjection = interpreted.withProjection(projection);
@@ -52,17 +54,17 @@ class AcquisitionContractsTest {
 	@Test
 	void fetchedRecords_retainResolvedContentFields() {
 		FetchedMetadata metadata = new FetchedMetadata(
-				Tests.url("https://example.com/final"),
+				CanonicalTestFixtures.url("https://example.com/final"),
 				MediaType.TEXT_PLAIN,
 				MediaEncoding.UTF_8,
-				Tests.mediaMetadata("text/plain", 5));
+				AcquisitionTestFixtures.mediaMetadata("text/plain", 5));
 		FetchedBody body = new FetchedBody(
-				Tests.url("https://example.com/final"),
+				CanonicalTestFixtures.url("https://example.com/final"),
 				"hello".getBytes(),
 				"hash",
 				MediaType.TEXT_PLAIN,
 				MediaEncoding.UTF_8,
-				Tests.mediaMetadata("text/plain", 5));
+				AcquisitionTestFixtures.mediaMetadata("text/plain", 5));
 
 		assertEquals(MediaType.TEXT_PLAIN, metadata.mediaType());
 		assertEquals("hash", body.sourceHash());

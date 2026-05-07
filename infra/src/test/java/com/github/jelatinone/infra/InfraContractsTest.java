@@ -11,7 +11,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import com.github.jelatinone.fixtures.Tests;
+import com.github.jelatinone.fixtures.StructTestFixtures;
 import com.github.jelatinone.infra.aws.queue.serial.JacksonSQSSerializer;
 import com.github.jelatinone.infra.aws.store.serial.JacksonDynamoSerializer;
 import com.github.jelatinone.infra.aws.store.serial.JacksonS3Serializer;
@@ -26,7 +26,7 @@ class InfraContractsTest {
 
 	@Test
 	void jacksonMapper_usesIsoDateSerialization() throws Exception {
-		String json = JacksonMapper.mapper.writeValueAsString(Map.of("at", Tests.NOW));
+		String json = JacksonMapper.mapper.writeValueAsString(Map.of("at", StructTestFixtures.NOW));
 
 		assertTrue(json.contains("2026-05-07T12:00:00Z"));
 	}
@@ -36,12 +36,13 @@ class InfraContractsTest {
 		List<Letter<InvestigateRequest>> routed = new ArrayList<>();
 		ExecutionRouter router = ExecutionRouter.of(
 				ExecutionRouter.bind(ExecutionStage.INVESTIGATE, InvestigateRequest.class, routed::add));
-		Letter<InvestigateRequest> envelope = Tests.letter(0, ExecutionStage.INVESTIGATE);
+		Letter<InvestigateRequest> envelope = StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE);
 
 		router.route(envelope);
 
 		assertEquals(List.of(envelope), routed);
-		assertThrows(IllegalStateException.class, () -> router.route(Tests.letter(0, ExecutionStage.ANNOTATE)));
+		assertThrows(IllegalStateException.class, () -> router.route(
+				StructTestFixtures.letter(0, ExecutionStage.ANNOTATE)));
 	}
 
 	@Test
@@ -49,21 +50,22 @@ class InfraContractsTest {
 		JacksonDynamoSerializer<InvestigateRequest, UUID> serializer = new JacksonDynamoSerializer<>(
 				InvestigateRequest.class,
 				UUID::toString);
-		InvestigateRequest request = Tests.request(2, ExecutionStage.INVESTIGATE);
+		InvestigateRequest request = StructTestFixtures.request(2, ExecutionStage.INVESTIGATE);
 
-		Map<String, AttributeValue> encoded = serializer.encodeItem(Tests.TARGET_ID, request);
+		Map<String, AttributeValue> encoded = serializer.encodeItem(StructTestFixtures.TARGET_ID, request);
 		InvestigateRequest decoded = serializer.decodeItem(encoded);
 
-		assertEquals(Tests.TARGET_ID.toString(), encoded.get("id").s());
+		assertEquals(StructTestFixtures.TARGET_ID.toString(), encoded.get("id").s());
 		assertEquals(request, decoded);
-		assertEquals(Tests.TARGET_ID.toString(), serializer.encodeKey(Tests.TARGET_ID).get("id").s());
+		assertEquals(StructTestFixtures.TARGET_ID.toString(), serializer.encodeKey(
+				StructTestFixtures.TARGET_ID).get("id").s());
 	}
 
 	@Test
 	void jacksonSqsSerializer_roundTripsLetters() throws Exception {
 		JacksonSQSSerializer<Letter<InvestigateRequest>> serializer = new JacksonSQSSerializer<>(
 				JacksonMapper.mapper.getTypeFactory().constructParametricType(Letter.class, InvestigateRequest.class));
-		Letter<InvestigateRequest> envelope = Tests.letter(1, ExecutionStage.INVESTIGATE);
+		Letter<InvestigateRequest> envelope = StructTestFixtures.letter(1, ExecutionStage.INVESTIGATE);
 
 		String encodedBody = serializer.encodeBody(envelope);
 		Letter<InvestigateRequest> decoded = serializer.decode(encodedBody, Map.of());
@@ -77,12 +79,12 @@ class InfraContractsTest {
 		JacksonS3Serializer<InvestigateRequest, UUID> serializer = new JacksonS3Serializer<>(
 				InvestigateRequest.class,
 				UUID::toString);
-		InvestigateRequest request = Tests.request(0, ExecutionStage.ANNOTATE);
+		InvestigateRequest request = StructTestFixtures.request(0, ExecutionStage.ANNOTATE);
 
-		var encoded = serializer.encode(Tests.TARGET_ID, request);
+		var encoded = serializer.encode(StructTestFixtures.TARGET_ID, request);
 		InvestigateRequest decoded = serializer
 				.decode(new com.github.jelatinone.infra.aws.store.serial.S3Serializer.StoredValue<>(
-						Tests.TARGET_ID,
+						StructTestFixtures.TARGET_ID,
 						encoded.body(),
 						encoded.contentType(),
 						encoded.contentEncoding(),
@@ -92,6 +94,6 @@ class InfraContractsTest {
 		assertEquals("utf-8", encoded.contentEncoding());
 		assertTrue(encoded.metadata().isEmpty());
 		assertEquals(request, decoded);
-		assertEquals(Tests.TARGET_ID.toString(), serializer.encodeKey(Tests.TARGET_ID));
+		assertEquals(StructTestFixtures.TARGET_ID.toString(), serializer.encodeKey(StructTestFixtures.TARGET_ID));
 	}
 }
