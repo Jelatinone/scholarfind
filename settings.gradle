@@ -3,9 +3,4 @@ rootProject.name = "scholarfind"
 include(
     'common',
     'infra',
-
-    'ingest',
-    'investigate',
-    'annotate'
-
     )
