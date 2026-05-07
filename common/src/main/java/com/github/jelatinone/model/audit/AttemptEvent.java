@@ -4,8 +4,7 @@ import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 
-import javax.lang.model.element.ModuleElement.Directive;
-
+import com.github.jelatinone.meta.transitory.Directive;
 import lombok.NonNull;
 
 public record AttemptEvent(

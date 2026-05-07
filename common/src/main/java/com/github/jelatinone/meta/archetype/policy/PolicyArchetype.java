@@ -21,11 +21,19 @@ import lombok.NonNull;
  */
 public interface PolicyArchetype<In extends Request, Context, State> {
 
-	PolicyDecision<State> pipeline(Context context, State state);
-
 	State buildState(@NonNull Context context);
 
 	Context buildContext(@NonNull Letter<In> input, @NonNull Instant initializedAt);
+
+	PolicyDecision<State> pipeline(Context context, State state);
+
+	default PolicyDecision<State> pipelineRecoverable(@NonNull Letter<In> input, Throwable throwable) {
+		return new PolicyDecision.Error<State>(
+				null,
+				PolicyReason.OPERATION_EXCEPTION,
+				throwable.getMessage(),
+				throwable);
+	}
 
 	default PolicyResult<Letter<In>, Context, State> processPolicy(@NonNull Letter<In> input) {
 		Instant initializedAt = Instant.now();
@@ -46,13 +54,5 @@ public interface PolicyArchetype<In extends Request, Context, State> {
 		Instant occurredAt = Instant.now();
 
 		return new PolicyResult<>(input, null, decision, initializedAt, occurredAt);
-	}
-
-	default PolicyDecision<State> pipelineRecoverable(@NonNull Letter<In> input, Throwable throwable) {
-		return new PolicyDecision.Retry<State>(
-				null,
-				PolicyReason.OPERATION_EXCEPTION,
-				throwable.getMessage(),
-				throwable);
 	}
 }

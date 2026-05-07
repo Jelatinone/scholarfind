@@ -3,40 +3,48 @@ package com.github.jelatinone.utility.scheduler;
 import java.util.concurrent.ThreadLocalRandom;
 
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 
-@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public final class LinearBackoffScheduler implements BackoffScheduler {
 
-	Long _baseBackoff;
-	Long _maxBackoff;
+	long _baseBackoff;
+	long _maxBackoff;
 
-	Long _factor;
+	long _factor;
 
 	@NonFinal
-	Long currentBackoff;
+	Long currentBackoff = 0L;
 	@NonFinal
-	Integer attempts;
+	Integer attempts = 0;
+
+	public LinearBackoffScheduler(long baseBackoff, long maxBackoff, long factor) {
+		this._baseBackoff = baseBackoff;
+		this._maxBackoff = maxBackoff;
+		this._factor = factor;
+		this.currentBackoff = baseBackoff;
+	}
 
 	@Override
 	public synchronized long compute() {
-		long next = currentBackoff = Math.min(_maxBackoff, _baseBackoff + attempts * _factor);
+		int nextAttempt = attempts;
+		long next = currentBackoff = Math.min(_maxBackoff, _baseBackoff + (long) nextAttempt * _factor);
 		long jitter = ThreadLocalRandom.current()
 				.nextLong(_baseBackoff, next + 1);
 		currentBackoff = jitter;
+		attempts = nextAttempt + 1;
 
 		return currentBackoff;
 	}
 
 	@Override
 	public synchronized long compute(int step) {
-		long next = currentBackoff = Math.min(_maxBackoff, _baseBackoff + (attempts = step) * _factor);
-		long jitter = ThreadLocalRandom.current()
-				.nextLong(_baseBackoff, next + 1);
+		int nextAttempt = Math.max(0, step);
+		long next = currentBackoff = Math.min(_maxBackoff, _baseBackoff + (long) nextAttempt * _factor);
+		long jitter = ThreadLocalRandom.current().nextLong(_baseBackoff, next + 1);
 		currentBackoff = jitter;
+		attempts = nextAttempt + 1;
 
 		return currentBackoff;
 	}
@@ -45,6 +53,7 @@ public final class LinearBackoffScheduler implements BackoffScheduler {
 	public synchronized long reset() {
 		long previousBackoff = currentBackoff;
 		currentBackoff = _baseBackoff;
+		attempts = 0;
 
 		return previousBackoff;
 	}

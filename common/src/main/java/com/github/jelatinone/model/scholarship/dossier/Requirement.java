@@ -15,7 +15,7 @@ public record Requirement<Requires>(
 			throw new IllegalArgumentException(
 					String.format(("Requirement of kind %s cannot be bounded by value %s."),
 							requirementKind,
-							requirement().getClass().getSimpleName()));
+							requirement.getClass().getSimpleName()));
 		}
 	}
 }

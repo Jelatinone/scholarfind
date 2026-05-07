@@ -100,6 +100,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces>
 
     _operands = ConcurrentHashMap.newKeySet(_taskConfig.collectionSize);
     _results = ConcurrentHashMap.newKeySet(_taskConfig.collectionSize);
+    _state.set(State.CREATED);
   }
 
   /**
@@ -112,7 +113,6 @@ public non-sealed abstract class ParallelTask<Consumes, Produces>
    *                              currently active threads.
    */
   private CompletableFuture<Void> dispatch(final @NonNull Consumes element) throws InterruptedException {
-    _threads.acquire();
     CompletableFuture<Void> product = CompletableFuture
         .supplyAsync(() -> {
           _operands.add(element);
@@ -237,12 +237,12 @@ public non-sealed abstract class ParallelTask<Consumes, Produces>
             if (!_collected.isEmpty()) {
               setup();
               useState(State.DISPATCHING);
-              return;
+              continue;
             }
 
             if (!_failed.isEmpty()) {
               useState(State.AWAITING);
-              return;
+              continue;
             }
 
             useState(State.COMPLETED);

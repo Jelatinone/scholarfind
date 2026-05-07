@@ -71,8 +71,7 @@ public final class Canonical {
 			Instant discoveredAt) {
 		URL canonical = canonicalizeURL(value);
 		return new TargetNode(
-				0,
-				parentTargetId,
+				generateTargetUUID(canonical),
 				canonical,
 				discoveredAt);
 	}

@@ -11,7 +11,7 @@ public record Description<Describes>(
 			throw new IllegalArgumentException(
 					String.format(("Description of kind %s cannot be bounded by value %s."),
 							descriptionKind,
-							description().getClass().getSimpleName()));
+							description.getClass().getSimpleName()));
 		}
 	}
 }

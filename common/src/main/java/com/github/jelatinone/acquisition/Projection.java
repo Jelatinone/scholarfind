@@ -10,17 +10,17 @@ public sealed interface Projection {
 	MediaType mediaType();
 
 	public record Interpreted<Interprets>(
-			MediaType mediaType,
+			@NonNull MediaType mediaType,
 			@NonNull Interprets interpretedSource) implements Projection {
 	}
 
 	public record Normalized(
-			MediaType mediaType,
+			@NonNull MediaType mediaType,
 			@NonNull String normalizedSource) implements Projection {
 	}
 
 	public record Preview(
-			MediaType mediaType,
+			@NonNull MediaType mediaType,
 			@NonNull String previewSource,
 
 			long previewLength,

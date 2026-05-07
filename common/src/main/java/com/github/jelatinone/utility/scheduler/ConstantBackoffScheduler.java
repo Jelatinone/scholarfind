@@ -8,7 +8,7 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ConstantBackoffScheduler implements BackoffScheduler {
 
-	Long _baseBackoff;
+	long _baseBackoff;
 
 	@Override
 	public long compute() {

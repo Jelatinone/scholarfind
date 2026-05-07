@@ -70,6 +70,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces>
    */
   protected SequentialTask(final @NonNull Configuration config) {
     super(config);
+    _state.set(State.CREATED);
   }
 
   @Override
@@ -120,12 +121,12 @@ public non-sealed abstract class SequentialTask<Consumes, Produces>
             if (!_collected.isEmpty()) {
               setup();
               useState(State.OPERATING);
-              return;
+              continue;
             }
 
             if (!_failed.isEmpty()) {
               useState(State.AWAITING);
-              return;
+              continue;
             }
 
             useState(State.COMPLETED);
@@ -171,6 +172,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces>
                 }
               }
             }
+            useState(State.OPERATING);
           }
 
           case RESTARTING -> {

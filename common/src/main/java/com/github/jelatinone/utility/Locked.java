@@ -26,7 +26,7 @@ public final class Locked<T> implements Delayed {
 	@Override
 	public int compareTo(Delayed other) {
 		return Long.compare(
-				this.delayNano,
+				getDelay(TimeUnit.NANOSECONDS),
 				other.getDelay(TimeUnit.NANOSECONDS));
 	}
 }

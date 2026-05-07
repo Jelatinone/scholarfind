@@ -20,9 +20,9 @@ public class TextInterpreter implements Interpreter<String> {
 	@Override
 	public boolean supports(@NonNull MediaType mediaType) {
 		return switch (mediaType) {
-			case MediaType.TEXT_PLAIN, MediaType.TEXT_MARKDOWN,
-					MediaType.APPLICATION_XML, MediaType.TEXT_XML,
-					MediaType.APPLICATION_JSON, MediaType.TEXT_JSON ->
+			case TEXT_PLAIN, TEXT_MARKDOWN,
+					APPLICATION_XML, TEXT_XML,
+					APPLICATION_JSON, TEXT_JSON ->
 				true;
 			default -> false;
 		};
@@ -41,10 +41,11 @@ public class TextInterpreter implements Interpreter<String> {
 	@Override
 	public Normalized normalize(@NonNull Acquisition.Interpreted acquisition) {
 		String decodedSource = Interpreter.decode(acquisition.sourceBytes(), acquisition.mediaEncoding());
+		String normalizedSource = decodedSource.trim();
 
 		Projection.Normalized projection = new Projection.Normalized(
 				acquisition.mediaType(),
-				decodedSource);
+				normalizedSource);
 		return projection;
 	}
 

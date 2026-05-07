@@ -4,7 +4,6 @@ import java.io.IOException;
 
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPageTree;
 import org.apache.pdfbox.text.PDFTextStripper;
 
 import com.github.jelatinone.acquisition.Acquisition;
@@ -20,7 +19,7 @@ import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class PdfInterpreter implements Interpreter<PDPageTree> {
+public class PdfInterpreter implements Interpreter<String> {
 
 	static int PREVIEW_LENGTH = 500;
 
@@ -30,14 +29,13 @@ public class PdfInterpreter implements Interpreter<PDPageTree> {
 	}
 
 	@Override
-	public Interpreted<PDPageTree> interpret(@NonNull Acquisition.Interpreted acquisition) {
+	public Interpreted<String> interpret(@NonNull Acquisition.Interpreted acquisition) {
 		try (PDDocument document = Loader.loadPDF(acquisition.sourceBytes())) {
+			String interpretedSource = new PDFTextStripper().getText(document);
 
-			PDPageTree pageTree = document.getPages();
-
-			Projection.Interpreted<PDPageTree> projection = new Projection.Interpreted<>(
+			Projection.Interpreted<String> projection = new Projection.Interpreted<>(
 					acquisition.mediaType(),
-					pageTree);
+					interpretedSource);
 			return projection;
 		} catch (IOException exception) {
 			throw new IllegalStateException(exception);
@@ -47,7 +45,6 @@ public class PdfInterpreter implements Interpreter<PDPageTree> {
 	@Override
 	public Normalized normalize(@NonNull Acquisition.Interpreted acquisition) {
 		try (PDDocument document = Loader.loadPDF(acquisition.sourceBytes())) {
-
 			String normalizedSource = new PDFTextStripper().getText(document);
 
 			Projection.Normalized projection = new Projection.Normalized(
@@ -62,7 +59,6 @@ public class PdfInterpreter implements Interpreter<PDPageTree> {
 	@Override
 	public Preview preview(@NonNull Acquisition.Interpreted acquisition) {
 		try (PDDocument document = Loader.loadPDF(acquisition.sourceBytes())) {
-
 			String normalizedSource = Interpreter.bound(new PDFTextStripper().getText(document), PREVIEW_LENGTH);
 
 			Projection.Preview projection = new Projection.Preview(
