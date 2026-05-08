@@ -1,11 +1,17 @@
 package com.github.jelatinone.infra.aws.store;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.github.jelatinone.api.Criteria;
+import com.github.jelatinone.api.Query.Count;
+import com.github.jelatinone.api.Query.Exists;
+import com.github.jelatinone.api.Query.Several;
+import com.github.jelatinone.api.Query.Singular;
 import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.infra.aws.store.serial.DynamoSerializer;
 

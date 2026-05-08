@@ -1,7 +1,6 @@
 package com.github.jelatinone.meta.result;
 
-import java.util.List;
-
+import java.util.Collection;
 import com.github.jelatinone.meta.Task;
 
 /**
@@ -16,23 +15,16 @@ import com.github.jelatinone.meta.Task;
  */
 public sealed interface CollectionResult<Consumes> {
 
-  /**
-   * Describes a list of data with elements
-   */
-  record Alive<Consumes>(List<Consumes> collection) implements CollectionResult<Consumes> {
-  }
+	/**
+	 * Describes a list of data with elements
+	 */
+	record Alive<Consumes>(Collection<Consumes> collection) implements CollectionResult<Consumes> {
+	}
 
-  /**
-   * Describes a list of data without elements, but expecting to receive elements
-   * within the lifetime of this task
-   */
-  record Idle<Consumes>() implements CollectionResult<Consumes> {
-  }
-
-  /**
-   * Describes a list of data without elements, and not expecting to receive
-   * future elements within the lifetime of this task
-   */
-  record Empty<Consumes>() implements CollectionResult<Consumes> {
-  }
+	/**
+	 * Describes a list of data without elements, and not expecting to receive
+	 * future elements within the lifetime of this task
+	 */
+	record Empty<Consumes>() implements CollectionResult<Consumes> {
+	}
 }

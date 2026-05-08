@@ -1,7 +1,7 @@
 package com.github.jelatinone.infra.aws.queue;
 
-import software.amazon.awssdk.services.sqs.model.QueueAttributeName;
-
+import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -10,17 +10,18 @@ import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.jelatinone.api.Acknowledgement;
-import com.github.jelatinone.api.queue.QueueEnvelope;
-import com.github.jelatinone.api.queue.QueueResult;
-import com.github.jelatinone.api.queue.QueueState;
-import com.github.jelatinone.api.queue.RetryableQueue;
+import com.github.jelatinone.api.Query.Count;
+import com.github.jelatinone.api.Query.Exists;
+import com.github.jelatinone.api.Query.Several;
+import com.github.jelatinone.api.Query.Singular;
+import com.github.jelatinone.api.queue.Queue;
+import com.github.jelatinone.api.queue.QueueCriteria;
+import com.github.jelatinone.api.queue.QueueException;
 import com.github.jelatinone.infra.aws.queue.serial.SQSSerializer;
 
 import software.amazon.awssdk.http.SdkHttpResponse;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.DeleteMessageResponse;
-import software.amazon.awssdk.services.sqs.model.GetQueueAttributesResponse;
 import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.MessageAttributeValue;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
@@ -33,163 +34,156 @@ import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @AllArgsConstructor
-public class SQSQueue<Value> implements RetryableQueue<Value> {
-  SQSQueueDescriptor input, output, retry, error;
-  SQSSerializer<Value> serializer;
+public class SQSQueue<Value, Queryable> implements Queue<Value, Queryable> {
+	SqsClient client;
+	String queueUrl;
 
-  static Logger _logger = LoggerFactory.getLogger(SQSQueue.class);
+	SQSSerializer<Value> serializer;
 
-  @Override
-  public QueueResult<Value> poll(int messageCount) {
-    ReceiveMessageResponse response = input.client().receiveMessage(
-        ReceiveMessageRequest.builder()
-            .queueUrl(input.queueUrl())
-            .maxNumberOfMessages(messageCount)
-            .messageAttributeNames(".*")
-            .build());
-    logResponse("Receive message", response.sdkHttpResponse());
+	static Logger _logger = LoggerFactory.getLogger(SQSQueue.class);
 
-    List<Message> messages = response.messages();
-    List<QueueEnvelope<Value>> envelopes = messages.stream()
-        .map(this::wrap)
-        .filter(java.util.Objects::nonNull)
-        .toList();
-    return new QueueResult<>(envelopes, resolve(messages));
-  }
+	@Override
+	public void queue(@NonNull Value message) {
+		send(message);
+	}
 
-  @Override
-  public void send(Value message) {
-    send(output, message);
-  }
+	private void delete(String receiptHandle) {
+		DeleteMessageResponse response = client.deleteMessage(builder -> builder
+				.queueUrl(queueUrl)
+				.receiptHandle(receiptHandle));
+		response("Delete message", response.sdkHttpResponse());
+	}
 
-  @Override
-  public void sendRetry(@NonNull Value message) {
-    send(retry, message);
-  }
+	@Override
+	public boolean query(Exists<QueueCriteria<Queryable>> query) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("Unimplemented method 'query'");
+	}
 
-  @Override
-  public void sendError(@NonNull Value message) {
-    send(error, message);
-  }
+	@Override
+	public long query(Count<QueueCriteria<Queryable>> query) {
+		// TODO Auto-generated method stub
+		throw new UnsupportedOperationException("Unimplemented method 'query'");
+	}
 
-  public void send(SQSQueueDescriptor queue, Value message) {
-    if (queue.queueUrl() == null) {
-      throw new IllegalStateException("Error queue URL is not configured");
-    }
-    try {
-      String body = serializer.encodeBody(message);
-      Map<String, String> attributes = serializer.encodeAttributes(message);
-      SendMessageResponse response = queue.client().sendMessage(builder -> builder
-          .queueUrl(queue.queueUrl())
-          .messageBody(body)
-          .messageAttributes(encodeAttributes(attributes)));
-      logResponse("Send message", response.sdkHttpResponse());
-    } catch (Exception exception) {
-      throw new IllegalStateException("Failed to encode queue message", exception);
-    }
-  }
+	@Override
+	public Value query(Singular<QueueCriteria<Queryable>> query) {
+		try {
+			ReceiveMessageResponse response = client.receiveMessage(
+					ReceiveMessageRequest.builder()
+							.queueUrl(queueUrl)
+							.maxNumberOfMessages(1)
+							.messageAttributeNames(".*")
+							.build());
+			response("receive message", response.sdkHttpResponse());
 
-  public void send(SQSQueueDescriptor queue, String body, Map<String, MessageAttributeValue> attributes) {
-    if (queue.queueUrl() == null) {
-      throw new IllegalStateException("Error queue URL is not configured");
-    }
-    try {
-      SendMessageResponse response = queue.client().sendMessage(builder -> builder
-          .queueUrl(queue.queueUrl())
-          .messageBody(body)
-          .messageAttributes(attributes));
-      logResponse("Send message", response.sdkHttpResponse());
-    } catch (Exception exception) {
-      throw new IllegalStateException("Failed to encode queue message", exception);
-    }
-  }
+			Message message = response.messages().stream()
+					.filter(java.util.Objects::nonNull)
+					.findFirst()
+					.orElse(null);
+			Value envelope = serializer.decode(message.body(), decodeAttributes(message.messageAttributes()));
 
-  private QueueEnvelope<Value> wrap(Message message) {
-    try {
-      Value decoded = serializer.decode(message.body(), decodeAttributes(message.messageAttributes()));
-      Acknowledgement acknowledgement = new Acknowledgement() {
-        @Override
-        public void success() {
-          // Do nothing ;)
-        }
+			delete(message.receiptHandle());
+			return envelope;
+		} catch (IOException exception) {
+			_logger.error(String.format("Decode queue message failed : %s", exception.getMessage()));
+			throw new QueueException.FatalQueueException(exception.getMessage(), exception);
+		} catch (Exception exception) {
+			_logger.error(String.format("Queue query failed : %s", exception.getMessage()));
+			throw new QueueException.RetryQueueException(exception.getMessage(), exception);
+		}
+	}
 
-        @Override
-        public void retry() {
-          send(retry, decoded);
-        }
+	@Override
+	public Collection<Value> query(Several<QueueCriteria<Queryable>> query) {
+		try {
+			ReceiveMessageResponse response = client.receiveMessage(
+					ReceiveMessageRequest.builder()
+							.queueUrl(queueUrl)
+							.maxNumberOfMessages(1)
+							.messageAttributeNames(".*")
+							.build());
+			response("receive message", response.sdkHttpResponse());
 
-        @Override
-        public void error() {
-          send(error, decoded);
+			List<Value> envelopes = response.messages().stream()
+					.filter(java.util.Objects::nonNull)
+					.map((message) -> {
+						Value decoded;
+						try {
+							decoded = serializer.decode(message.body(), decodeAttributes(message.messageAttributes()));
 
-        }
-      };
-      return new QueueEnvelope<>(decoded, acknowledgement);
-    } catch (Exception exception) {
-      _logger.error(String.format("Decode queue message failed : %s", exception.getMessage()));
-      send(error, message.body(), message.messageAttributes());
-      return null;
-    } finally {
-      delete(message.receiptHandle());
-    }
-  }
+							delete(message.receiptHandle());
+							return decoded;
+						} catch (IOException exception) {
+							_logger.error(String.format("Decode queue message failed : %s", exception.getMessage()));
+							throw new QueueException.FatalQueueException(exception.getMessage(), exception);
+						}
+					}).toList();
+			return envelopes;
+		} catch (Exception exception) {
+			_logger.error(String.format("Queue query failed : %s", exception.getMessage()));
+			throw new QueueException.RetryQueueException(exception.getMessage(), exception);
+		}
+	}
 
-  private void delete(String receiptHandle) {
-    DeleteMessageResponse response = input.client().deleteMessage(builder -> builder
-        .queueUrl(input.queueUrl())
-        .receiptHandle(receiptHandle));
-    logResponse("Delete message", response.sdkHttpResponse());
-  }
+	public void send(Value message) {
+		if (queueUrl == null) {
+			throw new IllegalStateException("Error queue URL is not configured");
+		}
+		try {
+			String body = serializer.encodeBody(message);
+			Map<String, String> attributes = serializer.encodeAttributes(message);
+			SendMessageResponse response = client.sendMessage(builder -> builder
+					.queueUrl(queueUrl)
+					.messageBody(body)
+					.messageAttributes(encodeAttributes(attributes)));
+			response("send message", response.sdkHttpResponse());
+		} catch (Exception exception) {
+			throw new IllegalStateException("Failed to encode queue message", exception);
+		}
+	}
 
-  private QueueState resolve(List<Message> messages) {
-    if (!messages.isEmpty()) {
-      return QueueState.ACTIVE;
-    }
-    GetQueueAttributesResponse response = input.client().getQueueAttributes(builder -> builder
-        .queueUrl(input.queueUrl())
-        .attributeNames(
-            QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES,
-            QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES_NOT_VISIBLE,
-            QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES_DELAYED));
-    logResponse("Resolve queue state", response.sdkHttpResponse());
-    boolean containsAnyMessages = response.attributes().values().stream()
-        .mapToInt(Integer::parseInt)
-        .anyMatch(value -> value > 0);
-    return containsAnyMessages ? QueueState.IDLE : QueueState.EMPTY;
-  }
+	public void send(String body, Map<String, MessageAttributeValue> attributes) {
+		if (queueUrl == null) {
+			throw new IllegalStateException("Error queue URL is not configured");
+		}
+		try {
+			SendMessageResponse response = client.sendMessage(builder -> builder
+					.queueUrl(queueUrl)
+					.messageBody(body)
+					.messageAttributes(attributes));
+			response("send message", response.sdkHttpResponse());
+		} catch (Exception exception) {
+			throw new IllegalStateException("Failed to encode queue message", exception);
+		}
+	}
 
-  private Map<String, String> decodeAttributes(Map<String, MessageAttributeValue> attributes) {
-    return attributes.entrySet().stream()
-        .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().stringValue()));
-  }
+	private Map<String, String> decodeAttributes(Map<String, MessageAttributeValue> attributes) {
+		return attributes.entrySet().stream()
+				.collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().stringValue()));
+	}
 
-  private Map<String, MessageAttributeValue> encodeAttributes(Map<String, String> attributes) {
-    return attributes.entrySet().stream()
-        .collect(Collectors.toMap(
-            Map.Entry::getKey,
-            entry -> MessageAttributeValue.builder().dataType("String").stringValue(entry.getValue()).build()));
-  }
+	private Map<String, MessageAttributeValue> encodeAttributes(Map<String, String> attributes) {
+		return attributes.entrySet().stream()
+				.collect(Collectors.toMap(
+						Map.Entry::getKey,
+						entry -> MessageAttributeValue.builder().dataType("String").stringValue(entry.getValue()).build()));
+	}
 
-  private void logResponse(String action, SdkHttpResponse response) {
-    if (response == null) {
-      return;
-    }
-    String message = String.format("%s completed : [%d] %s", action, response.statusCode(), response.statusText());
-    if (response.isSuccessful()) {
-      _logger.info(message);
-      return;
-    }
-    _logger.error(message);
-  }
+	@Override
+	public void close() {
+		client.close();
+	}
 
-  @Override
-  public void close() {
-    input.client().close();
-    output.client().close();
-    retry.client().close();
-    error.client().close();
-  }
-
-  public static record SQSQueueDescriptor(SqsClient client, String queueUrl) {
-  }
+	private static void response(String action, SdkHttpResponse response) {
+		if (response == null) {
+			return;
+		}
+		String message = String.format("%s completed : [%d] %s", action, response.statusCode(), response.statusText());
+		if (response.isSuccessful()) {
+			_logger.info(message);
+			return;
+		}
+		_logger.error(message);
+	}
 }

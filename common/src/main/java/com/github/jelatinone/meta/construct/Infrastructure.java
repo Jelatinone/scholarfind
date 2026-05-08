@@ -7,9 +7,9 @@ import com.github.jelatinone.model.struct.Request;
 
 public interface Infrastructure<In extends Request, Out extends Request, Queryable> extends AutoCloseable {
 
-  Router router();
+	Router router();
 
-  Store<AttemptEvent, String, Queryable> attemptStore();
+	Store<AttemptEvent, String> attemptStore();
 
-  Store<ExecutionEvent, String, Queryable> executionStore();
+	Store<ExecutionEvent, String> executionStore();
 }

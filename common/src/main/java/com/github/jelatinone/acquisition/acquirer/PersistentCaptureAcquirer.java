@@ -13,6 +13,8 @@ import com.github.jelatinone.acquisition.FetchedBody;
 import com.github.jelatinone.acquisition.FetchedMetadata;
 import com.github.jelatinone.acquisition.Interpreter;
 import com.github.jelatinone.acquisition.MetadataFetcher;
+import com.github.jelatinone.api.Criteria;
+import com.github.jelatinone.api.Query.Singular;
 import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.model.content.Capture;
 import com.github.jelatinone.acquisition.Acquisition.Interpreted;
@@ -37,7 +39,7 @@ public final class PersistentCaptureAcquirer implements Acquirer {
 
 	@Override
 	public Metadata metadata(@NonNull Acquisition current) {
-		Capture storedCapture = captureStore.get(current.targetId());
+		Capture storedCapture = captureStore.query(new Singular<Criteria<UUID>>(Criteria.<UUID>id(current.targetId())));
 		if (storedCapture != null && storedCapture.emittedAt().minus(captureStalenessTimeout).isBefore(Instant.now())) {
 			Metadata metadata = new Metadata(
 					storedCapture.targetId(),
@@ -77,7 +79,7 @@ public final class PersistentCaptureAcquirer implements Acquirer {
 
 	@Override
 	public Interpreted interpreted(@NonNull Acquisition current) {
-		Capture storedCapture = captureStore.get(current.targetId());
+		Capture storedCapture = captureStore.query(new Singular<Criteria<UUID>>(Criteria.<UUID>id(current.targetId())));
 		if (storedCapture != null && storedCapture.emittedAt().minus(captureStalenessTimeout).isBefore(Instant.now())) {
 			switch (storedCapture) {
 				case Capture.Resolved resolved -> {
