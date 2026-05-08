@@ -5,11 +5,11 @@ import com.github.jelatinone.model.audit.AttemptEvent;
 import com.github.jelatinone.model.audit.ExecutionEvent;
 import com.github.jelatinone.model.struct.Request;
 
-public interface Infrastructure<In extends Request, Out extends Request> extends AutoCloseable {
+public interface Infrastructure<In extends Request, Out extends Request, Queryable> extends AutoCloseable {
 
-	Router router();
+  Router router();
 
-	Store<AttemptEvent, String> attemptStore();
+  Store<AttemptEvent, String, Queryable> attemptStore();
 
-	Store<ExecutionEvent, String> executionStore();
+  Store<ExecutionEvent, String, Queryable> executionStore();
 }

@@ -1,10 +1,14 @@
 package com.github.jelatinone.api.store;
 
-public interface Store<Body, Key> extends AutoCloseable {
+import com.github.jelatinone.api.Criteria;
+import com.github.jelatinone.api.Query;
+import com.github.jelatinone.api.Queryable;
 
-	void put(Key key, Body body);
+public interface Store<Body, Key> extends Queryable<Criteria<Key>, Body>, AutoCloseable {
 
-	Body get(Key key);
+  void put(Key key, Body body);
 
-	void delete(Key key);
+  void delete(Query.Singular<Criteria<Key>> query);
+
+  void delete(Query.Several<Criteria<Key>> query);
 }

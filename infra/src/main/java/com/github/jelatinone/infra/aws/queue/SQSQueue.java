@@ -11,7 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.jelatinone.api.Acknowledgement;
-import com.github.jelatinone.api.Envelope;
+import com.github.jelatinone.api.queue.QueueEnvelope;
 import com.github.jelatinone.api.queue.QueueResult;
 import com.github.jelatinone.api.queue.QueueState;
 import com.github.jelatinone.api.queue.RetryableQueue;
@@ -50,7 +50,7 @@ public class SQSQueue<Value> implements RetryableQueue<Value> {
     logResponse("Receive message", response.sdkHttpResponse());
 
     List<Message> messages = response.messages();
-    List<Envelope<Value>> envelopes = messages.stream()
+    List<QueueEnvelope<Value>> envelopes = messages.stream()
         .map(this::wrap)
         .filter(java.util.Objects::nonNull)
         .toList();
@@ -104,7 +104,7 @@ public class SQSQueue<Value> implements RetryableQueue<Value> {
     }
   }
 
-  private Envelope<Value> wrap(Message message) {
+  private QueueEnvelope<Value> wrap(Message message) {
     try {
       Value decoded = serializer.decode(message.body(), decodeAttributes(message.messageAttributes()));
       Acknowledgement acknowledgement = new Acknowledgement() {
@@ -124,7 +124,7 @@ public class SQSQueue<Value> implements RetryableQueue<Value> {
 
         }
       };
-      return new Envelope<>(decoded, acknowledgement);
+      return new QueueEnvelope<>(decoded, acknowledgement);
     } catch (Exception exception) {
       _logger.error(String.format("Decode queue message failed : %s", exception.getMessage()));
       send(error, message.body(), message.messageAttributes());

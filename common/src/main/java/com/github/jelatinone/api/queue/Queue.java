@@ -1,10 +1,11 @@
 package com.github.jelatinone.api.queue;
 
+import com.github.jelatinone.api.Queryable;
+
 import lombok.NonNull;
 
-public interface Queue<T> extends AutoCloseable {
+public interface Queue<Message, Identifier>
+    extends Queryable<QueueCriteria<Identifier>, QueueEnvelope<Message>>, AutoCloseable {
 
-  QueueResult<T> poll(int messageCount);
-
-  void send(@NonNull T message);
+  void queue(@NonNull Message message);
 }

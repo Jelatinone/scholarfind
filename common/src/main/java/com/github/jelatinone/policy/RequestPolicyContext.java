@@ -7,11 +7,11 @@ import com.github.jelatinone.model.struct.Document;
 
 public interface RequestPolicyContext<Documents extends Document<Documents>> extends PolicyContext<Documents> {
 
-	long envelopeSchemaVersion();
+  long envelopeSchemaVersion();
 
-	ExecutionStage envelopeStage();
+  UUID envelopeTargetId();
 
-	UUID envelopeTargetId();
+  UUID envelopeReviewId();
 
-	UUID envelopeReviewId();
+  ExecutionStage envelopeStage();
 }

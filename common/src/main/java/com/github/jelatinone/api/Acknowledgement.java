@@ -7,5 +7,4 @@ public interface Acknowledgement {
   void retry();
 
   void error();
-
 }

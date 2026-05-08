@@ -1,0 +1,23 @@
+package com.github.jelatinone.api;
+
+public sealed interface Query<Criterion> {
+
+  Criterion criteria();
+
+  record Exists<Criterion>(Criterion criteria) implements Query<Criterion> {
+  }
+
+  record Count<Criterion>(Criterion criteria) implements Query<Criterion> {
+  }
+
+  public record Singular<Criterion>(Criterion criteria) implements Query<Criterion> {
+  }
+
+  public record Several<Criterion>(Criterion criteria, int limit) implements Query<Criterion> {
+    public Several {
+      if (limit < 1) {
+        throw new IllegalArgumentException("limit must be positive");
+      }
+    }
+  }
+}

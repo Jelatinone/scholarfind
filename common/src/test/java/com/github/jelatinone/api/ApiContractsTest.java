@@ -9,6 +9,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.jelatinone.api.queue.QueueEnvelope;
 import com.github.jelatinone.api.queue.QueueException;
 import com.github.jelatinone.api.queue.QueueResult;
 import com.github.jelatinone.api.queue.QueueState;
@@ -31,7 +32,7 @@ class ApiContractsTest {
       public void error() {
       }
     };
-    Envelope<String> envelope = new Envelope<>("payload", acknowledgement);
+    QueueEnvelope<String> envelope = new QueueEnvelope<>("payload", acknowledgement);
 
     assertEquals("payload", envelope.content());
     assertSame(acknowledgement, envelope.acknowledgement());
@@ -39,7 +40,8 @@ class ApiContractsTest {
 
   @Test
   void queueContractsExposeMessagesAndState() {
-    QueueResult<String> result = new QueueResult<>(List.of(new Envelope<>("a", new NoopAcknowledgement())), QueueState.ACTIVE);
+    QueueResult<String> result = new QueueResult<>(List.of(new QueueEnvelope<>("a", new NoopAcknowledgement())),
+        QueueState.ACTIVE);
 
     assertEquals(1, result.messages().size());
     assertEquals(QueueState.ACTIVE, result.state());
