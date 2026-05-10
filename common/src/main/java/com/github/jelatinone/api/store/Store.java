@@ -4,11 +4,11 @@ import com.github.jelatinone.api.Criteria;
 import com.github.jelatinone.api.Query;
 import com.github.jelatinone.api.Queryable;
 
-public interface Store<Body, Key> extends Queryable<Criteria<Key>, Body>, AutoCloseable {
+public interface Store<Key, Value, Criterion extends Criteria<Key>> extends Queryable<Criterion, Value>, AutoCloseable {
 
-  void put(Key key, Body body);
+  void put(Key key, Value body);
 
-  void delete(Query.Singular<Criteria<Key>> query);
+  void delete(Query.Singular<Criterion> query);
 
-  void delete(Query.Several<Criteria<Key>> query);
+  void delete(Query.Several<Criterion> query);
 }

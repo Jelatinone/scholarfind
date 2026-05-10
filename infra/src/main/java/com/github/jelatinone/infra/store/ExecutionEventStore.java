@@ -8,11 +8,10 @@ import com.github.jelatinone.model.audit.ExecutionEvent;
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 
-public final class ExecutionEventStore extends DynamoStore<ExecutionEvent, UUID> {
-	public ExecutionEventStore(DynamoDbClient client, String table) {
+public final class ExecutionEventStore extends DynamoStore<UUID, ExecutionEvent> {
+	public ExecutionEventStore(DynamoDbClient client) {
 		super(
 				client,
-				table,
 				new JacksonDynamoSerializer<>(
 						ExecutionEvent.class,
 						UUID::toString));

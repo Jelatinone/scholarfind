@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.jelatinone.api.Query.Several;
 import com.github.jelatinone.api.Acknowledgement;
 import com.github.jelatinone.api.queue.QueueEnvelope;
 import com.github.jelatinone.mock.MockQueue;
@@ -20,11 +21,12 @@ class QueueArchetypeContractsTest {
 
   @SuppressWarnings("resource")
   @Test
-  void queueCollect_mapsQueueResultStates() {
+  void queueCollect_mapsSeveralQueryResults() {
     MockQueue<String> queue = new MockQueue<String>().addInput("a");
-    QueueCollect<String> collect = new QueueCollect<>(QueueCollect.Configuration.<String>builder()
+    QueueCollect<String, ?> collect = new QueueCollect<>(QueueCollect.Configuration
+        .<String, com.github.jelatinone.api.Criteria<Void>>builder()
         .collectionSource(queue)
-        .collectionSize(1)
+        .collectionQuery(new Several<>(MockQueue.ANY, 1))
         .build());
 
     assertInstanceOf(CollectionResult.Alive.class, collect.collect());

@@ -8,12 +8,11 @@ import com.github.jelatinone.model.content.Capture;
 
 import software.amazon.awssdk.services.s3.S3Client;
 
-public class CaptureStore extends S3Store<Capture, UUID> {
+public class CaptureStore extends S3Store<UUID, Capture> {
 
-	public CaptureStore(S3Client client, String table) {
+	public CaptureStore(S3Client client) {
 		super(
 				client,
-				table,
 				new JacksonS3Serializer<>(
 						Capture.class,
 						UUID::toString));

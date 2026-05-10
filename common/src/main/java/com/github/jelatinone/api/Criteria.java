@@ -1,34 +1,42 @@
 package com.github.jelatinone.api;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-public record Criteria<Identifier>(
-    Optional<Identifier> id,
+public interface Criteria<Identifier> {
 
-    Map<Index<?>, Property> queryProperties) {
-  public static <Identifier> Criteria<Identifier> id(Identifier id) {
-    return new Criteria<>(
-        Optional.of(id),
-        Map.of());
+  Optional<Identifier> identifier();
+
+  Optional<Duration> duration();
+
+  Map<Index<?>, Property> queryProperties();
+
+  static <Identifier> Criteria<Identifier> identifier(Identifier id) {
+    return new Implicit<>(Optional.of(id), Optional.empty(), Map.of());
   }
 
-  public static <Identifier> Criteria<Identifier> property(Index<?> key, Property property) {
-    return new Criteria<>(
-        Optional.empty(),
-        Map.of(key, property));
+  static <Identifier> Criteria<Identifier> property(Index<?> key, Property value) {
+    return new Implicit<Identifier>(Optional.empty(), Optional.empty(), Map.of(key, value));
   }
 
-  public Criteria<Identifier> withProperty(Index<?> key, Property property) {
-    Map<Index<?>, Property> next = new HashMap<>(queryProperties) {
+  static <Identifier> Criteria<Identifier> duration(Duration duration) {
+    return new Implicit<Identifier>(Optional.empty(), Optional.of(duration), Map.of());
+  }
+
+  default Criteria<Identifier> withProperty(Index<?> key, Property value) {
+    Map<Index<?>, Property> next = new HashMap<>(queryProperties()) {
       {
-        put(key, property);
+        put(key, value);
       }
     };
-
-    return new Criteria<>(
-        id,
-        Map.copyOf(next));
+    return new Implicit<Identifier>(identifier(), duration(), Map.copyOf(next));
   }
+}
+
+record Implicit<Identifier>(
+    Optional<Identifier> identifier,
+    Optional<Duration> duration,
+    Map<Index<?>, Property> queryProperties) implements Criteria<Identifier> {
 }

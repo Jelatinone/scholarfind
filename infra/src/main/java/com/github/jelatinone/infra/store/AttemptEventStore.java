@@ -8,11 +8,10 @@ import com.github.jelatinone.model.audit.AttemptEvent;
 
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 
-public final class AttemptEventStore extends DynamoStore<AttemptEvent, UUID> {
-	public AttemptEventStore(DynamoDbClient client, String table) {
+public final class AttemptEventStore extends DynamoStore<UUID, AttemptEvent> {
+	public AttemptEventStore(DynamoDbClient client) {
 		super(
 				client,
-				table,
 				new JacksonDynamoSerializer<>(
 						AttemptEvent.class,
 						UUID::toString));

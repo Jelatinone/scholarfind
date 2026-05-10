@@ -1,84 +1,63 @@
 package com.github.jelatinone.api.graph;
 
-import java.util.HashMap;
+import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 
+import com.github.jelatinone.api.Criteria;
 import com.github.jelatinone.api.Index;
 import com.github.jelatinone.api.Property;
 
-public record GraphCriteria<Identifier>(
-    Identifier origin,
+public interface GraphCriteria<Identifier> extends Criteria<Identifier> {
 
-    GraphDirection queryDirection,
+  int originRadius();
 
-    int originRadius,
-    boolean originIncluded,
+  boolean originIncluded();
 
-    Map<Index<?>, Property> queryProperties) {
+  GraphDirection direction();
 
-  public GraphCriteria {
-    if (originRadius < 1) {
-      throw new IllegalArgumentException("originRadius must be positive");
-    }
-  }
-
-  public static <Identifier> GraphCriteria<Identifier> outgoing(Identifier origin) {
-    return new GraphCriteria<Identifier>(
-        origin,
-        GraphDirection.OUT,
+  public static <Identifier> GraphCriteria<Identifier> outgoing(Identifier identifier) {
+    return new DefaultGraphCriteria<Identifier>(
+        Optional.of(identifier),
+        Optional.empty(),
         1,
         false,
+        GraphDirection.OUT,
         Map.of());
   }
 
-  public static <Identifier> GraphCriteria<Identifier> incoming(Identifier origin) {
-    return new GraphCriteria<Identifier>(
-        origin,
-        GraphDirection.IN,
+  public static <Identifier> GraphCriteria<Identifier> incoming(Identifier identifier) {
+    return new DefaultGraphCriteria<Identifier>(
+        Optional.of(identifier),
+        Optional.empty(),
         1,
         false,
+        GraphDirection.IN,
         Map.of());
   }
 
   public static <Identifier> GraphCriteria<Identifier> any(Identifier origin) {
-    return new GraphCriteria<Identifier>(
-        origin,
-        GraphDirection.ANY,
+    return new DefaultGraphCriteria<Identifier>(
+        Optional.of(origin),
+        Optional.empty(),
         1,
         false,
+        GraphDirection.ANY,
         Map.of());
   }
+}
 
-  public GraphCriteria<Identifier> originRadius(int originRadius) {
-    return new GraphCriteria<Identifier>(
-        origin,
-        queryDirection,
-        originRadius,
-        originIncluded,
-        queryProperties);
-  }
+record DefaultGraphCriteria<Identifier>(
+    Optional<Identifier> identifier,
+    Optional<Duration> duration,
+    int originRadius,
+    boolean originIncluded,
+    GraphDirection direction,
+    Map<Index<?>, Property> queryProperties) implements GraphCriteria<Identifier> {
 
-  public GraphCriteria<Identifier> originIncluded(boolean include) {
-    return new GraphCriteria<Identifier>(
-        origin,
-        queryDirection,
-        originRadius,
-        include,
-        queryProperties);
-  }
-
-  public GraphCriteria<Identifier> withProperty(Index<?> key, Property value) {
-    Map<Index<?>, Property> next = new HashMap<>(queryProperties) {
-      {
-        put(key, value);
-      }
-    };
-
-    return new GraphCriteria<Identifier>(
-        origin,
-        queryDirection,
-        originRadius,
-        originIncluded,
-        Map.copyOf(next));
+  public DefaultGraphCriteria {
+    if (originRadius < 1) {
+      throw new IllegalArgumentException("originRadius must be positive");
+    }
   }
 }

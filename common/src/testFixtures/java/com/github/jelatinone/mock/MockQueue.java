@@ -1,40 +1,41 @@
 package com.github.jelatinone.mock;
 
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
+import java.util.Optional;
 
 import com.github.jelatinone.api.Acknowledgement;
+import com.github.jelatinone.api.Criteria;
+import com.github.jelatinone.api.Query.Count;
+import com.github.jelatinone.api.Query.Exists;
+import com.github.jelatinone.api.Query.Several;
+import com.github.jelatinone.api.Query.Singular;
 import com.github.jelatinone.api.queue.QueueEnvelope;
-import com.github.jelatinone.api.queue.QueueResult;
-import com.github.jelatinone.api.queue.QueueState;
-import com.github.jelatinone.infra.queue.RetryableQueue;
+import com.github.jelatinone.api.queue.RetryableQueue;
 
-public class MockQueue<Value> implements RetryableQueue<Value> {
+public class MockQueue<Value> implements RetryableQueue<Value, Criteria<Void>> {
+
+  public static final Criteria<Void> ANY = Criteria.duration(Duration.ZERO);
 
   private final Deque<Value> input;
   private final Deque<Value> output;
   private final Deque<Value> retry;
   private final Deque<Value> error;
-  private final QueueState drainedState;
   private boolean closed;
 
   public MockQueue() {
-    this(QueueState.EMPTY, List.of());
+    this(List.of());
   }
 
-  public MockQueue(QueueState drainedState) {
-    this(drainedState, List.of());
-  }
-
-  public MockQueue(QueueState drainedState, Collection<? extends Value> initialMessages) {
+  public MockQueue(Collection<? extends Value> initialMessages) {
     this.input = new ArrayDeque<>(initialMessages);
     this.output = new ArrayDeque<>();
     this.retry = new ArrayDeque<>();
     this.error = new ArrayDeque<>();
-    this.drainedState = drainedState;
   }
 
   public synchronized MockQueue<Value> addInput(Value message) {
@@ -48,8 +49,24 @@ public class MockQueue<Value> implements RetryableQueue<Value> {
   }
 
   @Override
-  public synchronized QueueResult<Value> poll(int messageCount) {
-    int limit = Math.max(0, messageCount);
+  public synchronized boolean query(Exists<Criteria<Void>> query) {
+    return query(new Count<>(query.criteria())) > 0;
+  }
+
+  @Override
+  public synchronized long query(Count<Criteria<Void>> query) {
+    return input.size();
+  }
+
+  @Override
+  public synchronized Optional<QueueEnvelope<Value>> query(Singular<Criteria<Void>> query) {
+    Value message = input.pollFirst();
+    return message == null ? Optional.empty() : Optional.of(new QueueEnvelope<>(message, acknowledgement(message)));
+  }
+
+  @Override
+  public synchronized Collection<QueueEnvelope<Value>> query(Several<Criteria<Void>> query) {
+    int limit = query.limit();
     List<QueueEnvelope<Value>> messages = new ArrayList<>(limit);
 
     while (limit-- > 0 && !input.isEmpty()) {
@@ -57,25 +74,26 @@ public class MockQueue<Value> implements RetryableQueue<Value> {
       messages.add(new QueueEnvelope<>(message, acknowledgement(message)));
     }
 
-    QueueState state = !messages.isEmpty() || !input.isEmpty()
-        ? QueueState.ACTIVE
-        : drainedState;
-    return new QueueResult<>(messages, state);
+    return messages;
   }
 
   @Override
-  public synchronized void send(Value message) {
-    output.addLast(message);
+  public synchronized void queue(QueueEnvelope<Value> message) {
+    output.addLast(message.content());
   }
 
   @Override
-  public synchronized void sendRetry(Value message) {
+  public synchronized void retry(Value message) {
     retry.addLast(message);
   }
 
   @Override
-  public synchronized void sendError(Value message) {
+  public synchronized void error(Value message) {
     error.addLast(message);
+  }
+
+  public synchronized void send(Value message) {
+    output.addLast(message);
   }
 
   public synchronized List<Value> pendingMessages() {
@@ -111,12 +129,12 @@ public class MockQueue<Value> implements RetryableQueue<Value> {
 
       @Override
       public void retry() {
-        sendRetry(message);
+        MockQueue.this.retry(message);
       }
 
       @Override
       public void error() {
-        sendError(message);
+        MockQueue.this.error(message);
       }
     };
   }

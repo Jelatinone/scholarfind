@@ -1,5 +1,6 @@
 package com.github.jelatinone.meta.construct;
 
+import com.github.jelatinone.api.Criteria;
 import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.model.audit.AttemptEvent;
 import com.github.jelatinone.model.audit.ExecutionEvent;
@@ -9,7 +10,7 @@ public interface Infrastructure<In extends Request, Out extends Request, Queryab
 
 	Router router();
 
-	Store<AttemptEvent, String> attemptStore();
+	Store<String, AttemptEvent, Criteria<String>> attemptStore();
 
-	Store<ExecutionEvent, String> executionStore();
+	Store<String, ExecutionEvent, Criteria<String>> executionStore();
 }

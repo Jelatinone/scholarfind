@@ -1,6 +1,17 @@
 package com.github.jelatinone.infra.aws.store;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Consumer;
+
+import com.github.jelatinone.api.Query.Count;
+import com.github.jelatinone.api.Query.Exists;
+import com.github.jelatinone.api.Query.Several;
+import com.github.jelatinone.api.Query.Singular;
 import com.github.jelatinone.api.store.Store;
+import com.github.jelatinone.api.store.StoreException;
+import com.github.jelatinone.infra.aws.AWSQueryable;
 import com.github.jelatinone.infra.aws.store.serial.S3Serializer;
 
 import lombok.AccessLevel;
@@ -9,79 +20,165 @@ import lombok.experimental.FieldDefaults;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.CreateBucketResponse;
 import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @AllArgsConstructor
-public class S3Store<Value, Key> implements Store<Value, Key> {
-	S3Client client;
-	String bucket;
+public class S3Store<Key, Value>
+    implements Store<StoreLocation<Key>, Value, S3Criteria<Key>>,
+    AWSQueryable<CreateBucketRequest, CreateBucketResponse> {
 
-	S3Serializer<Value, Key> serializer;
+  S3Client client;
+  S3Serializer<Value, Key> serializer;
 
-	@Override
-	public void put(Key key, Value body) {
-		try {
-			S3Serializer.EncodedValue<Key> encoded = serializer.encode(key, body);
-			PutObjectRequest.Builder builder = PutObjectRequest.builder()
-					.bucket(bucket)
-					.key(serializer.encodeKey(encoded.key()))
-					.metadata(encoded.metadata());
-			if (encoded.contentType() != null && !encoded.contentType().isBlank()) {
-				builder.contentType(encoded.contentType());
-			}
-			if (encoded.contentEncoding() != null && !encoded.contentEncoding().isBlank()) {
-				builder.contentEncoding(encoded.contentEncoding());
-			}
-			PutObjectResponse response = client.putObject(builder.build(), RequestBody.fromBytes(encoded.body()));
-			if (response.sdkHttpResponse() != null && !response.sdkHttpResponse().isSuccessful()) {
-				throw new IllegalStateException("Failed to persist S3 store item");
-			}
-		} catch (Exception exception) {
-			throw new IllegalStateException("Failed to encode store item", exception);
-		}
-	}
+  @Override
+  public Optional<CreateBucketResponse> tryCreate(CreateBucketRequest create) {
+    try {
+      return Optional.of(client.createBucket(create));
+    } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException exception) {
+      return Optional.empty();
+    } catch (Exception exception) {
+      throw new StoreException.RetryStoreException(exception.getMessage(), exception);
+    }
+  }
 
-	@Override
-	public Value get(Key key) {
-		try {
-			ResponseBytes<GetObjectResponse> object = client.getObjectAsBytes(builder -> builder
-					.bucket(bucket)
-					.key(serializer.encodeKey(key))
-					.build());
-			GetObjectResponse response = object.response();
-			return serializer.decode(new S3Serializer.StoredValue<>(
-					key,
-					object.asByteArray(),
-					response.contentType(),
-					response.contentEncoding(),
-					response.metadata()));
-		} catch (Exception exception) {
-			throw new IllegalStateException("Failed to decode store item", exception);
-		}
-	}
+  @Override
+  public void put(StoreLocation<Key> location, Value body) {
+    put(location, body, builder -> {
+    });
+  }
 
-	@Override
-	public void delete(Key key) {
-		try {
-			DeleteObjectResponse response = client.deleteObject(builder -> builder
-					.bucket(bucket)
-					.key(serializer.encodeKey(key))
-					.build());
-			if (response.sdkHttpResponse() != null && !response.sdkHttpResponse().isSuccessful()) {
-				throw new IllegalStateException("Failed to delete S3 store item");
-			}
-		} catch (Exception exception) {
-			throw new IllegalStateException("Failed to delete store item", exception);
-		}
-	}
+  public void put(
+      StoreLocation<Key> location,
+      Value body,
+      Consumer<PutObjectRequest.Builder> mutator) {
+    try {
+      S3Serializer.EncodedValue<Key> encoded = serializer.encode(location.value(), body);
+      PutObjectRequest.Builder builder = PutObjectRequest.builder()
+          .bucket(location.tableName())
+          .key(serializer.encodeKey(encoded.key()))
+          .metadata(encoded.metadata())
+          .applyMutation(mutator);
+      if (encoded.contentType() != null && !encoded.contentType().isBlank()) {
+        builder.contentType(encoded.contentType());
+      }
+      if (encoded.contentEncoding() != null && !encoded.contentEncoding().isBlank()) {
+        builder.contentEncoding(encoded.contentEncoding());
+      }
+      PutObjectResponse response = client.putObject(builder.build(), RequestBody.fromBytes(encoded.body()));
+      if (response.sdkHttpResponse() != null && !response.sdkHttpResponse().isSuccessful()) {
+        throw new StoreException.RetryStoreException("Failed to persist S3 store item", null);
+      }
+    } catch (StoreException exception) {
+      throw exception;
+    } catch (Exception exception) {
+      throw new StoreException.RetryStoreException("Failed to encode store item", exception);
+    }
+  }
 
-	@Override
-	public void close() {
-		client.close();
-	}
+  @Override
+  public boolean query(Exists<S3Criteria<Key>> query) {
+    return query(new Count<>(query.criteria())) > 0;
+  }
 
+  @Override
+  public long query(Count<S3Criteria<Key>> query) {
+    try {
+      S3Criteria<Key> criteria = query.criteria();
+      StoreLocation<Key> location = location(criteria);
+      client.headObject(builder -> builder
+          .bucket(location.tableName())
+          .key(serializer.encodeKey(location.value()))
+          .applyMutation(criteria.headObjectRequest()));
+      return 1L;
+    } catch (NoSuchKeyException exception) {
+      return 0L;
+    } catch (S3Exception exception) {
+      if (exception.statusCode() == 404) {
+        return 0L;
+      }
+      throw new StoreException.RetryStoreException(exception.getMessage(), exception);
+    } catch (Exception exception) {
+      throw new StoreException.RetryStoreException(exception.getMessage(), exception);
+    }
+  }
+
+  @Override
+  public Optional<Value> query(Singular<S3Criteria<Key>> query) {
+    try {
+      S3Criteria<Key> criteria = query.criteria();
+      StoreLocation<Key> location = location(criteria);
+      ResponseBytes<GetObjectResponse> object = client.getObjectAsBytes(builder -> builder
+          .bucket(location.tableName())
+          .key(serializer.encodeKey(location.value()))
+          .applyMutation(criteria.getObjectRequest()));
+      GetObjectResponse response = object.response();
+      return Optional.ofNullable(serializer.decode(new S3Serializer.StoredValue<>(
+          location.value(),
+          object.asByteArray(),
+          response.contentType(),
+          response.contentEncoding(),
+          response.metadata())));
+    } catch (NoSuchKeyException exception) {
+      return null;
+    } catch (S3Exception exception) {
+      if (exception.statusCode() == 404) {
+        return null;
+      }
+      throw new StoreException.RetryStoreException(exception.getMessage(), exception);
+    } catch (Exception exception) {
+      throw new StoreException.RetryStoreException(exception.getMessage(), exception);
+    }
+  }
+
+  @Override
+  public Collection<Value> query(Several<S3Criteria<Key>> query) {
+    return query(new Singular<>(query.criteria()))
+        .map(value -> value == null
+            ? List.<Value>of()
+            : List.of(value))
+        .get();
+  }
+
+  @Override
+  public void delete(Singular<S3Criteria<Key>> query) {
+    try {
+      S3Criteria<Key> criteria = query.criteria();
+      StoreLocation<Key> location = location(criteria);
+      DeleteObjectResponse response = client.deleteObject(builder -> builder
+          .bucket(location.tableName())
+          .key(serializer.encodeKey(location.value()))
+          .applyMutation(criteria.deleteObjectRequest()));
+      if (response.sdkHttpResponse() != null && !response.sdkHttpResponse().isSuccessful()) {
+        throw new StoreException.RetryStoreException("Failed to delete S3 store item", null);
+      }
+    } catch (StoreException exception) {
+      throw exception;
+    } catch (Exception exception) {
+      throw new StoreException.RetryStoreException(exception.getMessage(), exception);
+    }
+  }
+
+  @Override
+  public void delete(Several<S3Criteria<Key>> query) {
+    delete(new Singular<>(query.criteria()));
+  }
+
+  @Override
+  public void close() {
+    client.close();
+  }
+
+  private StoreLocation<Key> location(S3Criteria<Key> criteria) {
+    return criteria.identifier().orElseThrow();
+  }
 }

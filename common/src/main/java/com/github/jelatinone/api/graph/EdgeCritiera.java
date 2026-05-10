@@ -1,24 +1,25 @@
 package com.github.jelatinone.api.graph;
 
-import java.util.HashMap;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 
+import com.github.jelatinone.api.Criteria;
 import com.github.jelatinone.api.Index;
 import com.github.jelatinone.api.Property;
 
-public record EdgeCritiera<Identifier>(
-    Optional<Identifier> id,
-    Optional<Identifier> from,
-    Optional<Identifier> to,
+public interface EdgeCritiera<Identifier> extends Criteria<Identifier> {
 
-    GraphDirection direction,
+  Optional<Identifier> from();
 
-    Map<Index<?>, Property> queryProperties) {
+  Optional<Identifier> to();
 
-  public static <Key> EdgeCritiera<Key> id(Key id) {
-    return new EdgeCritiera<>(
+  GraphDirection direction();
+
+  public static <Key> EdgeCritiera<Key> identifier(Key id) {
+    return new DefaultEdgeCriteria<>(
         Optional.of(id),
+        Optional.empty(),
         Optional.empty(),
         Optional.empty(),
         GraphDirection.ANY,
@@ -26,7 +27,8 @@ public record EdgeCritiera<Identifier>(
   }
 
   public static <Key> EdgeCritiera<Key> from(Key from) {
-    return new EdgeCritiera<>(
+    return new DefaultEdgeCriteria<>(
+        Optional.empty(),
         Optional.empty(),
         Optional.of(from),
         Optional.empty(),
@@ -35,7 +37,8 @@ public record EdgeCritiera<Identifier>(
   }
 
   public static <Key> EdgeCritiera<Key> to(Key to) {
-    return new EdgeCritiera<>(
+    return new DefaultEdgeCriteria<>(
+        Optional.empty(),
         Optional.empty(),
         Optional.empty(),
         Optional.of(to),
@@ -44,26 +47,21 @@ public record EdgeCritiera<Identifier>(
   }
 
   public static <Key> EdgeCritiera<Key> between(Key from, Key to) {
-    return new EdgeCritiera<>(
+    return new DefaultEdgeCriteria<>(
+        Optional.empty(),
         Optional.empty(),
         Optional.of(from),
         Optional.of(to),
         GraphDirection.OUT,
         Map.of());
   }
+}
 
-  public EdgeCritiera<Identifier> withProperty(Index<?> key, Property value) {
-    Map<Index<?>, Property> next = new HashMap<>(queryProperties) {
-      {
-        put(key, value);
-      }
-    };
-
-    return new EdgeCritiera<>(
-        id,
-        from,
-        to,
-        direction,
-        Map.copyOf(next));
-  }
+record DefaultEdgeCriteria<Identifier>(
+    Optional<Identifier> identifier,
+    Optional<Duration> duration,
+    Optional<Identifier> from,
+    Optional<Identifier> to,
+    GraphDirection direction,
+    Map<Index<?>, Property> queryProperties) implements EdgeCritiera<Identifier> {
 }

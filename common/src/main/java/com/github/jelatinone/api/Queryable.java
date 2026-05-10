@@ -1,6 +1,7 @@
 package com.github.jelatinone.api;
 
 import java.util.Collection;
+import java.util.Optional;
 
 public interface Queryable<Criterion, Result> {
 
@@ -8,7 +9,7 @@ public interface Queryable<Criterion, Result> {
 
   long query(Query.Count<Criterion> query);
 
-  Result query(Query.Singular<Criterion> query);
+  Optional<Result> query(Query.Singular<Criterion> query);
 
   Collection<Result> query(Query.Several<Criterion> query);
 }

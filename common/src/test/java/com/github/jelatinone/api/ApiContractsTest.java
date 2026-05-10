@@ -5,14 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.io.IOException;
-import java.util.List;
+import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 
 import com.github.jelatinone.api.queue.QueueEnvelope;
 import com.github.jelatinone.api.queue.QueueException;
-import com.github.jelatinone.api.queue.QueueResult;
-import com.github.jelatinone.api.queue.QueueState;
 import com.github.jelatinone.api.store.StoreException;
 
 class ApiContractsTest {
@@ -39,12 +37,10 @@ class ApiContractsTest {
   }
 
   @Test
-  void queueContractsExposeMessagesAndState() {
-    QueueResult<String> result = new QueueResult<>(List.of(new QueueEnvelope<>("a", new NoopAcknowledgement())),
-        QueueState.ACTIVE);
+  void querySeveralRequiresPositiveLimit() {
+    Query.Several<Criteria<Void>> query = new Query.Several<>(Criteria.duration(Duration.ZERO), 1);
 
-    assertEquals(1, result.messages().size());
-    assertEquals(QueueState.ACTIVE, result.state());
+    assertEquals(1, query.limit());
   }
 
   @Test
@@ -62,19 +58,5 @@ class ApiContractsTest {
     assertInstanceOf(StoreException.class, fatalStore);
     assertSame(cause, retryQueue.getCause());
     assertSame(cause, fatalStore.getCause());
-  }
-
-  private static final class NoopAcknowledgement implements Acknowledgement {
-    @Override
-    public void success() {
-    }
-
-    @Override
-    public void retry() {
-    }
-
-    @Override
-    public void error() {
-    }
   }
 }

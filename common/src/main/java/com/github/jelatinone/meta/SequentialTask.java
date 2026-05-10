@@ -3,7 +3,7 @@ package com.github.jelatinone.meta;
 import static org.slf4j.event.Level.*;
 import static java.util.concurrent.TimeUnit.*;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
 import com.github.jelatinone.meta.result.CollectionResult;
@@ -104,7 +104,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces>
 
 						CollectionResult<Consumes> result = collect();
 						switch (result) {
-							case CollectionResult.Alive(List<Consumes> collection) -> {
+							case CollectionResult.Alive(Collection<Consumes> collection) -> {
 								useMessage("Collection shape : Alive", INFO);
 
 								_collected.addAll(collection);

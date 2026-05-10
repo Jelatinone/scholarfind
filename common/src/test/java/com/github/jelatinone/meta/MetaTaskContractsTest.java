@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import com.github.jelatinone.api.Criteria;
 import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.mock.MockStore;
 import com.github.jelatinone.meta.construct.Infrastructure;
@@ -31,11 +32,9 @@ class MetaTaskContractsTest {
 	@Test
 	void resultAndDirectiveContracts_keepExpectedShapes() {
 		CollectionResult<String> alive = new CollectionResult.Alive<>(List.of("a"));
-		CollectionResult<String> idle = new CollectionResult.Idle<>();
 		CollectionResult<String> empty = new CollectionResult.Empty<>();
 
 		assertInstanceOf(CollectionResult.Alive.class, alive);
-		assertInstanceOf(CollectionResult.Idle.class, idle);
 		assertInstanceOf(CollectionResult.Empty.class, empty);
 		assertInstanceOf(PostResult.Success.class, new PostResult.Success());
 		assertInstanceOf(PostResult.Retry.class, new PostResult.Retry(new IllegalStateException("retry")));
@@ -76,22 +75,22 @@ class MetaTaskContractsTest {
 	void infrastructureBindsRouterAndStores() {
 		Router router = envelope -> {
 		};
-		MockStore<AttemptEvent, String> attemptStore = new MockStore<>();
-		MockStore<ExecutionEvent, String> executionStore = new MockStore<>();
+		MockStore<String, AttemptEvent> attemptStore = new MockStore<>();
+		MockStore<String, ExecutionEvent> executionStore = new MockStore<>();
 
-		Infrastructure<InvestigateRequest, InvestigateRequest> infrastructure = new Infrastructure<>() {
+		Infrastructure<InvestigateRequest, InvestigateRequest, Void> infrastructure = new Infrastructure<>() {
 			@Override
 			public Router router() {
 				return router;
 			}
 
 			@Override
-			public Store<AttemptEvent, String> attemptStore() {
+			public Store<String, AttemptEvent, Criteria<String>> attemptStore() {
 				return attemptStore;
 			}
 
 			@Override
-			public Store<ExecutionEvent, String> executionStore() {
+			public Store<String, ExecutionEvent, Criteria<String>> executionStore() {
 				return executionStore;
 			}
 
