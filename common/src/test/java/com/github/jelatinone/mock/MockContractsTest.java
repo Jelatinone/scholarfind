@@ -24,7 +24,7 @@ class MockContractsTest {
 
     store.put(KEY, "stored");
 
-    assertEquals("stored", store.query(new Singular<>(Criteria.identifier(KEY))));
+    assertEquals("stored", store.query(new Singular<>(Criteria.identifier(KEY))).orElseThrow());
     assertTrue(store.containsKey(KEY));
     assertEquals(Map.of(KEY, "stored"), store.snapshot());
 
@@ -44,7 +44,7 @@ class MockContractsTest {
     alpha.acknowledgement().retry();
     queue.send("gamma");
 
-    QueueEnvelope<String> beta = queue.query(new Singular<>(MockQueue.ANY));
+    QueueEnvelope<String> beta = queue.query(new Singular<>(MockQueue.ANY)).orElseThrow();
     beta.acknowledgement().error();
     queue.error("delta");
 

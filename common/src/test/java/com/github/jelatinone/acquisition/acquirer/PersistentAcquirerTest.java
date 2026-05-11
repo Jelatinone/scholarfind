@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 
@@ -34,10 +35,12 @@ class PersistentAcquirerTest {
         url -> new FetchedBody(CanonicalTestFixtures.url("https://ignored.com"), new byte[0], "ignored",
             MediaType.TEXT_PLAIN,
             MediaEncoding.UTF_8,
-            AcquisitionTestFixtures.mediaMetadata("text/plain", 0)),
+            AcquisitionTestFixtures.mediaMetadata("text/plain", 0),
+            Instant.now()),
         url -> new FetchedMetadata(CanonicalTestFixtures.url("https://example.com/final"), MediaType.TEXT_HTML,
             MediaEncoding.UTF_8,
-            AcquisitionTestFixtures.mediaMetadata("text/html", 25)),
+            AcquisitionTestFixtures.mediaMetadata("text/html", 25),
+            Instant.now()),
         Set.of(),
         new MockStore<>(),
         Duration.ofDays(30L));
@@ -61,12 +64,14 @@ class PersistentAcquirerTest {
             "hash",
             MediaType.TEXT_PLAIN,
             MediaEncoding.UTF_8,
-            AcquisitionTestFixtures.mediaMetadata("text/plain", 5)),
+            AcquisitionTestFixtures.mediaMetadata("text/plain", 5),
+            Instant.now()),
         url -> new FetchedMetadata(
             CanonicalTestFixtures.url("https://example.com/final"),
             MediaType.TEXT_PLAIN,
             MediaEncoding.UTF_8,
-            AcquisitionTestFixtures.mediaMetadata("text/plain", 5)),
+            AcquisitionTestFixtures.mediaMetadata("text/plain", 5),
+            Instant.now()),
         Set.<Interpreter<?>>of(new TextInterpreter()),
         store,
         Duration.ofDays(30L));
@@ -75,7 +80,7 @@ class PersistentAcquirerTest {
         StructTestFixtures.TARGET_ID,
         StructTestFixtures.REVIEW_ID,
         CanonicalTestFixtures.url("https://example.com/start")));
-    Capture capture = store.query(new Singular<>(Criteria.identifier(StructTestFixtures.TARGET_ID)));
+    Capture capture = store.query(new Singular<>(Criteria.identifier(StructTestFixtures.TARGET_ID))).orElseThrow();
 
     assertInstanceOf(Capture.Resolved.class, capture);
     assertEquals("https://example.com/final", interpreted.effectiveUrl().toExternalForm());
