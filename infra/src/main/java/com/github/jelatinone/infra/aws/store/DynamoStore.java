@@ -15,7 +15,7 @@ import com.github.jelatinone.api.Query.Several;
 import com.github.jelatinone.api.Query.Singular;
 import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.api.store.StoreException;
-import com.github.jelatinone.infra.aws.AWSQueryable;
+import com.github.jelatinone.infra.aws.AWSInfrastructure;
 import com.github.jelatinone.infra.aws.store.serial.DynamoSerializer;
 
 import lombok.AccessLevel;
@@ -40,7 +40,7 @@ import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 @AllArgsConstructor
 public class DynamoStore<Key, Value>
     implements Store<StoreLocation<Key>, Value, DynamoCriteria<Key>>,
-    AWSQueryable<CreateTableRequest, CreateTableResponse> {
+    AWSInfrastructure<CreateTableRequest, CreateTableResponse> {
 
   DynamoDbClient client;
   DynamoSerializer<Value, Key> serializer;

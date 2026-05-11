@@ -2,7 +2,7 @@ package com.github.jelatinone.infra.aws;
 
 import java.util.Optional;
 
-public interface AWSQueryable<Create, Created> {
+public interface AWSInfrastructure<Create, Created> {
 
   Optional<Created> tryCreate(Create create);
 

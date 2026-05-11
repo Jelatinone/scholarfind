@@ -11,7 +11,7 @@ import com.github.jelatinone.api.Query.Several;
 import com.github.jelatinone.api.Query.Singular;
 import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.api.store.StoreException;
-import com.github.jelatinone.infra.aws.AWSQueryable;
+import com.github.jelatinone.infra.aws.AWSInfrastructure;
 import com.github.jelatinone.infra.aws.store.serial.S3Serializer;
 
 import lombok.AccessLevel;
@@ -35,7 +35,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 @AllArgsConstructor
 public class S3Store<Key, Value>
     implements Store<StoreLocation<Key>, Value, S3Criteria<Key>>,
-    AWSQueryable<CreateBucketRequest, CreateBucketResponse> {
+    AWSInfrastructure<CreateBucketRequest, CreateBucketResponse> {
 
   S3Client client;
   S3Serializer<Value, Key> serializer;

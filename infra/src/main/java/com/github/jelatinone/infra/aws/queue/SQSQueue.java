@@ -18,7 +18,7 @@ import com.github.jelatinone.api.Query.Several;
 import com.github.jelatinone.api.Query.Singular;
 import com.github.jelatinone.api.queue.Queue;
 import com.github.jelatinone.api.queue.QueueException;
-import com.github.jelatinone.infra.aws.AWSQueryable;
+import com.github.jelatinone.infra.aws.AWSInfrastructure;
 import com.github.jelatinone.infra.aws.queue.serial.SQSSerializer;
 
 import software.amazon.awssdk.http.SdkHttpResponse;
@@ -41,7 +41,7 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @AllArgsConstructor
 public class SQSQueue<Value>
-    implements Queue<Value, SQSCriteria>, AWSQueryable<CreateQueueRequest, CreateQueueResponse> {
+    implements Queue<Value, SQSCriteria>, AWSInfrastructure<CreateQueueRequest, CreateQueueResponse> {
 
   SqsClient client;
   SQSSerializer<Value> serializer;

@@ -1,6 +1,6 @@
 package com.github.jelatinone.api.graph;
 
-public interface Graph<Vertex, Edge, Identifier> {
+public interface Graph<Vertex, Edge, Identifier> extends AutoCloseable {
 
   void putVertex(Vertex node);
 

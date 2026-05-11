@@ -33,8 +33,7 @@ import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class NeptuneGraph<Node, Relationship, Identifier>
-    implements Graph<Node, Relationship, Identifier>, AutoCloseable {
+public class NeptuneGraph<Node, Relationship, Identifier> implements Graph<Node, Relationship, Identifier> {
 
   static final String ID_PROPERTY = "id";
 
