@@ -1,12 +1,9 @@
 package com.github.jelatinone.api.graph;
 
 import java.time.Duration;
-import java.util.Map;
 import java.util.Optional;
 
 import com.github.jelatinone.api.Criteria;
-import com.github.jelatinone.api.Index;
-import com.github.jelatinone.api.Property;
 
 public interface GraphCriteria<Identifier> extends Criteria<Identifier> {
 
@@ -22,8 +19,7 @@ public interface GraphCriteria<Identifier> extends Criteria<Identifier> {
         Optional.empty(),
         1,
         false,
-        GraphDirection.OUT,
-        Map.of());
+        GraphDirection.OUT);
   }
 
   public static <Identifier> GraphCriteria<Identifier> incoming(Identifier identifier) {
@@ -32,8 +28,7 @@ public interface GraphCriteria<Identifier> extends Criteria<Identifier> {
         Optional.empty(),
         1,
         false,
-        GraphDirection.IN,
-        Map.of());
+        GraphDirection.IN);
   }
 
   public static <Identifier> GraphCriteria<Identifier> any(Identifier origin) {
@@ -42,8 +37,7 @@ public interface GraphCriteria<Identifier> extends Criteria<Identifier> {
         Optional.empty(),
         1,
         false,
-        GraphDirection.ANY,
-        Map.of());
+        GraphDirection.ANY);
   }
 }
 
@@ -52,8 +46,7 @@ record DefaultGraphCriteria<Identifier>(
     Optional<Duration> duration,
     int originRadius,
     boolean originIncluded,
-    GraphDirection direction,
-    Map<Index<?>, Property> queryProperties) implements GraphCriteria<Identifier> {
+    GraphDirection direction) implements GraphCriteria<Identifier> {
 
   public DefaultGraphCriteria {
     if (originRadius < 1) {

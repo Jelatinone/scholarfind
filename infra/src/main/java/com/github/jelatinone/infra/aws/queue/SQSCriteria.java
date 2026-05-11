@@ -15,9 +15,9 @@ public interface SQSCriteria extends Criteria<String> {
 
   String groupId();
 
-  Map<MessageSystemAttributeNameForSends, MessageSystemAttributeValue> messageSystemAttributes();
-
   Collection<String> messageAttributeNames();
 
   Collection<MessageSystemAttributeName> messageSystemAttributeNames();
+
+  Map<MessageSystemAttributeNameForSends, MessageSystemAttributeValue> messageSystemAttributes();
 }

@@ -1,12 +1,9 @@
 package com.github.jelatinone.api.graph;
 
 import java.time.Duration;
-import java.util.Map;
 import java.util.Optional;
 
 import com.github.jelatinone.api.Criteria;
-import com.github.jelatinone.api.Index;
-import com.github.jelatinone.api.Property;
 
 public interface EdgeCritiera<Identifier> extends Criteria<Identifier> {
 
@@ -22,8 +19,7 @@ public interface EdgeCritiera<Identifier> extends Criteria<Identifier> {
         Optional.empty(),
         Optional.empty(),
         Optional.empty(),
-        GraphDirection.ANY,
-        Map.of());
+        GraphDirection.ANY);
   }
 
   public static <Key> EdgeCritiera<Key> from(Key from) {
@@ -32,8 +28,7 @@ public interface EdgeCritiera<Identifier> extends Criteria<Identifier> {
         Optional.empty(),
         Optional.of(from),
         Optional.empty(),
-        GraphDirection.OUT,
-        Map.of());
+        GraphDirection.OUT);
   }
 
   public static <Key> EdgeCritiera<Key> to(Key to) {
@@ -42,8 +37,7 @@ public interface EdgeCritiera<Identifier> extends Criteria<Identifier> {
         Optional.empty(),
         Optional.empty(),
         Optional.of(to),
-        GraphDirection.IN,
-        Map.of());
+        GraphDirection.IN);
   }
 
   public static <Key> EdgeCritiera<Key> between(Key from, Key to) {
@@ -52,8 +46,7 @@ public interface EdgeCritiera<Identifier> extends Criteria<Identifier> {
         Optional.empty(),
         Optional.of(from),
         Optional.of(to),
-        GraphDirection.OUT,
-        Map.of());
+        GraphDirection.OUT);
   }
 }
 
@@ -62,6 +55,5 @@ record DefaultEdgeCriteria<Identifier>(
     Optional<Duration> duration,
     Optional<Identifier> from,
     Optional<Identifier> to,
-    GraphDirection direction,
-    Map<Index<?>, Property> queryProperties) implements EdgeCritiera<Identifier> {
+    GraphDirection direction) implements EdgeCritiera<Identifier> {
 }

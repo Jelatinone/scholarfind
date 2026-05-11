@@ -123,7 +123,6 @@ public class SQSQueue<Value>
               .messageAttributeNames(query.criteria().messageAttributeNames())
               .messageSystemAttributeNames(query.criteria().messageSystemAttributeNames())
               .maxNumberOfMessages(1)
-              .messageAttributeNames(".*")
               .build());
       response("receive message", response.sdkHttpResponse());
 
@@ -161,7 +160,6 @@ public class SQSQueue<Value>
               .messageAttributeNames(query.criteria().messageAttributeNames())
               .messageSystemAttributeNames(query.criteria().messageSystemAttributeNames())
               .maxNumberOfMessages(query.limit())
-              .messageAttributeNames(".*")
               .build());
       response("receive message(s)", response.sdkHttpResponse());
 
