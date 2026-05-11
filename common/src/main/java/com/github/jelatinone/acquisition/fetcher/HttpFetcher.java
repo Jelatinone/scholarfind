@@ -7,6 +7,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 
 import com.github.jelatinone.acquisition.BodyFetcher;
 import com.github.jelatinone.acquisition.FetchedBody;
@@ -26,123 +27,127 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class HttpFetcher implements BodyFetcher, MetadataFetcher {
 
-	HttpClient client;
+  HttpClient client;
 
-	Duration maximumRequestTimeout;
-	int maximumRedirects;
+  Duration maximumRequestTimeout;
+  int maximumRedirects;
 
-	String userAgent;
+  String userAgent;
 
-	@Override
-	public FetchedMetadata fetchMetadata(@NonNull URL canonicalUrl) {
-		URI currentUri = Canonical.toURI(canonicalUrl);
+  @Override
+  public FetchedMetadata fetchMetadata(@NonNull URL canonicalUrl) {
+    Instant fetchedAt = Instant.now();
+    URI currentUri = Canonical.toURI(canonicalUrl);
 
-		int redirectCount = 0;
-		int setCookieCount = 0;
+    int redirectCount = 0;
+    int setCookieCount = 0;
 
-		try {
-			while (true) {
-				HttpRequest request = HttpRequest.newBuilder(currentUri)
-						.timeout(maximumRequestTimeout)
-						.header("User-Agent", userAgent)
-						.method("HEAD", HttpRequest.BodyPublishers.noBody())
-						.build();
+    try {
+      while (true) {
+        HttpRequest request = HttpRequest.newBuilder(currentUri)
+            .timeout(maximumRequestTimeout)
+            .header("User-Agent", userAgent)
+            .method("HEAD", HttpRequest.BodyPublishers.noBody())
+            .build();
 
-				HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
-				setCookieCount += response.headers().allValues("Set-Cookie").size();
-				if (Canonical.isRedirect(response.statusCode()) && redirectCount < maximumRedirects) {
-					String location = response.headers().firstValue("Location").orElse(null);
-					if (location == null || location.isBlank()) {
-						break;
-					}
-					currentUri = currentUri.resolve(location);
-					redirectCount++;
-					continue;
-				}
+        HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        setCookieCount += response.headers().allValues("Set-Cookie").size();
+        if (Canonical.isRedirect(response.statusCode()) && redirectCount < maximumRedirects) {
+          String location = response.headers().firstValue("Location").orElse(null);
+          if (location == null || location.isBlank()) {
+            break;
+          }
+          currentUri = currentUri.resolve(location);
+          redirectCount++;
+          continue;
+        }
 
-				Long contentLength = response.headers().firstValue("Content-Length")
-						.map((length) -> {
-							try {
-								return Long.parseLong(length);
-							} catch (Exception exception) {
-								return null;
-							}
-						})
-						.orElse(null);
-				String contentType = response.headers().firstValue("Content-Type").orElse(null);
+        Long contentLength = response.headers().firstValue("Content-Length")
+            .map((length) -> {
+              try {
+                return Long.parseLong(length);
+              } catch (Exception exception) {
+                return null;
+              }
+            })
+            .orElse(null);
+        String contentType = response.headers().firstValue("Content-Type").orElse(null);
 
-				return new FetchedMetadata(
-						Canonical.toURL(currentUri),
-						MediaType.resolve(contentType),
-						MediaEncoding.resolve(contentType),
-						new MediaMetadata(
-								response.statusCode(),
-								redirectCount,
-								setCookieCount,
-								contentType,
-								contentLength));
-			}
-			throw new IllegalStateException("Failed to resolve content exchange");
-		} catch (IOException | InterruptedException exception) {
-			throw new IllegalStateException("Failed to acquire content", exception);
-		}
-	}
+        return new FetchedMetadata(
+            Canonical.toURL(currentUri),
+            MediaType.resolve(contentType),
+            MediaEncoding.resolve(contentType),
+            new MediaMetadata(
+                response.statusCode(),
+                redirectCount,
+                setCookieCount,
+                contentType,
+                contentLength),
+            fetchedAt);
+      }
+      throw new IllegalStateException("Failed to resolve content exchange");
+    } catch (IOException | InterruptedException exception) {
+      throw new IllegalStateException("Failed to acquire content", exception);
+    }
+  }
 
-	@Override
-	public FetchedBody fetchBody(@NonNull URL canonicalUrl) {
-		URI currentURI = Canonical.toURI(canonicalUrl);
+  @Override
+  public FetchedBody fetchBody(@NonNull URL canonicalUrl) {
+    Instant fetchedAt = Instant.now();
+    URI currentURI = Canonical.toURI(canonicalUrl);
 
-		int redirectCount = 0;
-		int setCookieCount = 0;
+    int redirectCount = 0;
+    int setCookieCount = 0;
 
-		try {
-			while (true) {
-				HttpRequest request = HttpRequest.newBuilder(currentURI)
-						.timeout(maximumRequestTimeout)
-						.header("User-Agent", userAgent)
-						.GET()
-						.build();
+    try {
+      while (true) {
+        HttpRequest request = HttpRequest.newBuilder(currentURI)
+            .timeout(maximumRequestTimeout)
+            .header("User-Agent", userAgent)
+            .GET()
+            .build();
 
-				HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
-				setCookieCount += response.headers().allValues("Set-Cookie").size();
-				if (Canonical.isRedirect(response.statusCode()) && redirectCount < maximumRedirects) {
-					String location = response.headers().firstValue("Location").orElse(null);
-					if (location == null || location.isBlank()) {
-						break;
-					}
-					currentURI = currentURI.resolve(location);
-					redirectCount++;
-					continue;
-				}
+        HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        setCookieCount += response.headers().allValues("Set-Cookie").size();
+        if (Canonical.isRedirect(response.statusCode()) && redirectCount < maximumRedirects) {
+          String location = response.headers().firstValue("Location").orElse(null);
+          if (location == null || location.isBlank()) {
+            break;
+          }
+          currentURI = currentURI.resolve(location);
+          redirectCount++;
+          continue;
+        }
 
-				Long contentLength = response.headers().firstValue("Content-Length")
-						.map((length) -> {
-							try {
-								return Long.parseLong(length);
-							} catch (Exception exception) {
-								return null;
-							}
-						})
-						.orElse((long) response.body().length);
-				String contentType = response.headers().firstValue("Content-Type").orElse(null);
+        Long contentLength = response.headers().firstValue("Content-Length")
+            .map((length) -> {
+              try {
+                return Long.parseLong(length);
+              } catch (Exception exception) {
+                return null;
+              }
+            })
+            .orElse((long) response.body().length);
+        String contentType = response.headers().firstValue("Content-Type").orElse(null);
 
-				return new FetchedBody(
-						Canonical.toURL(currentURI),
-						response.body(),
-						Canonical.hash(response.body()),
-						MediaType.resolve(contentType),
-						MediaEncoding.resolve(contentType),
-						new MediaMetadata(
-								response.statusCode(),
-								redirectCount,
-								setCookieCount,
-								contentType,
-								contentLength));
-			}
-			throw new IllegalStateException("Failed to resolve content exchange");
-		} catch (IOException | InterruptedException exception) {
-			throw new IllegalStateException("Failed to acquire content", exception);
-		}
-	}
+        return new FetchedBody(
+            Canonical.toURL(currentURI),
+            response.body(),
+            Canonical.hash(response.body()),
+            MediaType.resolve(contentType),
+            MediaEncoding.resolve(contentType),
+            new MediaMetadata(
+                response.statusCode(),
+                redirectCount,
+                setCookieCount,
+                contentType,
+                contentLength),
+            fetchedAt);
+      }
+      throw new IllegalStateException("Failed to resolve content exchange");
+    } catch (IOException | InterruptedException exception) {
+      throw new IllegalStateException("Failed to acquire content", exception);
+    }
+  }
 
 }

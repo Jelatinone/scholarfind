@@ -102,11 +102,14 @@ public class SQSQueue<Value>
 
       response("get queue attributes", response.sdkHttpResponse());
       long count = Long
-          .parseLong(response.attributes().getOrDefault(QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES, "0"));
+          .parseLong(response.attributes().getOrDefault(QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES,
+              "0"));
       return count;
     } catch (Exception exception) {
-      _logger.error(String.format("Queue query failed : %s", exception.getMessage()));
-      throw new QueueException.RetryQueueException(exception.getMessage(), exception);
+      _logger.error(String.format("Queue query failed : %s",
+          exception.getMessage()));
+      throw new QueueException.RetryQueueException(exception.getMessage(),
+          exception);
     }
   }
 
@@ -128,18 +131,23 @@ public class SQSQueue<Value>
           .filter(java.util.Objects::nonNull)
           .findFirst()
           .orElse(null);
-      Value value = serializer.decode(message.body(), decodeAttributes(message.messageAttributes()));
+      Value value = serializer.decode(message.body(),
+          decodeAttributes(message.messageAttributes()));
 
       delete(queueUrl, message.receiptHandle());
       return value == null
           ? Optional.of(value)
           : Optional.empty();
     } catch (IOException exception) {
-      _logger.error(String.format("Decode queue message failed : %s", exception.getMessage()));
-      throw new QueueException.FatalQueueException(exception.getMessage(), exception);
+      _logger.error(String.format("Decode queue message failed : %s",
+          exception.getMessage()));
+      throw new QueueException.FatalQueueException(exception.getMessage(),
+          exception);
     } catch (Exception exception) {
-      _logger.error(String.format("Queue query failed : %s", exception.getMessage()));
-      throw new QueueException.RetryQueueException(exception.getMessage(), exception);
+      _logger.error(String.format("Queue query failed : %s",
+          exception.getMessage()));
+      throw new QueueException.RetryQueueException(exception.getMessage(),
+          exception);
     }
   }
 
@@ -162,19 +170,24 @@ public class SQSQueue<Value>
           .map((message) -> {
             Value value;
             try {
-              value = serializer.decode(message.body(), decodeAttributes(message.messageAttributes()));
+              value = serializer.decode(message.body(),
+                  decodeAttributes(message.messageAttributes()));
 
               delete(queueUrl, message.receiptHandle());
               return value;
             } catch (IOException exception) {
-              _logger.error(String.format("Decode queue message failed : %s", exception.getMessage()));
-              throw new QueueException.FatalQueueException(exception.getMessage(), exception);
+              _logger.error(String.format("Decode queue message failed : %s",
+                  exception.getMessage()));
+              throw new QueueException.FatalQueueException(exception.getMessage(),
+                  exception);
             }
           }).toList();
       return envelopes;
     } catch (Exception exception) {
-      _logger.error(String.format("Queue query failed : %s", exception.getMessage()));
-      throw new QueueException.RetryQueueException(exception.getMessage(), exception);
+      _logger.error(String.format("Queue query failed : %s",
+          exception.getMessage()));
+      throw new QueueException.RetryQueueException(exception.getMessage(),
+          exception);
     }
   }
 

@@ -40,7 +40,8 @@ public final class PersistentCaptureAcquirer implements Acquirer {
   @Override
   public Metadata metadata(@NonNull Acquisition current) {
     Capture storedCapture = captureStore
-        .query(new Singular<Criteria<UUID>>(Criteria.<UUID>identifier(current.targetId())));
+        .query(new Singular<Criteria<UUID>>(Criteria.<UUID>identifier(current.targetId())))
+        .orElse(null);
     if (storedCapture != null && storedCapture.emittedAt().minus(captureStalenessTimeout).isBefore(Instant.now())) {
       Metadata metadata = new Metadata(
           storedCapture.targetId(),
@@ -55,7 +56,6 @@ public final class PersistentCaptureAcquirer implements Acquirer {
 
     URL resolvedUrl = current.resolvedUrl();
     FetchedMetadata fetchedMetadata = metadataFetcher.fetchMetadata(resolvedUrl);
-    Instant fetchedAt = Instant.now();
 
     Capture capture = new Capture.Metadata(
         current.targetId(),
@@ -64,7 +64,7 @@ public final class PersistentCaptureAcquirer implements Acquirer {
         fetchedMetadata.mediaType(),
         fetchedMetadata.mediaEncoding(),
         fetchedMetadata.mediaMetadata(),
-        fetchedAt);
+        fetchedMetadata.fetchedAt());
     captureStore.put(current.targetId(), capture);
 
     Metadata acquisition = new Metadata(
@@ -81,7 +81,8 @@ public final class PersistentCaptureAcquirer implements Acquirer {
   @Override
   public Interpreted interpreted(@NonNull Acquisition current) {
     Capture storedCapture = captureStore
-        .query(new Singular<Criteria<UUID>>(Criteria.<UUID>identifier(current.targetId())));
+        .query(new Singular<Criteria<UUID>>(Criteria.<UUID>identifier(current.targetId())))
+        .orElse(null);
     if (storedCapture != null && storedCapture.emittedAt().minus(captureStalenessTimeout).isBefore(Instant.now())) {
       switch (storedCapture) {
         case Capture.Resolved resolved -> {
@@ -105,7 +106,6 @@ public final class PersistentCaptureAcquirer implements Acquirer {
     URL resolvedUrl = current.resolvedUrl();
 
     FetchedBody fetchedBody = bodyFetcher.fetchBody(resolvedUrl);
-    Instant fetchedAt = Instant.now();
 
     Capture capture = new Capture.Resolved(
         current.targetId(),
@@ -116,7 +116,7 @@ public final class PersistentCaptureAcquirer implements Acquirer {
         fetchedBody.mediaType(),
         fetchedBody.mediaEncoding(),
         fetchedBody.mediaMetadata(),
-        fetchedAt);
+        fetchedBody.fetchedAt());
     captureStore.put(current.targetId(), capture);
 
     Interpreted interpreted = new Interpreted(
@@ -126,7 +126,7 @@ public final class PersistentCaptureAcquirer implements Acquirer {
         fetchedBody.mediaType(),
         fetchedBody.mediaEncoding(),
         fetchedBody.mediaMetadata(),
-        fetchedAt,
+        fetchedBody.fetchedAt(),
         fetchedBody.sourceBytes(),
         fetchedBody.sourceHash());
     return interpreters.stream()
