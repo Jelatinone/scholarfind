@@ -7,8 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +33,7 @@ class PersistentAcquirerTest {
 
   @Test
   void metadata_mapsFetcherOutput() {
+    MockStore<UUID, Capture> store = new MockStore<>();
     PersistentCaptureAcquirer acquirer = new PersistentCaptureAcquirer(
         url -> new FetchedBody(CanonicalTestFixtures.url("https://ignored.com"), new byte[0], "ignored",
             MediaType.TEXT_PLAIN,
@@ -42,7 +45,7 @@ class PersistentAcquirerTest {
             AcquisitionTestFixtures.mediaMetadata("text/html", 25),
             Instant.now()),
         Set.of(),
-        new MockStore<>(),
+        store,
         Duration.ofDays(30L));
 
     Acquisition.Metadata metadata = acquirer.metadata(new Acquisition.Initial(
@@ -52,6 +55,59 @@ class PersistentAcquirerTest {
 
     assertEquals("https://example.com/final", metadata.effectiveUrl().toExternalForm());
     assertEquals(MediaType.TEXT_HTML, metadata.mediaType());
+
+    Capture.Metadata capture = assertInstanceOf(Capture.Metadata.class, store.get(StructTestFixtures.TARGET_ID));
+    assertEquals("https://example.com/final", capture.effectiveUrl().toExternalForm());
+    assertEquals(metadata.emittedAt(), capture.emittedAt());
+  }
+
+  @Test
+  void metadata_reusesFreshCapture_andRefreshesStaleCapture() {
+    Capture.Metadata freshCapture = new Capture.Metadata(
+        StructTestFixtures.TARGET_ID,
+        StructTestFixtures.REVIEW_ID,
+        CanonicalTestFixtures.url("https://example.com/fresh"),
+        MediaType.TEXT_HTML,
+        MediaEncoding.UTF_8,
+        AcquisitionTestFixtures.mediaMetadata("text/html", 5),
+        Instant.now());
+    MockStore<UUID, Capture> store = new MockStore<>(Map.of(StructTestFixtures.TARGET_ID, freshCapture));
+    AtomicInteger metadataFetches = new AtomicInteger();
+    PersistentCaptureAcquirer acquirer = new PersistentCaptureAcquirer(
+        url -> new FetchedBody(CanonicalTestFixtures.url("https://ignored.com"), new byte[0], "ignored",
+            MediaType.TEXT_PLAIN,
+            MediaEncoding.UTF_8,
+            AcquisitionTestFixtures.mediaMetadata("text/plain", 0),
+            Instant.now()),
+        url -> {
+          metadataFetches.incrementAndGet();
+          return new FetchedMetadata(CanonicalTestFixtures.url("https://example.com/refetched"), MediaType.TEXT_PLAIN,
+              MediaEncoding.UTF_8,
+              AcquisitionTestFixtures.mediaMetadata("text/plain", 10),
+              Instant.now());
+        },
+        Set.of(),
+        store,
+        Duration.ofDays(30L));
+    Acquisition.Initial request = new Acquisition.Initial(
+        StructTestFixtures.TARGET_ID,
+        StructTestFixtures.REVIEW_ID,
+        CanonicalTestFixtures.url("https://example.com/start"));
+
+    Acquisition.Metadata cached = acquirer.metadata(request);
+    store.put(StructTestFixtures.TARGET_ID, new Capture.Metadata(
+        StructTestFixtures.TARGET_ID,
+        StructTestFixtures.REVIEW_ID,
+        CanonicalTestFixtures.url("https://example.com/stale"),
+        MediaType.TEXT_HTML,
+        MediaEncoding.UTF_8,
+        AcquisitionTestFixtures.mediaMetadata("text/html", 5),
+        Instant.now().minus(Duration.ofDays(31L))));
+    Acquisition.Metadata refreshed = acquirer.metadata(request);
+
+    assertEquals("https://example.com/fresh", cached.effectiveUrl().toExternalForm());
+    assertEquals("https://example.com/refetched", refreshed.effectiveUrl().toExternalForm());
+    assertEquals(1, metadataFetches.get());
   }
 
   @Test
@@ -86,6 +142,7 @@ class PersistentAcquirerTest {
     assertEquals("https://example.com/final", interpreted.effectiveUrl().toExternalForm());
     assertEquals(1, interpreted.sourceProjections().size());
     assertNotNull(capture);
+    assertEquals("https://example.com/final", capture.effectiveUrl().toExternalForm());
     assertTrue(new String(((Capture.Resolved) capture).sourceBytes()).contains("hello"));
   }
 }

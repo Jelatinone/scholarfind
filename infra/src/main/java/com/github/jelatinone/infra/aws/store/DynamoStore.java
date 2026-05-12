@@ -114,7 +114,7 @@ public class DynamoStore<Key, Value>
           .applyMutation(criteria.getItemRequest()));
       response("get item", response.sdkHttpResponse());
       if (response.item() == null || response.item().isEmpty()) {
-        return null;
+        return Optional.empty();
       }
       return Optional.ofNullable(serializer.decodeItem(response.item()));
     } catch (Exception exception) {
@@ -126,10 +126,8 @@ public class DynamoStore<Key, Value>
   @Override
   public Collection<Value> query(Several<DynamoCriteria<Key>> query) {
     return query(new Singular<>(query.criteria()))
-        .map(value -> value == null
-            ? List.<Value>of()
-            : List.of(value))
-        .get();
+        .map(List::of)
+        .orElseGet(List::of);
   }
 
   @Override

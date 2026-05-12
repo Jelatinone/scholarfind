@@ -68,7 +68,8 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 			@NonNull PipelineResult<Documents, In> output) {
 		In payload = output.input().content();
 
-		RequestHeader nextHeader = RequestHeader.retry(payload.requestHeader(), Instant.now());
+		Instant occurredAt = Instant.now();
+		RequestHeader nextHeader = RequestHeader.retry(payload.requestHeader(), occurredAt);
 		In nextRequest = buildRequest(payload, nextHeader);
 		return new Letter<>(
 				output.input().schemaVersion(),
@@ -76,7 +77,7 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 				output.input().reviewId(),
 				output.input().executionRef(),
 				nextRequest,
-				Instant.now());
+				occurredAt);
 	}
 
 	default Letter<In> errorEnvelope(@NonNull PipelineResult<Documents, In> output) {
@@ -120,7 +121,7 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 			PolicyResult<Letter<In>, Context, State> policy) {
 
 		persistExecution(input, decision, policy.emittedAt());
-		persistAttempt(input, decision, policy.initializedAt(), policy.emittedAt(), null);
+		persistAttempt(input, decision, policy.initializedAt(), policy.emittedAt(), cause(decision));
 
 		return new PipelineResult<>(
 				input,
@@ -129,6 +130,14 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 				List.of(),
 				policy.initializedAt(),
 				policy.emittedAt());
+	}
+
+	private Throwable cause(PolicyDecision<State> decision) {
+		return switch (decision) {
+			case PolicyDecision.Retry<State> retry -> retry.cause();
+			case PolicyDecision.Error<State> error -> error.cause();
+			default -> null;
+		};
 	}
 
 	default PipelineResult<Documents, In> processPipeline(@NonNull PolicyResult<Letter<In>, Context, State> policy) {

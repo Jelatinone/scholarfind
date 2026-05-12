@@ -78,7 +78,7 @@ public class MockQueue<Value> implements RetryableQueue<Value, Criteria<Void>> {
   }
 
   @Override
-  public synchronized void queue(Criteria<Void> critiera, QueueEnvelope<Value> message) {
+  public synchronized void queue(Criteria<Void> criteria, QueueEnvelope<Value> message) {
     output.addLast(message.content());
   }
 

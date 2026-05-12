@@ -192,8 +192,16 @@ public non-sealed abstract class SequentialTask<Consumes, Produces>
 					}
 				}
 			} catch (final Throwable throwable) {
+				State failedFrom = _state.get();
 				useState(State.FAILED);
 				useMessage(String.format("Operation interrupted : %s", throwable.getCause()), ERROR, throwable);
+				if (failedFrom != State.COMPLETED && failedFrom != State.FAILED) {
+					try {
+						shutdown();
+					} catch (Throwable shutdownFailure) {
+						throwable.addSuppressed(shutdownFailure);
+					}
+				}
 				_completable.completeExceptionally(throwable);
 			}
 		}
@@ -219,10 +227,7 @@ public non-sealed abstract class SequentialTask<Consumes, Produces>
 				default -> _completable = new CompletableFuture<>();
 			}
 		}
-		if (state == State.COMPLETED || state == State.FAILED) {
-			_completable.complete(null);
-		}
-		useMessage(String.format("State update : %s -> %s", _state, state), INFO);
+		useMessage(String.format("State update : %s -> %s", currentState, state), INFO);
 		this._state.set(state);
 	}
 

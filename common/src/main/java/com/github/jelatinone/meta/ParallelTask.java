@@ -248,6 +248,8 @@ public non-sealed abstract class ParallelTask<Consumes, Produces>
           case DISPATCHING -> {
             _operands.clear();
             _results.clear();
+            _jobs.clear();
+            useState(State.WORKING);
 
             while (_threads.tryAcquire()) {
               Consumes element = _collected.poll();
@@ -261,12 +263,10 @@ public non-sealed abstract class ParallelTask<Consumes, Produces>
               _jobs.clear();
               useState(State.COLLECTING);
             });
-
-            useState(State.WORKING);
           }
 
           case WORKING -> {
-            // Do nothing, wait for jobs to complete ;)
+            Thread.sleep(1L);
           }
 
           case RESTARTING -> {
@@ -288,8 +288,16 @@ public non-sealed abstract class ParallelTask<Consumes, Produces>
           }
         }
       } catch (final Throwable throwable) {
+        State failedFrom = _state.get();
         useState(State.FAILED);
         useMessage(String.format("Operation interrupted : %s", throwable.getCause()), ERROR, throwable);
+        if (failedFrom != State.COMPLETED && failedFrom != State.FAILED) {
+          try {
+            shutdown();
+          } catch (Throwable shutdownFailure) {
+            throwable.addSuppressed(shutdownFailure);
+          }
+        }
         _completable.completeExceptionally(throwable);
       }
     }
@@ -315,10 +323,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces>
         default -> _completable = new CompletableFuture<>();
       }
     }
-    if (state == State.COMPLETED || state == State.FAILED) {
-      _completable.complete(null);
-    }
-    useMessage(String.format("State update : %s -> %s", _state, state), INFO);
+    useMessage(String.format("State update : %s -> %s", currentState, state), INFO);
     this._state.set(state);
   }
 

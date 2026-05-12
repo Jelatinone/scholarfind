@@ -61,9 +61,26 @@ class PipelineArchetypeContractsTest {
 		assertEquals(output.input(), archetype.errorEnvelope(output));
 	}
 
+	@Test
+	void processPipeline_preservesTerminalDecisionCause() {
+		TestPipelineArchetype archetype = new TestPipelineArchetype();
+		Throwable cause = new IllegalStateException("retry");
+		PolicyResult<Letter<InvestigateRequest>, String, Integer> policy = new PolicyResult<>(
+				StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE),
+				"context",
+				new PolicyDecision.Retry<>(7, null, null, cause),
+				StructTestFixtures.NOW,
+				StructTestFixtures.NOW);
+
+		archetype.processPipeline(policy);
+
+		assertSame(cause, archetype.persistedAttemptCause);
+	}
+
 	private static final class TestPipelineArchetype
 			implements PipelineArchetype<InvestigateRequest, InvestigateRequest, String, Integer, InvestigateDocument> {
 		private InvestigateDocument persistedDocument;
+		private Throwable persistedAttemptCause;
 		private int persistCalls;
 
 		@Override
@@ -88,6 +105,7 @@ class PipelineArchetypeContractsTest {
 				Instant initializedAt,
 				Instant occurredAt,
 				Throwable throwable) {
+			persistedAttemptCause = throwable;
 		}
 
 		@Override

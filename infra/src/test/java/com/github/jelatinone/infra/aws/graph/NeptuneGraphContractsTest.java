@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import com.github.jelatinone.api.Criteria;
 import com.github.jelatinone.api.Query;
-import com.github.jelatinone.api.graph.EdgeCritiera;
+import com.github.jelatinone.api.graph.EdgeCriteria;
 import com.github.jelatinone.api.graph.GraphCriteria;
 import com.github.jelatinone.api.graph.GraphDirection;
 import com.github.jelatinone.infra.aws.graph.serial.JacksonNeptuneGraphSerializer;
@@ -89,11 +89,11 @@ class NeptuneGraphContractsTest {
     graph.putVertex(new TestVertex(TARGET, "target"));
     graph.putEdge(new TestEdge(EDGE, ORIGIN, TARGET, "parent"));
 
-    Collection<TestEdge> edges = graph.edges().query(new Query.Several<>(EdgeCritiera.between(ORIGIN, TARGET), 5));
+    Collection<TestEdge> edges = graph.edges().query(new Query.Several<>(EdgeCriteria.between(ORIGIN, TARGET), 5));
 
     assertEquals(List.of(new TestEdge(EDGE, ORIGIN, TARGET, "parent")), List.copyOf(edges));
-    assertEquals(1L, graph.edges().query(new Query.Count<>(EdgeCritiera.to(TARGET))));
-    assertEquals(1L, graph.edges().query(new Query.Count<>(EdgeCritiera.from(ORIGIN))));
+    assertEquals(1L, graph.edges().query(new Query.Count<>(EdgeCriteria.to(TARGET))));
+    assertEquals(1L, graph.edges().query(new Query.Count<>(EdgeCriteria.from(ORIGIN))));
   }
 
   private static NeptuneGraph<TestVertex, TestEdge, UUID> graph(GraphTraversalSource traversal) {

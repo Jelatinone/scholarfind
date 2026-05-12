@@ -42,7 +42,7 @@ public final class PersistentCaptureAcquirer implements Acquirer {
     Capture storedCapture = captureStore
         .query(new Singular<Criteria<UUID>>(Criteria.<UUID>identifier(current.targetId())))
         .orElse(null);
-    if (storedCapture != null && storedCapture.emittedAt().minus(captureStalenessTimeout).isBefore(Instant.now())) {
+    if (storedCapture != null && isFresh(storedCapture)) {
       Metadata metadata = new Metadata(
           storedCapture.targetId(),
           storedCapture.reviewId(),
@@ -60,7 +60,7 @@ public final class PersistentCaptureAcquirer implements Acquirer {
     Capture capture = new Capture.Metadata(
         current.targetId(),
         current.reviewId(),
-        resolvedUrl,
+        fetchedMetadata.effectiveUrl(),
         fetchedMetadata.mediaType(),
         fetchedMetadata.mediaEncoding(),
         fetchedMetadata.mediaMetadata(),
@@ -74,7 +74,7 @@ public final class PersistentCaptureAcquirer implements Acquirer {
         fetchedMetadata.mediaType(),
         fetchedMetadata.mediaEncoding(),
         fetchedMetadata.mediaMetadata(),
-        Instant.now());
+        fetchedMetadata.fetchedAt());
     return acquisition;
   }
 
@@ -83,7 +83,7 @@ public final class PersistentCaptureAcquirer implements Acquirer {
     Capture storedCapture = captureStore
         .query(new Singular<Criteria<UUID>>(Criteria.<UUID>identifier(current.targetId())))
         .orElse(null);
-    if (storedCapture != null && storedCapture.emittedAt().minus(captureStalenessTimeout).isBefore(Instant.now())) {
+    if (storedCapture != null && isFresh(storedCapture)) {
       switch (storedCapture) {
         case Capture.Resolved resolved -> {
           Interpreted interpreted = new Interpreted(
@@ -110,7 +110,7 @@ public final class PersistentCaptureAcquirer implements Acquirer {
     Capture capture = new Capture.Resolved(
         current.targetId(),
         current.reviewId(),
-        resolvedUrl,
+        fetchedBody.effectiveUrl(),
         fetchedBody.sourceBytes(),
         fetchedBody.sourceHash(),
         fetchedBody.mediaType(),
@@ -136,5 +136,10 @@ public final class PersistentCaptureAcquirer implements Acquirer {
             interpreted,
             (acquisition, projection) -> acquisition.withProjection(projection),
             (left, right) -> right);
+  }
+
+  private boolean isFresh(Capture capture) {
+    Instant expiresAt = capture.emittedAt().plus(captureStalenessTimeout);
+    return !expiresAt.isBefore(Instant.now());
   }
 }

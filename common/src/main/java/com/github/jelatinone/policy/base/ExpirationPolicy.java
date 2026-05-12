@@ -27,7 +27,7 @@ public final class ExpirationPolicy<Documents extends Document<Documents>, Conte
 		}
 
 		Instant expiresAt = discoveredAt.plusSeconds((long) expirationDays * 24 * 60 * 60);
-		if (expiresAt.isBefore(Instant.now())) {
+		if (expiresAt.isBefore(context.reviewedAt())) {
 			return new PolicyStep.Decide<>(
 					new PolicyDecision.Drop<State>(
 							state,

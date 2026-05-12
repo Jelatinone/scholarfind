@@ -62,21 +62,23 @@ public class SQSQueue<Value>
   }
 
   @Override
-  public void queue(@NonNull SQSCriteria critiera, @NonNull Value message) {
+  public void queue(@NonNull SQSCriteria criteria, @NonNull Value message) {
     try {
-      String queueUrl = identifier(critiera);
+      String queueUrl = identifier(criteria);
       String body = serializer.encodeBody(message);
       Map<String, String> attributes = serializer.encodeAttributes(message);
       SendMessageResponse response = client.sendMessage(builder -> builder
           .queueUrl(queueUrl)
           .messageBody(body)
-          .messageDeduplicationId(critiera.deduplicationId())
-          .messageGroupId(critiera.groupId())
-          .messageSystemAttributes(critiera.messageSystemAttributes())
+          .messageDeduplicationId(criteria.deduplicationId())
+          .messageGroupId(criteria.groupId())
+          .messageSystemAttributes(criteria.messageSystemAttributes())
           .messageAttributes(encodeAttributes(attributes)));
       response("send message", response.sdkHttpResponse());
+    } catch (IOException exception) {
+      throw new QueueException.FatalQueueException("Failed to encode queue message", exception);
     } catch (Exception exception) {
-      throw new IllegalStateException("Failed to encode queue message", exception);
+      throw new QueueException.RetryQueueException("Failed to send queue message", exception);
     }
   }
 
@@ -130,13 +132,15 @@ public class SQSQueue<Value>
           .filter(java.util.Objects::nonNull)
           .findFirst()
           .orElse(null);
+      if (message == null) {
+        return Optional.empty();
+      }
+
       Value value = serializer.decode(message.body(),
           decodeAttributes(message.messageAttributes()));
 
       delete(queueUrl, message.receiptHandle());
-      return value == null
-          ? Optional.of(value)
-          : Optional.empty();
+      return Optional.ofNullable(value);
     } catch (IOException exception) {
       _logger.error(String.format("Decode queue message failed : %s",
           exception.getMessage()));
@@ -181,6 +185,8 @@ public class SQSQueue<Value>
             }
           }).toList();
       return envelopes;
+    } catch (QueueException exception) {
+      throw exception;
     } catch (Exception exception) {
       _logger.error(String.format("Queue query failed : %s",
           exception.getMessage()));
@@ -206,8 +212,8 @@ public class SQSQueue<Value>
     client.close();
   }
 
-  private static String identifier(Criteria<String> critiera) {
-    return critiera.identifier().orElseThrow();
+  private static String identifier(Criteria<String> criteria) {
+    return criteria.identifier().orElseThrow();
   }
 
   private static void response(String action, SdkHttpResponse response) {

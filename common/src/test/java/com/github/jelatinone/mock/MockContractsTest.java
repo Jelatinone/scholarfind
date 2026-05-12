@@ -31,6 +31,8 @@ class MockContractsTest {
     store.delete(new Singular<>(Criteria.identifier(KEY)));
     store.close();
 
+    assertTrue(store.query(new Singular<>(Criteria.identifier(KEY))).isEmpty());
+    assertTrue(store.query(new Several<>(Criteria.identifier(KEY), 1)).isEmpty());
     assertEquals(0, store.size());
     assertTrue(store.isClosed());
   }

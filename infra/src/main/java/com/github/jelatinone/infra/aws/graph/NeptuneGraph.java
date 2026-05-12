@@ -21,7 +21,7 @@ import com.github.jelatinone.api.Query.Count;
 import com.github.jelatinone.api.Query.Exists;
 import com.github.jelatinone.api.Query.Several;
 import com.github.jelatinone.api.Query.Singular;
-import com.github.jelatinone.api.graph.EdgeCritiera;
+import com.github.jelatinone.api.graph.EdgeCriteria;
 import com.github.jelatinone.api.graph.Graph;
 import com.github.jelatinone.api.graph.GraphCriteria;
 import com.github.jelatinone.api.graph.GraphEdges;
@@ -189,12 +189,12 @@ public class NeptuneGraph<Node, Relationship, Identifier> implements Graph<Node,
   private final class NeptuneEdges implements GraphEdges<Relationship, Identifier> {
 
     @Override
-    public boolean query(Exists<EdgeCritiera<Identifier>> query) {
+    public boolean query(Exists<EdgeCriteria<Identifier>> query) {
       return query(new Count<>(query.criteria())) > 0;
     }
 
     @Override
-    public long query(Count<EdgeCritiera<Identifier>> query) {
+    public long query(Count<EdgeCriteria<Identifier>> query) {
       try {
         return edge(query.criteria()).traversal(graph).count().next();
       } catch (Exception exception) {
@@ -203,7 +203,7 @@ public class NeptuneGraph<Node, Relationship, Identifier> implements Graph<Node,
     }
 
     @Override
-    public Optional<Relationship> query(Singular<EdgeCritiera<Identifier>> query) {
+    public Optional<Relationship> query(Singular<EdgeCriteria<Identifier>> query) {
       try {
         return edge(query.criteria()).traversal(graph)
             .elementMap()
@@ -217,7 +217,7 @@ public class NeptuneGraph<Node, Relationship, Identifier> implements Graph<Node,
     }
 
     @Override
-    public Collection<Relationship> query(Several<EdgeCritiera<Identifier>> query) {
+    public Collection<Relationship> query(Several<EdgeCriteria<Identifier>> query) {
       try {
         return edge(query.criteria()).traversal(graph)
             .limit(query.limit())
@@ -238,7 +238,7 @@ public class NeptuneGraph<Node, Relationship, Identifier> implements Graph<Node,
     return new NeptuneVertexCriteria<>(criteria, serializer::encodeIdentifier);
   }
 
-  private NeptuneEdgeCriteria<Identifier> edge(EdgeCritiera<Identifier> criteria) {
+  private NeptuneEdgeCriteria<Identifier> edge(EdgeCriteria<Identifier> criteria) {
     return new NeptuneEdgeCriteria<>(criteria, serializer::encodeIdentifier);
   }
 
@@ -262,9 +262,9 @@ public class NeptuneGraph<Node, Relationship, Identifier> implements Graph<Node,
       GraphTraversal<Start, El> traversal,
       Map<String, Object> properties) {
     for (Map.Entry<String, Object> entry : properties.entrySet()) {
-      String value = entry.getValue().toString();
+      Object value = entry.getValue();
       if (value != null) {
-        traversal = traversal.property(entry.getKey(), value);
+        traversal = traversal.property(entry.getKey(), value.toString());
       }
     }
     return traversal;
@@ -313,7 +313,7 @@ public class NeptuneGraph<Node, Relationship, Identifier> implements Graph<Node,
   }
 
   private record NeptuneEdgeCriteria<Identifier>(
-      EdgeCritiera<Identifier> criteria,
+      EdgeCriteria<Identifier> criteria,
       Function<Identifier, Object> identifierEncoder) {
 
     GraphTraversal<?, Edge> traversal(GraphTraversalSource graph) {

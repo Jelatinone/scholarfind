@@ -86,7 +86,10 @@ public class HttpFetcher implements BodyFetcher, MetadataFetcher {
             fetchedAt);
       }
       throw new IllegalStateException("Failed to resolve content exchange");
-    } catch (IOException | InterruptedException exception) {
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Failed to acquire content", exception);
+    } catch (IOException exception) {
       throw new IllegalStateException("Failed to acquire content", exception);
     }
   }
@@ -145,7 +148,10 @@ public class HttpFetcher implements BodyFetcher, MetadataFetcher {
             fetchedAt);
       }
       throw new IllegalStateException("Failed to resolve content exchange");
-    } catch (IOException | InterruptedException exception) {
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Failed to acquire content", exception);
+    } catch (IOException exception) {
       throw new IllegalStateException("Failed to acquire content", exception);
     }
   }

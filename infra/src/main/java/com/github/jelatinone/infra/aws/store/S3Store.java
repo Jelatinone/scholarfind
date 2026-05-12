@@ -129,10 +129,10 @@ public class S3Store<Key, Value>
           response.contentEncoding(),
           response.metadata())));
     } catch (NoSuchKeyException exception) {
-      return null;
+      return Optional.empty();
     } catch (S3Exception exception) {
       if (exception.statusCode() == 404) {
-        return null;
+        return Optional.empty();
       }
       throw new StoreException.RetryStoreException(exception.getMessage(), exception);
     } catch (Exception exception) {
@@ -143,10 +143,8 @@ public class S3Store<Key, Value>
   @Override
   public Collection<Value> query(Several<S3Criteria<Key>> query) {
     return query(new Singular<>(query.criteria()))
-        .map(value -> value == null
-            ? List.<Value>of()
-            : List.of(value))
-        .get();
+        .map(List::of)
+        .orElseGet(List::of);
   }
 
   @Override

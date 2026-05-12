@@ -84,6 +84,24 @@ class PolicyContractsTest {
 						.reason());
 	}
 
+	@Test
+	void expirationPolicy_usesContextReviewTime() {
+		InvestigateDocument document = StructTestFixtures.document(0, ExecutionStage.INVESTIGATE);
+		var header = new com.github.jelatinone.model.struct.DocumentHeader(
+				document.documentHeader().schemaVersion(),
+				document.documentHeader().targetId(),
+				document.documentHeader().reviewId(),
+				document.documentHeader().emittedBy(),
+				Instant.parse("2026-05-01T00:00:00Z"));
+
+		PolicyStep<Integer> step = new ExpirationPolicy<InvestigateDocument, SimpleContext, Integer>(1)
+				.apply(new SimpleContext(
+						document.withDocumentHeader(header),
+						Instant.parse("2026-05-01T12:00:00Z")), 7);
+
+		assertInstanceOf(PolicyStep.Continue.class, step);
+	}
+
 	@SuppressWarnings("unchecked")
 	@Test
 	void requestSchemaPolicy_rejectsMismatchedEnvelopeFields() {

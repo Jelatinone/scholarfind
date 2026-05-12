@@ -50,10 +50,8 @@ public class MockStore<Key, Value> implements Store<Key, Value, Criteria<Key>> {
   @Override
   public synchronized Collection<Value> query(Several<Criteria<Key>> query) {
     return query(new Singular<>(query.criteria()))
-        .map(value -> value == null
-            ? List.<Value>of()
-            : List.of(value))
-        .get();
+        .map(List::of)
+        .orElseGet(List::of);
   }
 
   public synchronized Value get(Key key) {

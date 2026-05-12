@@ -2,6 +2,7 @@ package com.github.jelatinone.acquisition.interpreter;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -36,6 +37,22 @@ class InterpreterContractsTest {
 		assertEquals("  hello world  ", interpreter.interpret(acquisition).interpretedSource());
 		assertEquals("hello world", interpreter.normalize(acquisition).normalizedSource());
 		assertEquals("hello world", interpreter.preview(acquisition).previewSource());
+	}
+
+	@Test
+	void interpretedAcquisition_addsProjectionsWithoutMutatingSource() {
+		var acquisition = AcquisitionTestFixtures.acquisition(
+				"hello".getBytes(),
+				MediaType.TEXT_PLAIN,
+				MediaEncoding.UTF_8,
+				AcquisitionTestFixtures.mediaMetadata("text/plain", 5));
+		Projection projection = new Projection.Normalized(MediaType.TEXT_PLAIN, "hello");
+
+		var projected = acquisition.withProjection(projection);
+
+		assertTrue(acquisition.sourceProjections().isEmpty());
+		assertEquals(1, projected.sourceProjections().size());
+		assertThrows(UnsupportedOperationException.class, () -> projected.sourceProjections().add(projection));
 	}
 
 	@Test

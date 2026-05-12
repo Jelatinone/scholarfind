@@ -92,12 +92,17 @@ public sealed interface Acquisition {
 					mediaMetadata,
 					emittedAt,
 					sourceBytes,
-					new HashSet<>(),
+					Set.of(),
 					sourceHash);
 		}
 
-		public Interpreted withProjection(Projection sourceProjection) {
-			sourceProjections().add(sourceProjection);
+		public Interpreted {
+			sourceProjections = sourceProjections == null ? Set.of() : Set.copyOf(sourceProjections);
+		}
+
+		public Interpreted withProjection(@NonNull Projection sourceProjection) {
+			Set<Projection> updatedProjections = new HashSet<>(sourceProjections());
+			updatedProjections.add(sourceProjection);
 			return new Interpreted(
 					targetId(),
 					reviewId(),
@@ -107,7 +112,7 @@ public sealed interface Acquisition {
 					mediaMetadata(),
 					emittedAt(),
 					sourceBytes(),
-					sourceProjections(),
+					updatedProjections,
 					sourceHash());
 		}
 

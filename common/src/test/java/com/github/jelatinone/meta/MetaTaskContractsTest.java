@@ -6,12 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.github.jelatinone.api.Criteria;
@@ -43,7 +43,6 @@ class MetaTaskContractsTest {
 
 	@SuppressWarnings("resource")
 	@Test
-	@Disabled("SequentialTask still repeats POSTING work instead of draining the queue exactly once")
 	void sequentialTask_processesCollectedWork_toCompletion() {
 		TestSequentialTask task = new TestSequentialTask();
 
@@ -54,7 +53,6 @@ class MetaTaskContractsTest {
 	}
 
 	@Test
-	@Disabled("ParallelTask execution remains coupled to unresolved top-level task-loop semantics")
 	void parallelTask_processesCollectedWork_toCompletion() throws Exception {
 		TestParallelTask task = new TestParallelTask();
 
@@ -107,7 +105,7 @@ class MetaTaskContractsTest {
 	private static final class TestSequentialTask extends SequentialTask<String, String> {
 		private final Queue<CollectionResult<String>> collections = new ArrayDeque<>(
 				List.of(new CollectionResult.Alive<>(List.of("alpha", "beta")), new CollectionResult.Empty<>()));
-		private final List<String> posted = new ArrayList<>();
+		private final List<String> posted = Collections.synchronizedList(new ArrayList<>());
 
 		private TestSequentialTask() {
 			super(Task.Configuration.builder()
@@ -141,7 +139,7 @@ class MetaTaskContractsTest {
 	private static final class TestParallelTask extends ParallelTask<String, String> {
 		private final Queue<CollectionResult<String>> collections = new ArrayDeque<>(
 				List.of(new CollectionResult.Alive<>(List.of("alpha", "beta")), new CollectionResult.Empty<>()));
-		private final List<String> posted = new ArrayList<>();
+		private final List<String> posted = Collections.synchronizedList(new ArrayList<>());
 
 		private TestParallelTask() {
 			super(
