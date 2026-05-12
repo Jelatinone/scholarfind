@@ -1,11 +1,10 @@
 package com.github.jelatinone.model.archive;
 
 public enum ArchiveState {
-	ACTIVE,
 
-	STALE,
+  PENDING,
 
-	SUPERSEDED,
+  ACTIVE,
 
-	RETIRED,
+  STALE,
 }
