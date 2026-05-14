@@ -23,8 +23,11 @@ public final class JacksonNeptuneGraphSerializer<V extends Vertex<?> & Schemable
 
   @Override
   public Map<String, Object> encodeVertex(V vertex) throws Exception {
-    Map<String, Object> properties = new HashMap<>(vertex.properties());
-    properties.put("id", encodeIdentifier(vertex.vertexId()));
+    Map<String, Object> properties = new HashMap<>(vertex.properties()) {
+      {
+        put("id", encodeIdentifier(vertex.vertexId()));
+      }
+    };
     return Map.copyOf(properties);
   }
 
@@ -35,10 +38,13 @@ public final class JacksonNeptuneGraphSerializer<V extends Vertex<?> & Schemable
 
   @Override
   public Map<String, Object> encodeEdge(E edge) throws Exception {
-    Map<String, Object> properties = new HashMap<>(edge.properties());
-    properties.put("id", encodeIdentifier(edge.edgeId()));
-    properties.put("fromId", encodeIdentifier(edge.from()));
-    properties.put("toId", encodeIdentifier(edge.to()));
+    Map<String, Object> properties = new HashMap<>(edge.properties()) {
+      {
+        put("id", encodeIdentifier(edge.edgeId()));
+        put("fromId", encodeIdentifier(edge.from()));
+        put("toId", encodeIdentifier(edge.to()));
+      }
+    };
     return Map.copyOf(properties);
   }
 
