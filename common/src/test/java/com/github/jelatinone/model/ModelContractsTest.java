@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import com.github.jelatinone.fixtures.AcquisitionTestFixtures;
 import com.github.jelatinone.fixtures.CanonicalTestFixtures;
 import com.github.jelatinone.fixtures.StructTestFixtures;
-import com.github.jelatinone.meta.transitory.Directive;
 import com.github.jelatinone.model.archive.ArchiveHeader;
 import com.github.jelatinone.model.archive.ArchiveState;
 import com.github.jelatinone.model.audit.AttemptEvent;
@@ -143,12 +142,12 @@ class ModelContractsTest {
         StructTestFixtures.REVIEW_ID,
         StructTestFixtures.TARGET_ID,
         Set.of(PolicyReason.REQUEST_REJECTED),
-        Directive.ERROR,
+        PolicyOutcome.ERROR,
         StructTestFixtures.NOW,
         StructTestFixtures.NOW);
 
     assertEquals("REQUEST_REJECTED", PolicyReason.REQUEST_REJECTED.reason());
-    assertEquals(Directive.ERROR, attemptEvent.disposition());
+    assertEquals(PolicyOutcome.ERROR, attemptEvent.disposition());
     assertEquals(PolicyOutcome.NEXT, executionEvent.outcome());
   }
 
