@@ -4,6 +4,7 @@ import java.io.IOException;
 
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPageTree;
 import org.apache.pdfbox.text.PDFTextStripper;
 
 import com.github.jelatinone.acquisition.Acquisition;
@@ -19,7 +20,7 @@ import lombok.NonNull;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class PdfInterpreter implements Interpreter<String> {
+public class PdfInterpreter implements Interpreter<PDPageTree> {
 
 	static int PREVIEW_LENGTH = 500;
 
@@ -29,11 +30,11 @@ public class PdfInterpreter implements Interpreter<String> {
 	}
 
 	@Override
-	public Interpreted<String> interpret(@NonNull Acquisition.Interpreted acquisition) {
+	public Interpreted<PDPageTree> interpret(@NonNull Acquisition.Interpreted acquisition) {
 		try (PDDocument document = Loader.loadPDF(acquisition.sourceBytes())) {
-			String interpretedSource = new PDFTextStripper().getText(document);
+			PDPageTree interpretedSource = document.getPages();
 
-			Projection.Interpreted<String> projection = new Projection.Interpreted<>(
+			Projection.Interpreted<PDPageTree> projection = new Projection.Interpreted<>(
 					acquisition.mediaType(),
 					interpretedSource);
 			return projection;

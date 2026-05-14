@@ -2,6 +2,7 @@ package com.github.jelatinone.acquisition.interpreter;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -12,6 +13,7 @@ import java.nio.file.Path;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.PDPageTree;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.Test;
@@ -84,7 +86,7 @@ class InterpreterContractsTest {
 
 		assertTrue(interpreter.supports(MediaType.APPLICATION_PDF));
 		assertFalse(interpreter.supports(MediaType.TEXT_HTML));
-		assertTrue(interpreter.interpret(acquisition).interpretedSource().contains("Hello PDF"));
+		assertInstanceOf(PDPageTree.class, interpreter.interpret(acquisition).interpretedSource());
 		assertTrue(interpreter.normalize(acquisition).normalizedSource().contains("Hello PDF"));
 		assertTrue(interpreter.preview(acquisition).previewSource().contains("Hello PDF"));
 	}
