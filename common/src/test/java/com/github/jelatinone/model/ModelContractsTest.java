@@ -56,7 +56,7 @@ import com.github.jelatinone.model.struct.RequestHeader;
 import com.github.jelatinone.model.transit.Emission;
 import com.github.jelatinone.model.transit.Letter;
 import com.github.jelatinone.policy.PolicyReason;
-import com.github.jelatinone.policy.StageOutcome;
+import com.github.jelatinone.policy.PolicyOutcome;
 
 class ModelContractsTest {
 
@@ -129,13 +129,13 @@ class ModelContractsTest {
 
   @Test
   void auditRecords_bindDomainDirective_andReasons() {
-    AttemptTransition transition = new AttemptTransition(StageOutcome.RETRY, PolicyReason.OPERATION_EXCEPTION,
+    AttemptTransition transition = new AttemptTransition(PolicyOutcome.RETRY, PolicyReason.OPERATION_EXCEPTION,
         StructTestFixtures.NOW);
     ExecutionEvent executionEvent = new ExecutionEvent(
         StructTestFixtures.TARGET_ID,
         ExecutionStage.INVESTIGATE,
         Set.of(transition),
-        StageOutcome.NEXT,
+        PolicyOutcome.NEXT,
         StructTestFixtures.NOW,
         StructTestFixtures.NOW);
     AttemptEvent attemptEvent = new AttemptEvent(
@@ -149,7 +149,7 @@ class ModelContractsTest {
 
     assertEquals("REQUEST_REJECTED", PolicyReason.REQUEST_REJECTED.reason());
     assertEquals(Directive.ERROR, attemptEvent.disposition());
-    assertEquals(StageOutcome.NEXT, executionEvent.outcome());
+    assertEquals(PolicyOutcome.NEXT, executionEvent.outcome());
   }
 
   @Test
