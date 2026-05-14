@@ -30,13 +30,11 @@ import com.github.jelatinone.model.content.Capture;
 import com.github.jelatinone.model.content.MediaEncoding;
 import com.github.jelatinone.model.content.MediaMetadata;
 import com.github.jelatinone.model.content.MediaType;
-import com.github.jelatinone.model.graph.EntityEdge;
-import com.github.jelatinone.model.graph.EntityNode;
-import com.github.jelatinone.model.graph.TargetCause;
-import com.github.jelatinone.model.graph.TargetEdge;
-import com.github.jelatinone.model.graph.TargetNode;
-import com.github.jelatinone.model.graph.TargetReview;
-import com.github.jelatinone.model.graph.TargetState;
+import com.github.jelatinone.model.graph.GraphReviewCause;
+import com.github.jelatinone.model.graph.GraphEdge;
+import com.github.jelatinone.model.graph.GraphNode;
+import com.github.jelatinone.model.graph.GraphReview;
+import com.github.jelatinone.model.graph.GraphReviewState;
 import com.github.jelatinone.model.investigate.Category;
 import com.github.jelatinone.model.investigate.Classification;
 import com.github.jelatinone.model.investigate.InvestigateDocument;
@@ -81,19 +79,27 @@ class ModelContractsTest {
     UUID targetId = StructTestFixtures.TARGET_ID;
     UUID reviewId = StructTestFixtures.REVIEW_ID;
 
-    TargetNode node = new TargetNode(targetId, CanonicalTestFixtures.url("https://example.com"), now);
-    TargetReview review = new TargetReview(reviewId, targetId,
-        new TargetCause.Origin("seed"), new TargetState.Created(ExecutionStage.DISCOVERY, "Task-1"), now);
-    TargetEdge edge = new TargetEdge(edgeId, reviewId, UUID.randomUUID(), targetId, now);
-    EntityNode entity = new EntityNode(entityId, reviewId, now);
-    EntityEdge membership = new EntityEdge(UUID.randomUUID(), targetId, entityId, reviewId, now);
+    GraphNode.Target node = new GraphNode.Target(targetId, CanonicalTestFixtures.url("https://example.com"), now);
+    GraphReview review = new GraphReview(reviewId, targetId,
+        new GraphReviewCause.Origin("seed"),
+        new GraphReviewState.Created(ExecutionStage.DISCOVERY, "Task-1", now),
+        now);
+    GraphEdge.Parent edge = new GraphEdge.Parent(edgeId, reviewId, UUID.randomUUID(), targetId, now);
+    GraphNode.Entity entity = new GraphNode.Entity(entityId, reviewId, now);
+    GraphEdge.Reduce membership = new GraphEdge.Reduce(UUID.randomUUID(), reviewId, targetId, entityId, now);
 
-    assertEquals(TargetNode.SCHEMA_VERSION, node.schemaVersion());
-    assertEquals(TargetReview.SCHEMA_VERSION, review.schemaVersion());
-    assertEquals(TargetEdge.SCHEMA_VERSION, edge.schemaVersion());
-    assertEquals(EntityNode.SCHEMA_VERSION, entity.schemaVersion());
-    assertEquals(EntityEdge.SCHEMA_VERSION, membership.schemaVersion());
-    assertInstanceOf(TargetCause.Origin.class, review.causedBy());
+    assertEquals(GraphNode.Target.SCHEMA_VERSION, node.schemaVersion());
+    assertEquals(GraphReview.SCHEMA_VERSION, review.schemaVersion());
+    assertEquals(GraphEdge.Parent.SCHEMA_VERSION, edge.schemaVersion());
+    assertEquals(GraphNode.Entity.SCHEMA_VERSION, entity.schemaVersion());
+    assertEquals(GraphEdge.Reduce.SCHEMA_VERSION, membership.schemaVersion());
+    assertEquals(targetId, node.canonicalId());
+    assertEquals(entityId, entity.canonicalId());
+    assertEquals(edge.edgeId(), edge.canonicalId());
+    assertEquals(membership.edgeId(), membership.canonicalId());
+    assertEquals(targetId, node.properties().get("targetId"));
+    assertEquals(entityId, membership.properties().get("entityId"));
+    assertInstanceOf(GraphReviewCause.Origin.class, review.causedBy());
   }
 
   @Test
@@ -151,7 +157,7 @@ class ModelContractsTest {
     ArchiveHeader header = new ArchiveHeader(
         UUID.randomUUID(),
         StructTestFixtures.REVIEW_ID,
-        ArchiveState.ACTIVE,
+        new ArchiveState.Active(ExecutionStage.PUBLISH, "Task-1", StructTestFixtures.NOW),
         StructTestFixtures.NOW);
     ScholarshipArchive archive = new ScholarshipArchive(
         header,
@@ -163,6 +169,16 @@ class ModelContractsTest {
 
     assertEquals(header, archive.archiveHeader());
     assertEquals(header, archive.withArchiveHeader(header).archiveHeader());
+  }
+
+  @Test
+  void archiveStates_requireReviewMetadata() {
+    assertThrows(NullPointerException.class,
+        () -> new ArchiveState.Pending(null, "Task-1", StructTestFixtures.NOW));
+    assertThrows(NullPointerException.class,
+        () -> new ArchiveState.Active(ExecutionStage.PUBLISH, null, StructTestFixtures.NOW));
+    assertThrows(NullPointerException.class,
+        () -> new ArchiveState.Expired(ExecutionStage.PUBLISH, "Task-1", null));
   }
 
   @Test

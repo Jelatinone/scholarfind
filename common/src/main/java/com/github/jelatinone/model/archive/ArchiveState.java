@@ -1,10 +1,31 @@
 package com.github.jelatinone.model.archive;
 
-public enum ArchiveState {
+import java.time.Instant;
 
-  PENDING,
+import com.github.jelatinone.model.audit.ExecutionStage;
 
-  ACTIVE,
+import lombok.NonNull;
 
-  STALE,
+public sealed interface ArchiveState {
+
+  @NonNull
+  ExecutionStage reviewedBy();
+
+  @NonNull
+  String reviewerName();
+
+  @NonNull
+  Instant reviewedAt();
+
+  record Pending(@NonNull ExecutionStage reviewedBy, @NonNull String reviewerName, @NonNull Instant reviewedAt)
+      implements ArchiveState {
+  }
+
+  record Active(@NonNull ExecutionStage reviewedBy, @NonNull String reviewerName, @NonNull Instant reviewedAt)
+      implements ArchiveState {
+  }
+
+  record Expired(@NonNull ExecutionStage reviewedBy, @NonNull String reviewerName, @NonNull Instant reviewedAt)
+      implements ArchiveState {
+  }
 }

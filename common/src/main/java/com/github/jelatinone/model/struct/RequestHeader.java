@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.github.jelatinone.model.audit.ExecutionStage;
-import com.github.jelatinone.model.graph.TargetNode;
+import com.github.jelatinone.model.graph.GraphNode;
 
 import lombok.NonNull;
 
@@ -12,7 +12,7 @@ import lombok.NonNull;
  * 
  * <h1>RequestHeader</h1>
  * 
- * A request header correlates a {@link TargetNode node} with a given request.
+ * A request header correlates a {@link GraphNode node} with a given request.
  * 
  * @author Cody Washington
  */

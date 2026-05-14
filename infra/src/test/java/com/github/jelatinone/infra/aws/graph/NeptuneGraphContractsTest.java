@@ -3,6 +3,7 @@ package com.github.jelatinone.infra.aws.graph;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -17,10 +18,15 @@ import org.junit.jupiter.api.Test;
 import com.github.jelatinone.api.Criteria;
 import com.github.jelatinone.api.Query;
 import com.github.jelatinone.api.graph.EdgeCriteria;
+import com.github.jelatinone.api.graph.Edge;
 import com.github.jelatinone.api.graph.GraphCriteria;
 import com.github.jelatinone.api.graph.GraphDirection;
+import com.github.jelatinone.api.graph.Vertex;
 import com.github.jelatinone.infra.aws.graph.serial.JacksonNeptuneGraphSerializer;
 import com.github.jelatinone.infra.aws.graph.serial.NeptuneGraphSerializer;
+import com.github.jelatinone.model.Schemable;
+import com.github.jelatinone.model.graph.GraphEdge;
+import com.github.jelatinone.model.graph.GraphNode;
 
 class NeptuneGraphContractsTest {
 
@@ -96,6 +102,43 @@ class NeptuneGraphContractsTest {
     assertEquals(1L, graph.edges().query(new Query.Count<>(EdgeCriteria.from(ORIGIN))));
   }
 
+  @SuppressWarnings("resource")
+  @Test
+  void jacksonSerializer_roundTripsSchemableGraphModelKinds() {
+    GraphTraversalSource traversal = TinkerGraph.open().traversal();
+    NeptuneGraph<GraphNode.Target, GraphEdge.Reduce, UUID> graph = new NeptuneGraph<>(
+        traversal,
+        new JacksonNeptuneGraphSerializer<>(
+            GraphNode.Target.class,
+            GraphEdge.Reduce.class));
+    GraphNode.Target target = new GraphNode.Target(ORIGIN, url("https://example.com"), java.time.Instant.EPOCH);
+    GraphNode.Entity entity = new GraphNode.Entity(TARGET, UUID.randomUUID(), java.time.Instant.EPOCH);
+    GraphEdge.Reduce resolvesTo = new GraphEdge.Reduce(
+        EDGE,
+        UUID.randomUUID(),
+        target.targetId(),
+        entity.entityId(),
+        java.time.Instant.EPOCH);
+
+    graph.putVertex(target);
+    new NeptuneGraph<GraphNode.Entity, GraphEdge.Reduce, UUID>(
+        traversal,
+        new JacksonNeptuneGraphSerializer<>(
+            GraphNode.Entity.class,
+            GraphEdge.Reduce.class))
+        .putVertex(entity);
+    graph.putEdge(resolvesTo);
+
+    Optional<GraphNode.Target> decodedTarget = graph.vertices()
+        .query(new Query.Singular<>(Criteria.identifier(ORIGIN)));
+    Collection<GraphEdge.Reduce> decodedEdges = graph.edges().query(new Query.Several<>(
+        EdgeCriteria.between(target.targetId(), entity.entityId()),
+        5));
+
+    assertEquals(target, decodedTarget.orElseThrow());
+    assertEquals(List.of(resolvesTo), List.copyOf(decodedEdges));
+  }
+
   private static NeptuneGraph<TestVertex, TestEdge, UUID> graph(GraphTraversalSource traversal) {
     return new NeptuneGraph<>(traversal, serializer());
   }
@@ -103,22 +146,79 @@ class NeptuneGraphContractsTest {
   private static NeptuneGraphSerializer<TestVertex, TestEdge, UUID> serializer() {
     return new JacksonNeptuneGraphSerializer<>(
         TestVertex.class,
-        TestEdge.class,
-        "TestVertex",
-        "TestEdge",
-        TestVertex::id,
-        TestEdge::id,
-        TestEdge::from,
-        TestEdge::to,
-        UUID::toString,
-        Map.of("name", TestVertex::name),
-        Map.of("kind", TestEdge::kind));
+        TestEdge.class);
   }
 
-  record TestVertex(UUID id, String name) {
+  private static java.net.URL url(String value) {
+    try {
+      return java.net.URI.create(value).toURL();
+    } catch (Exception exception) {
+      throw new IllegalArgumentException(exception);
+    }
   }
 
-  record TestEdge(UUID id, UUID from, UUID to, String kind) {
+  record TestVertex(UUID id, String name, Instant emittedAt) implements Schemable, Vertex<UUID> {
+
+    TestVertex(UUID id, String name) {
+      this(id, name, Instant.EPOCH);
+    }
+
+    @Override
+    public long schemaVersion() {
+      return 1L;
+    }
+
+    @Override
+    public UUID canonicalId() {
+      return id();
+    }
+
+    @Override
+    public Map<String, Object> properties() {
+      return Map.of("id", id(), "name", name(), "emittedAt", emittedAt());
+    }
+
+    @Override
+    public String vertexLabel() {
+      return "TestVertex";
+    }
+
+    @Override
+    public UUID vertexId() {
+      return id();
+    }
+  }
+
+  record TestEdge(UUID id, UUID from, UUID to, String kind, Instant emittedAt) implements Schemable, Edge<UUID> {
+
+    TestEdge(UUID id, UUID from, UUID to, String kind) {
+      this(id, from, to, kind, Instant.EPOCH);
+    }
+
+    @Override
+    public long schemaVersion() {
+      return 1L;
+    }
+
+    @Override
+    public UUID canonicalId() {
+      return id();
+    }
+
+    @Override
+    public Map<String, Object> properties() {
+      return Map.of("id", id(), "from", from(), "to", to(), "kind", kind(), "emittedAt", emittedAt());
+    }
+
+    @Override
+    public String edgeLabel() {
+      return "TestEdge";
+    }
+
+    @Override
+    public UUID edgeId() {
+      return id();
+    }
   }
 
   record TestGraphCriteria(

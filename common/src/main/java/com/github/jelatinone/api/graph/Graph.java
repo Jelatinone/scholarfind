@@ -1,12 +1,12 @@
 package com.github.jelatinone.api.graph;
 
-public interface Graph<Vertex, Edge, Identifier> extends AutoCloseable {
+public interface Graph<V extends Vertex<Identifier>, E extends Edge<Identifier>, Identifier> extends AutoCloseable {
 
-  void putVertex(Vertex node);
+  void putVertex(V node);
 
-  void putEdge(Edge edge);
+  void putEdge(E edge);
 
-  GraphEdges<Edge, Identifier> edges();
+  GraphEdges<E, Identifier> edges();
 
-  GraphVertices<Vertex, Identifier> vertices();
+  GraphVertices<V, Identifier> vertices();
 }

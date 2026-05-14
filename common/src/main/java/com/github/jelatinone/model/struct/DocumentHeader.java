@@ -4,8 +4,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.github.jelatinone.model.audit.ExecutionStage;
-import com.github.jelatinone.model.graph.TargetNode;
-import com.github.jelatinone.model.graph.TargetReview;
+import com.github.jelatinone.model.graph.GraphNode;
+import com.github.jelatinone.model.graph.GraphReview;
 
 import lombok.NonNull;
 
@@ -14,10 +14,10 @@ import lombok.NonNull;
  * <h1>DocumentHeader</h1>
  * 
  * A document represents the final, persisted state of a given stage operation,
- * an audit of the stage state at the time of {@link TargetReview review}
+ * an audit of the stage state at the time of {@link GraphReview review}
  * processing.
  * 
- * A document header correlates a {@link TargetNode node}, a document, and
+ * A document header correlates a {@link GraphNode node}, a document, and
  * {@link RequestHeader request} made for a stage operation to be made on a
  * given target.
  * 

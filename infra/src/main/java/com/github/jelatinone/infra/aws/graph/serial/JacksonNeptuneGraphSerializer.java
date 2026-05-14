@@ -2,119 +2,52 @@ package com.github.jelatinone.infra.aws.graph.serial;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.UUID;
 
 import com.github.jelatinone.infra.JacksonMapper;
+import com.github.jelatinone.model.Schemable;
+import com.github.jelatinone.api.graph.Edge;
+import com.github.jelatinone.api.graph.Vertex;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.experimental.FieldDefaults;
 
 @AllArgsConstructor
-@Builder
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class JacksonNeptuneGraphSerializer<Vertex, Edge, Identifier>
-    implements NeptuneGraphSerializer<Vertex, Edge, Identifier> {
+public final class JacksonNeptuneGraphSerializer<V extends Vertex<?> & Schemable, E extends Edge<?> & Schemable>
+    implements NeptuneGraphSerializer<V, E, UUID> {
 
-  Class<Vertex> vertexType;
-  Class<Edge> edgeType;
-
-  String vertexLabel;
-  String edgeLabel;
-
-  Function<Vertex, Identifier> vertexIdentifier;
-  Function<Edge, Identifier> edgeIdentifier;
-  Function<Edge, Identifier> edgeFrom;
-  Function<Edge, Identifier> edgeTo;
-  Function<Identifier, String> identifierEncoder;
-
-  @Builder.Default
-  Map<String, Function<Vertex, ?>> vertexProperties = Map.of();
-
-  @Builder.Default
-  Map<String, Function<Edge, ?>> edgeProperties = Map.of();
+  Class<V> vertexType;
+  Class<E> edgeType;
 
   @Override
-  public String vertexLabel(Vertex vertex) {
-    return vertexLabel;
-  }
-
-  @Override
-  public Identifier vertexIdentifier(Vertex vertex) {
-    return vertexIdentifier.apply(vertex);
-  }
-
-  @Override
-  public Map<String, Object> encodeVertex(Vertex vertex) throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("id", encodeIdentifier(vertexIdentifier(vertex)));
-    properties.put("payload", JacksonMapper.mapper.writeValueAsString(vertex));
-    vertexProperties.forEach((name, value) -> {
-      Object property = value.apply(vertex);
-      if (property != null) {
-        properties.put(name, property.toString());
-      }
-    });
+  public Map<String, Object> encodeVertex(V vertex) throws Exception {
+    Map<String, Object> properties = new HashMap<>(vertex.properties());
+    properties.put("id", encodeIdentifier(vertex.vertexId()));
     return Map.copyOf(properties);
   }
 
   @Override
-  public Vertex decodeVertex(Map<Object, Object> vertex) throws Exception {
-    Object payload = NeptuneGraphSerializer.property(vertex, "payload");
-    if (payload != null) {
-      return JacksonMapper.mapper.readValue(payload.toString(), vertexType);
-    }
+  public V decodeVertex(Map<Object, Object> vertex) throws Exception {
     return JacksonMapper.mapper.convertValue(NeptuneGraphSerializer.properties(vertex), vertexType);
   }
 
   @Override
-  public String edgeLabel(Edge edge) {
-    return edgeLabel;
-  }
-
-  @Override
-  public Identifier edgeIdentifier(Edge edge) {
-    return edgeIdentifier.apply(edge);
-  }
-
-  @Override
-  public Identifier edgeFrom(Edge edge) {
-    return edgeFrom.apply(edge);
-  }
-
-  @Override
-  public Identifier edgeTo(Edge edge) {
-    return edgeTo.apply(edge);
-  }
-
-  @Override
-  public Map<String, Object> encodeEdge(Edge edge) throws Exception {
-    Map<String, Object> properties = new HashMap<>();
-    properties.put("id", encodeIdentifier(edgeIdentifier(edge)));
-    properties.put("fromId", encodeIdentifier(edgeFrom(edge)));
-    properties.put("toId", encodeIdentifier(edgeTo(edge)));
-    properties.put("payload", JacksonMapper.mapper.writeValueAsString(edge));
-    edgeProperties.forEach((name, value) -> {
-      Object property = value.apply(edge);
-      if (property != null) {
-        properties.put(name, property.toString());
-      }
-    });
+  public Map<String, Object> encodeEdge(E edge) throws Exception {
+    Map<String, Object> properties = new HashMap<>(edge.properties());
+    properties.put("id", encodeIdentifier(edge.edgeId()));
+    properties.put("fromId", encodeIdentifier(edge.from()));
+    properties.put("toId", encodeIdentifier(edge.to()));
     return Map.copyOf(properties);
   }
 
   @Override
-  public Edge decodeEdge(Map<Object, Object> edge) throws Exception {
-    Object payload = NeptuneGraphSerializer.property(edge, "payload");
-    if (payload != null) {
-      return JacksonMapper.mapper.readValue(payload.toString(), edgeType);
-    }
+  public E decodeEdge(Map<Object, Object> edge) throws Exception {
     return JacksonMapper.mapper.convertValue(NeptuneGraphSerializer.properties(edge), edgeType);
   }
 
-  @Override
-  public Object encodeIdentifier(Identifier identifier) {
-    return identifier == null ? null : identifierEncoder.apply(identifier);
+  public <T> Object encodeIdentifier(T identifier) {
+    return identifier == null ? null : identifier.toString();
   }
 }

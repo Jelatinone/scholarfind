@@ -33,7 +33,8 @@ import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class NeptuneGraph<Node, Relationship, Identifier> implements Graph<Node, Relationship, Identifier> {
+public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Identifier>, Relationship extends com.github.jelatinone.api.graph.Edge<Identifier>, Identifier>
+    implements Graph<Node, Relationship, Identifier> {
 
   static final String ID_PROPERTY = "id";
 
@@ -63,8 +64,8 @@ public class NeptuneGraph<Node, Relationship, Identifier> implements Graph<Node,
     String label;
     Map<String, Object> properties;
     try {
-      identifier = serializer.encodeIdentifier(serializer.vertexIdentifier(node));
-      label = serializer.vertexLabel(node);
+      identifier = serializer.encodeIdentifier(node.vertexId());
+      label = node.vertexLabel();
       properties = serializer.encodeVertex(node);
     } catch (Exception exception) {
       throw new GraphException.FatalGraphException("Failed to encode graph vertex", exception);
@@ -93,10 +94,10 @@ public class NeptuneGraph<Node, Relationship, Identifier> implements Graph<Node,
     String label;
     Map<String, Object> properties;
     try {
-      identifier = serializer.encodeIdentifier(serializer.edgeIdentifier(relationship));
-      from = serializer.encodeIdentifier(serializer.edgeFrom(relationship));
-      to = serializer.encodeIdentifier(serializer.edgeTo(relationship));
-      label = serializer.edgeLabel(relationship);
+      identifier = serializer.encodeIdentifier(relationship.edgeId());
+      from = serializer.encodeIdentifier(relationship.from());
+      to = serializer.encodeIdentifier(relationship.to());
+      label = relationship.edgeLabel();
       properties = serializer.encodeEdge(relationship);
     } catch (Exception exception) {
       throw new GraphException.FatalGraphException("Failed to encode graph edge", exception);

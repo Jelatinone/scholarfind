@@ -26,10 +26,9 @@ class UtilityContractsTest {
 	void hash_and_target_use_stable_canonical_values() throws Exception {
 		String hash = Canonical.hash("abc".getBytes());
 		Instant discoveredAt = Instant.parse("2026-05-07T12:00:00Z");
-		UUID ignoredParentId = UUID.randomUUID();
 		URL canonicalUrl = Canonical.canonicalizeURL("https://example.com/resource/");
 
-		var target = Canonical.target(canonicalUrl, ignoredParentId, discoveredAt);
+		var target = Canonical.target(canonicalUrl, discoveredAt);
 
 		assertEquals(
 				HexFormat.of().formatHex(
@@ -39,6 +38,20 @@ class UtilityContractsTest {
 		assertEquals(Canonical.generateTargetUUID(canonicalUrl), target.targetId());
 		assertEquals("https://example.com/resource", target.canonicalUrl().toExternalForm());
 		assertEquals(discoveredAt, target.emittedAt());
+	}
+
+	@Test
+	void canonical_parentEdge_uses_stable_directional_identity() throws Exception {
+		Instant emittedAt = Instant.parse("2026-05-07T12:00:00Z");
+		UUID reviewId = UUID.randomUUID();
+		UUID parentId = UUID.randomUUID();
+		var child = Canonical.target("https://example.com/child", emittedAt);
+
+		var edge = Canonical.parent(reviewId, parentId, child, emittedAt);
+
+		assertEquals(parentId, edge.from());
+		assertEquals(child.targetId(), edge.to());
+		assertEquals(edge.edgeId(), Canonical.parent(reviewId, parentId, child, emittedAt).edgeId());
 	}
 
 	@Test

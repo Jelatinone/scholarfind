@@ -146,12 +146,12 @@ public non-sealed abstract class ParallelTask<Consumes, Produces>
         useMessage(String.format("Completed job : %s", operand), INFO);
       }
 
-      case PostResult.Fatal ignored -> {
+      case PostResult.Fatal fatal -> {
         _attempts.remove(operand);
-        useMessage(String.format("Failed job : %s", operand), ERROR);
+        useMessage(String.format("Failed job : %s", fatal.throwable()), ERROR);
       }
 
-      case PostResult.Retry ignored -> {
+      case PostResult.Retry retry -> {
         int attempt = _attempts.getOrDefault(operand, 0) + 1;
 
         if (attempt < _taskConfig.logicalRetries) {
@@ -160,9 +160,10 @@ public non-sealed abstract class ParallelTask<Consumes, Produces>
           _attempts.put(operand, attempt);
           _failed.add(new Locked<>(operand, delay, NANOSECONDS));
 
-          useMessage(String.format("Queued job : %s", operand), DEBUG);
+          useMessage(String.format("Queued failed job : %s", operand), DEBUG);
         } else {
           _attempts.remove(operand);
+          useMessage(String.format("Exhausted failed job : %s", retry.throwable()), ERROR);
         }
       }
     }
@@ -232,7 +233,6 @@ public non-sealed abstract class ParallelTask<Consumes, Produces>
               case CollectionResult.Empty() -> useMessage("Collection shape : Empty", DEBUG);
             }
             if (!_collected.isEmpty()) {
-              setup();
               useState(State.DISPATCHING);
               continue;
             }
@@ -246,6 +246,7 @@ public non-sealed abstract class ParallelTask<Consumes, Produces>
           }
 
           case DISPATCHING -> {
+            setup();
             _operands.clear();
             _results.clear();
             _jobs.clear();
@@ -281,17 +282,12 @@ public non-sealed abstract class ParallelTask<Consumes, Produces>
             _completable.complete(null);
             return;
           }
-
-          default -> {
-            _completable.complete(null);
-            throw new IllegalStateException(String.format("Accessed invalid ParallelTask state : %s", state));
-          }
         }
       } catch (final Throwable throwable) {
-        State failedFrom = _state.get();
+        State failedDuring = _state.get();
         useState(State.FAILED);
         useMessage(String.format("Operation interrupted : %s", throwable.getCause()), ERROR, throwable);
-        if (failedFrom != State.COMPLETED && failedFrom != State.FAILED) {
+        if (failedDuring != State.COMPLETED && failedDuring != State.FAILED) {
           try {
             shutdown();
           } catch (Throwable shutdownFailure) {

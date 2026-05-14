@@ -6,13 +6,13 @@ import lombok.NonNull;
 
 /**
  * 
- * <h1>TargetCause</h1>
+ * <h1>GraphReviewCause</h1>
  * 
- * Cause of a {@link TargetReview review} generation
+ * Cause of a {@link GraphReview review} generation
  * 
  * @author Cody Washington
  */
-public sealed interface TargetCause {
+public sealed interface GraphReviewCause {
 
   /**
    * The review was manually generated as a seed target.
@@ -22,7 +22,7 @@ public sealed interface TargetCause {
    * 
    */
   record Origin(
-      @NonNull String originRef) implements TargetCause {
+      @NonNull String originRef) implements GraphReviewCause {
   }
 
   /**
@@ -35,7 +35,7 @@ public sealed interface TargetCause {
    * 
    */
   record Transition(
-      @NonNull UUID parentReviewId) implements TargetCause {
+      @NonNull UUID parentReviewId) implements GraphReviewCause {
   }
 
   /**
@@ -43,12 +43,12 @@ public sealed interface TargetCause {
    * parent target discovered this target.
    * 
    * @apiNote Normal graph-expansion cause. For example, we 'investigate' a parent
-   *          page, extract relevant links, and create an {@link TargetEdge edge}
-   *          to the parent {@link TargetNode node}, and request a review for the
+   *          page, extract relevant links, and create an {@link GraphEdge edge}
+   *          to the parent {@link GraphNode node}, and request a review for the
    *          discovered child.
    * 
    */
   record Discover(
-      @NonNull UUID relationalEdgeId) implements TargetCause {
+      @NonNull UUID relationalEdgeId) implements GraphReviewCause {
   }
 }
