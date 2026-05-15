@@ -92,7 +92,7 @@ public sealed interface Acquisition {
 					mediaMetadata,
 					emittedAt,
 					sourceBytes,
-					Set.of(),
+					null,
 					sourceHash);
 		}
 

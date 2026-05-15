@@ -15,14 +15,16 @@ import lombok.NonNull;
  * 
  * @author Cody Washington
  */
-public interface Request {
-  @NonNull
-  RequestHeader requestHeader();
+public interface Request<Self> {
 
-  @NonNull
-  UUID targetId();
+	@NonNull
+	RequestHeader requestHeader();
 
-  @NonNull
-  UUID reviewId();
+	@NonNull
+	UUID targetId();
 
+	@NonNull
+	UUID reviewId();
+
+	Self withRequestHeader(RequestHeader header);
 }

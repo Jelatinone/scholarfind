@@ -1,6 +1,7 @@
 package com.github.jelatinone.policy.base;
 
 import com.github.jelatinone.model.struct.Document;
+import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.policy.Policy;
 import com.github.jelatinone.policy.PolicyContext;
 import com.github.jelatinone.policy.PolicyDecision;
@@ -13,13 +14,13 @@ import lombok.experimental.FieldDefaults;
 
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class AttemptsPolicy<Documents extends Document<Documents>, Context extends PolicyContext<Documents>, State>
+public final class AttemptsPolicy<Requests extends Request<Requests>, Documents extends Document<Documents>, Context extends PolicyContext<Requests, Documents>, State>
 		implements Policy<Context, State> {
 	int maxAttempts;
 
 	@Override
 	public PolicyStep<State> apply(Context context, State state) {
-		if (context.document().requestHeader().attempt() >= maxAttempts) {
+		if (context.retrievedDocument().requestHeader().attempt() >= maxAttempts) {
 			return new PolicyStep.Decide<>(
 					new PolicyDecision.Drop<State>(
 							state,

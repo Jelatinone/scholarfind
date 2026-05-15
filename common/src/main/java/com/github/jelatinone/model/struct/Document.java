@@ -20,5 +20,4 @@ public interface Document<Self> {
 	Self withDocumentHeader(DocumentHeader header);
 
 	Self withRequestHeader(RequestHeader header);
-
 }

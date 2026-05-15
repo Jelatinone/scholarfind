@@ -1,12 +1,28 @@
 package com.github.jelatinone.policy;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import com.github.jelatinone.model.struct.Document;
+import com.github.jelatinone.model.struct.Request;
 
-public interface PolicyContext<Documents extends Document<Documents>> {
+import lombok.NonNull;
 
-	Documents document();
+public interface PolicyContext<Requests extends Request<Requests>, Documents extends Document<Documents>> {
 
-	Instant reviewedAt();
+	long envelopeSchemaVersion();
+
+	@NonNull
+	UUID envelopeTargetId();
+
+	@NonNull
+	UUID envelopeReviewId();
+
+	@NonNull
+	Instant envelopeReviewedAt();
+
+	Documents retrievedDocument();
+
+	@NonNull
+	Requests receivedRequest();
 }

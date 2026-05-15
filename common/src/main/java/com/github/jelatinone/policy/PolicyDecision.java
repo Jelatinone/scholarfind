@@ -17,99 +17,99 @@ import com.github.jelatinone.model.transit.Emission;
  */
 public sealed interface PolicyDecision<State> {
 
-  /**
-   * Terminal state of the policy step
-   * 
-   * @return terminal state
-   */
-  State state();
+	/**
+	 * Terminal state of the policy step
+	 * 
+	 * @return terminal state
+	 */
+	State state();
 
-  /**
-   * Explanation for producing a terminal decision
-   * 
-   * @return explanation
-   */
-  String detail();
+	/**
+	 * Explanation for producing a terminal decision
+	 * 
+	 * @return explanation
+	 */
+	String detail();
 
-  /**
-   * Reason for producing a terminal decision
-   * 
-   * @return terminal reason
-   */
-  AttemptReason reason();
+	/**
+	 * Reason for producing a terminal decision
+	 * 
+	 * @return terminal reason
+	 */
+	AttemptReason reason();
 
-  /**
-   * Outcome of the terminal decision type
-   * 
-   * @return outcome
-   */
-  PolicyOutcome outcome();
+	/**
+	 * Outcome of the terminal decision type
+	 * 
+	 * @return outcome
+	 */
+	PolicyOutcome outcome();
 
-  /**
-   * 
-   * <h1>Next</h1>
-   * 
-   * Policy application has decided terminally that the policy operand may be
-   * emitted.
-   * 
-   */
-  record Next<State>(State state, AttemptReason reason, String detail, Set<Emission<? extends Request>> emissions)
-      implements PolicyDecision<State> {
+	/**
+	 * 
+	 * <h1>Next</h1>
+	 * 
+	 * Policy application has decided terminally that the policy operand may be
+	 * emitted.
+	 * 
+	 */
+	record Next<State>(State state, AttemptReason reason, String detail, Set<Emission<? extends Request<?>>> emissions)
+			implements PolicyDecision<State> {
 
-    public Next(State state) {
-      this(state, null, null, Set.of());
-    }
+		public Next(State state) {
+			this(state, null, null, Set.of());
+		}
 
-    @Override
-    public PolicyOutcome outcome() {
-      return PolicyOutcome.NEXT;
-    }
-  }
+		@Override
+		public PolicyOutcome outcome() {
+			return PolicyOutcome.NEXT;
+		}
+	}
 
-  /**
-   * 
-   * <h1>Drop</h1>
-   * 
-   * Policy application has decided terminally that the policy operand must be
-   * dropped.
-   * 
-   */
-  record Drop<State>(State state, AttemptReason reason, String detail) implements PolicyDecision<State> {
-    @Override
-    public PolicyOutcome outcome() {
-      return PolicyOutcome.DROP;
-    }
-  }
+	/**
+	 * 
+	 * <h1>Drop</h1>
+	 * 
+	 * Policy application has decided terminally that the policy operand must be
+	 * dropped.
+	 * 
+	 */
+	record Drop<State>(State state, AttemptReason reason, String detail) implements PolicyDecision<State> {
+		@Override
+		public PolicyOutcome outcome() {
+			return PolicyOutcome.DROP;
+		}
+	}
 
-  /**
-   * 
-   * <h1>Retry</h1>
-   * 
-   * Policy application has decided that the policy was unsuccessful, and the
-   * operand may be logically retried.
-   * 
-   */
-  record Retry<State>(State state, AttemptReason reason, String detail,
-      Throwable cause) implements PolicyDecision<State> {
-    @Override
-    public PolicyOutcome outcome() {
-      return PolicyOutcome.RETRY;
-    }
-  }
+	/**
+	 * 
+	 * <h1>Retry</h1>
+	 * 
+	 * Policy application has decided that the policy was unsuccessful, and the
+	 * operand may be logically retried.
+	 * 
+	 */
+	record Retry<State>(State state, AttemptReason reason, String detail,
+			Throwable cause) implements PolicyDecision<State> {
+		@Override
+		public PolicyOutcome outcome() {
+			return PolicyOutcome.RETRY;
+		}
+	}
 
-  /**
-   * 
-   * <h1>Error</h1>
-   * 
-   * Policy application has decided that the policy was unsuccessful, and the
-   * operand must not be retired.
-   * 
-   */
-  record Error<State>(State state, AttemptReason reason, String detail, Throwable cause)
-      implements PolicyDecision<State> {
-    @Override
-    public PolicyOutcome outcome() {
-      return PolicyOutcome.ERROR;
-    }
-  }
+	/**
+	 * 
+	 * <h1>Error</h1>
+	 * 
+	 * Policy application has decided that the policy was unsuccessful, and the
+	 * operand must not be retired.
+	 * 
+	 */
+	record Error<State>(State state, AttemptReason reason, String detail, Throwable cause)
+			implements PolicyDecision<State> {
+		@Override
+		public PolicyOutcome outcome() {
+			return PolicyOutcome.ERROR;
+		}
+	}
 }

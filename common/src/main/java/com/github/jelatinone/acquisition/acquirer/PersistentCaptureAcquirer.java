@@ -29,117 +29,153 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public final class PersistentCaptureAcquirer implements Acquirer {
 
-  BodyFetcher bodyFetcher;
-  MetadataFetcher metadataFetcher;
+	BodyFetcher bodyFetcher;
+	MetadataFetcher metadataFetcher;
 
-  Set<Interpreter<?>> interpreters;
+	Set<Interpreter<?>> interpreters;
 
-  Store<UUID, Capture, Criteria<UUID>> captureStore;
-  Duration captureStalenessTimeout;
+	Store<UUID, Capture, Criteria<UUID>> captureStore;
+	Duration captureStalenessTimeout;
 
-  @Override
-  public Metadata metadata(@NonNull Acquisition current) {
-    Capture storedCapture = captureStore
-        .query(new Singular<Criteria<UUID>>(Criteria.<UUID>identifier(current.targetId())))
-        .orElse(null);
-    if (storedCapture != null && isFresh(storedCapture)) {
-      Metadata metadata = new Metadata(
-          storedCapture.targetId(),
-          storedCapture.reviewId(),
-          storedCapture.effectiveUrl(),
-          storedCapture.mediaType(),
-          storedCapture.mediaEncoding(),
-          storedCapture.mediaMetadata(),
-          storedCapture.emittedAt());
-      return metadata;
-    }
+	@Override
+	public Acquisition acquire(@NonNull Acquisition current) {
+		Capture storedCapture = captureStore
+				.query(new Singular<Criteria<UUID>>(Criteria.<UUID>identifier(current.targetId())))
+				.orElse(null);
+		if (storedCapture != null && isFresh(storedCapture)) {
+			switch (storedCapture) {
+				case Capture.Resolved stored -> {
+					Interpreted interpreted = new Interpreted(
+							stored.targetId(),
+							stored.reviewId(),
+							stored.effectiveUrl(),
+							stored.mediaType(),
+							stored.mediaEncoding(),
+							stored.mediaMetadata(),
+							stored.emittedAt(),
+							stored.sourceBytes(),
+							stored.sourceHash());
+					return interpreted;
+				}
+				case Capture.Metadata stored -> {
+					Metadata metadata = new Metadata(
+							stored.targetId(),
+							stored.reviewId(),
+							stored.effectiveUrl(),
+							stored.mediaType(),
+							stored.mediaEncoding(),
+							stored.mediaMetadata(),
+							stored.emittedAt());
+					return metadata;
+				}
+			}
+		}
+		return current;
+	}
 
-    URL resolvedUrl = current.resolvedUrl();
-    FetchedMetadata fetchedMetadata = metadataFetcher.fetchMetadata(resolvedUrl);
+	@Override
+	public Metadata metadata(@NonNull Acquisition current) {
+		Capture storedCapture = captureStore
+				.query(new Singular<Criteria<UUID>>(Criteria.<UUID>identifier(current.targetId())))
+				.orElse(null);
+		if (storedCapture != null && isFresh(storedCapture)) {
+			Metadata metadata = new Metadata(
+					storedCapture.targetId(),
+					storedCapture.reviewId(),
+					storedCapture.effectiveUrl(),
+					storedCapture.mediaType(),
+					storedCapture.mediaEncoding(),
+					storedCapture.mediaMetadata(),
+					storedCapture.emittedAt());
+			return metadata;
+		}
 
-    Capture capture = new Capture.Metadata(
-        current.targetId(),
-        current.reviewId(),
-        fetchedMetadata.effectiveUrl(),
-        fetchedMetadata.mediaType(),
-        fetchedMetadata.mediaEncoding(),
-        fetchedMetadata.mediaMetadata(),
-        fetchedMetadata.fetchedAt());
-    captureStore.put(current.targetId(), capture);
+		URL resolvedUrl = current.resolvedUrl();
+		FetchedMetadata fetchedMetadata = metadataFetcher.fetchMetadata(resolvedUrl);
 
-    Metadata acquisition = new Metadata(
-        current.targetId(),
-        current.reviewId(),
-        fetchedMetadata.effectiveUrl(),
-        fetchedMetadata.mediaType(),
-        fetchedMetadata.mediaEncoding(),
-        fetchedMetadata.mediaMetadata(),
-        fetchedMetadata.fetchedAt());
-    return acquisition;
-  }
+		Capture capture = new Capture.Metadata(
+				current.targetId(),
+				current.reviewId(),
+				fetchedMetadata.effectiveUrl(),
+				fetchedMetadata.mediaType(),
+				fetchedMetadata.mediaEncoding(),
+				fetchedMetadata.mediaMetadata(),
+				fetchedMetadata.fetchedAt());
+		captureStore.put(current.targetId(), capture);
 
-  @Override
-  public Interpreted interpreted(@NonNull Acquisition current) {
-    Capture storedCapture = captureStore
-        .query(new Singular<Criteria<UUID>>(Criteria.<UUID>identifier(current.targetId())))
-        .orElse(null);
-    if (storedCapture != null && isFresh(storedCapture)) {
-      switch (storedCapture) {
-        case Capture.Resolved resolved -> {
-          Interpreted interpreted = new Interpreted(
-              resolved.targetId(),
-              resolved.reviewId(),
-              resolved.effectiveUrl(),
-              resolved.mediaType(),
-              resolved.mediaEncoding(),
-              resolved.mediaMetadata(),
-              resolved.emittedAt(),
-              resolved.sourceBytes(),
-              resolved.sourceHash());
-          return interpreted;
-        }
+		Metadata acquisition = new Metadata(
+				current.targetId(),
+				current.reviewId(),
+				fetchedMetadata.effectiveUrl(),
+				fetchedMetadata.mediaType(),
+				fetchedMetadata.mediaEncoding(),
+				fetchedMetadata.mediaMetadata(),
+				fetchedMetadata.fetchedAt());
+		return acquisition;
+	}
 
-        default -> {
-        }
-      }
-    }
-    URL resolvedUrl = current.resolvedUrl();
+	@Override
+	public Interpreted interpreted(@NonNull Acquisition current) {
+		Capture storedCapture = captureStore
+				.query(new Singular<Criteria<UUID>>(Criteria.<UUID>identifier(current.targetId())))
+				.orElse(null);
+		if (storedCapture != null && isFresh(storedCapture)) {
+			switch (storedCapture) {
+				case Capture.Resolved resolved -> {
+					Interpreted interpreted = new Interpreted(
+							resolved.targetId(),
+							resolved.reviewId(),
+							resolved.effectiveUrl(),
+							resolved.mediaType(),
+							resolved.mediaEncoding(),
+							resolved.mediaMetadata(),
+							resolved.emittedAt(),
+							resolved.sourceBytes(),
+							resolved.sourceHash());
+					return interpreted;
+				}
 
-    FetchedBody fetchedBody = bodyFetcher.fetchBody(resolvedUrl);
+				default -> {
+				}
+			}
+		}
+		URL resolvedUrl = current.resolvedUrl();
 
-    Capture capture = new Capture.Resolved(
-        current.targetId(),
-        current.reviewId(),
-        fetchedBody.effectiveUrl(),
-        fetchedBody.sourceBytes(),
-        fetchedBody.sourceHash(),
-        fetchedBody.mediaType(),
-        fetchedBody.mediaEncoding(),
-        fetchedBody.mediaMetadata(),
-        fetchedBody.fetchedAt());
-    captureStore.put(current.targetId(), capture);
+		FetchedBody fetchedBody = bodyFetcher.fetchBody(resolvedUrl);
 
-    Interpreted interpreted = new Interpreted(
-        current.targetId(),
-        current.reviewId(),
-        fetchedBody.effectiveUrl(),
-        fetchedBody.mediaType(),
-        fetchedBody.mediaEncoding(),
-        fetchedBody.mediaMetadata(),
-        fetchedBody.fetchedAt(),
-        fetchedBody.sourceBytes(),
-        fetchedBody.sourceHash());
-    return interpreters.stream()
-        .filter((interpreter) -> interpreter.supports(fetchedBody.mediaType()))
-        .map((interpreter) -> interpreter.interpret(interpreted))
-        .reduce(
-            interpreted,
-            (acquisition, projection) -> acquisition.withProjection(projection),
-            (left, right) -> right);
-  }
+		Capture capture = new Capture.Resolved(
+				current.targetId(),
+				current.reviewId(),
+				fetchedBody.effectiveUrl(),
+				fetchedBody.sourceBytes(),
+				fetchedBody.sourceHash(),
+				fetchedBody.mediaType(),
+				fetchedBody.mediaEncoding(),
+				fetchedBody.mediaMetadata(),
+				fetchedBody.fetchedAt());
+		captureStore.put(current.targetId(), capture);
 
-  private boolean isFresh(Capture capture) {
-    Instant expiresAt = capture.emittedAt().plus(captureStalenessTimeout);
-    return !expiresAt.isBefore(Instant.now());
-  }
+		Interpreted interpreted = new Interpreted(
+				current.targetId(),
+				current.reviewId(),
+				fetchedBody.effectiveUrl(),
+				fetchedBody.mediaType(),
+				fetchedBody.mediaEncoding(),
+				fetchedBody.mediaMetadata(),
+				fetchedBody.fetchedAt(),
+				fetchedBody.sourceBytes(),
+				fetchedBody.sourceHash());
+		return interpreters.stream()
+				.filter((interpreter) -> interpreter.supports(fetchedBody.mediaType()))
+				.map((interpreter) -> interpreter.interpret(interpreted))
+				.reduce(
+						interpreted,
+						(acquisition, projection) -> acquisition.withProjection(projection),
+						(left, right) -> right);
+	}
+
+	private boolean isFresh(Capture capture) {
+		Instant expiresAt = capture.emittedAt().plus(captureStalenessTimeout);
+		return !expiresAt.isBefore(Instant.now());
+	}
 }

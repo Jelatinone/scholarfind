@@ -21,56 +21,56 @@ import com.github.jelatinone.model.transit.Letter;
 
 class KernelArchetypeContractsTest {
 
-  @Test
-  void reviewedOperable_requiresReviewToReferenceTarget() {
-    GraphNode.Target target = target(StructTestFixtures.TARGET_ID);
-    GraphReview review = review(StructTestFixtures.TARGET_ID);
+	@Test
+	void reviewedOperable_requiresReviewToReferenceTarget() {
+		GraphNode.Target target = target(StructTestFixtures.TARGET_ID);
+		GraphReview review = review(StructTestFixtures.TARGET_ID);
 
-    KernelOperable.Reviewed operable = new KernelOperable.Reviewed(target, review);
+		KernelOperand.Reviewed operable = new KernelOperand.Reviewed(target, review);
 
-    assertEquals(target, operable.target());
-    assertEquals(review, operable.review());
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> new KernelOperable.Reviewed(target, review(UUID.randomUUID())));
-  }
+		assertEquals(target, operable.target());
+		assertEquals(review, operable.review());
+		assertThrows(
+				IllegalArgumentException.class,
+				() -> new KernelOperand.Reviewed(target, review(UUID.randomUUID())));
+	}
 
-  @Test
-  void operables_requireTargetsAndReviews() {
-    GraphNode.Target target = target(StructTestFixtures.TARGET_ID);
-    GraphReview review = review(StructTestFixtures.TARGET_ID);
+	@Test
+	void operables_requireTargetsAndReviews() {
+		GraphNode.Target target = target(StructTestFixtures.TARGET_ID);
+		GraphReview review = review(StructTestFixtures.TARGET_ID);
 
-    assertThrows(NullPointerException.class, () -> new KernelOperable.Unreviewed(null));
-    assertThrows(NullPointerException.class, () -> new KernelOperable.Reviewed(null, review));
-    assertThrows(NullPointerException.class, () -> new KernelOperable.Reviewed(target, null));
-  }
+		assertThrows(NullPointerException.class, () -> new KernelOperand.Unreviewed(null));
+		assertThrows(NullPointerException.class, () -> new KernelOperand.Reviewed(null, review));
+		assertThrows(NullPointerException.class, () -> new KernelOperand.Reviewed(target, null));
+	}
 
-  @Test
-  void postable_copiesLettersIntoImmutableCollection() {
-    KernelOperable.Unreviewed operable = new KernelOperable.Unreviewed(target(StructTestFixtures.TARGET_ID));
-    Letter<InvestigateRequest> letter = StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE);
-    List<Letter<InvestigateRequest>> source = new ArrayList<>(List.of(letter));
+	@Test
+	void postable_copiesLettersIntoImmutableCollection() {
+		KernelOperand.Unreviewed operable = new KernelOperand.Unreviewed(target(StructTestFixtures.TARGET_ID));
+		Letter<InvestigateRequest> letter = StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE);
+		List<Letter<InvestigateRequest>> source = new ArrayList<>(List.of(letter));
 
-    KernelPostable<InvestigateRequest> postable = new KernelPostable<>(operable, source);
-    source.clear();
+		KernelResult<InvestigateRequest> postable = new KernelResult<>(operable, source);
+		source.clear();
 
-    assertEquals(List.of(letter), List.copyOf(postable.letters()));
-    assertThrows(UnsupportedOperationException.class, () -> postable.letters().clear());
-  }
+		assertEquals(List.of(letter), List.copyOf(postable.letters()));
+		assertThrows(UnsupportedOperationException.class, () -> postable.letters().clear());
+	}
 
-  private static GraphNode.Target target(UUID targetId) {
-    return new GraphNode.Target(
-        targetId,
-        CanonicalTestFixtures.url("https://example.com"),
-        StructTestFixtures.NOW);
-  }
+	private static GraphNode.Target target(UUID targetId) {
+		return new GraphNode.Target(
+				targetId,
+				CanonicalTestFixtures.url("https://example.com"),
+				StructTestFixtures.NOW);
+	}
 
-  private static GraphReview review(UUID targetId) {
-    return new GraphReview(
-        StructTestFixtures.REVIEW_ID,
-        targetId,
-        new GraphReviewCause.Origin("seed"),
-        new GraphReviewState.Created(ExecutionStage.DISCOVERY, "seed", StructTestFixtures.NOW),
-        StructTestFixtures.NOW);
-  }
+	private static GraphReview review(UUID targetId) {
+		return new GraphReview(
+				StructTestFixtures.REVIEW_ID,
+				targetId,
+				new GraphReviewCause.Origin("seed"),
+				new GraphReviewState.Created(ExecutionStage.DISCOVERY, "seed", StructTestFixtures.NOW),
+				StructTestFixtures.NOW);
+	}
 }

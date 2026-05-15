@@ -134,12 +134,12 @@ class PolicyContractsTest {
 	}
 
 	private record SimpleContext(
-			InvestigateDocument document,
+			InvestigateDocument retrievedDocument,
 			Instant reviewedAt) implements PolicyContext<InvestigateDocument> {
 	}
 
 	private record SimpleRequestContext(
-			InvestigateDocument document,
+			InvestigateDocument retrievedDocument,
 			Instant reviewedAt,
 			long envelopeSchemaVersion,
 			ExecutionStage envelopeStage,

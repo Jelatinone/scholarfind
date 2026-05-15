@@ -3,6 +3,7 @@ package com.github.jelatinone.policy.base;
 import java.time.Instant;
 
 import com.github.jelatinone.model.struct.Document;
+import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.policy.Policy;
 import com.github.jelatinone.policy.PolicyContext;
 import com.github.jelatinone.policy.PolicyDecision;
@@ -15,19 +16,19 @@ import lombok.experimental.FieldDefaults;
 
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class ExpirationPolicy<Documents extends Document<Documents>, Context extends PolicyContext<Documents>, State>
+public final class ExpirationPolicy<Requests extends Request<Requests>, Documents extends Document<Documents>, Context extends PolicyContext<Requests, Documents>, State>
 		implements Policy<Context, State> {
 	int expirationDays;
 
 	@Override
 	public PolicyStep<State> apply(Context context, State state) {
-		Instant discoveredAt = context.document().documentHeader().emittedAt();
+		Instant discoveredAt = context.retrievedDocument().documentHeader().emittedAt();
 		if (discoveredAt == null) {
 			return new PolicyStep.Continue<>(state);
 		}
 
 		Instant expiresAt = discoveredAt.plusSeconds((long) expirationDays * 24 * 60 * 60);
-		if (expiresAt.isBefore(context.reviewedAt())) {
+		if (expiresAt.isBefore(context.envelopeReviewedAt())) {
 			return new PolicyStep.Decide<>(
 					new PolicyDecision.Drop<State>(
 							state,

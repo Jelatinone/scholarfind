@@ -3,7 +3,6 @@ package com.github.jelatinone.meta.archetype.policy;
 import java.time.Instant;
 
 import com.github.jelatinone.model.struct.Request;
-import com.github.jelatinone.model.transit.Letter;
 import com.github.jelatinone.policy.PolicyDecision;
 import com.github.jelatinone.policy.PolicyReason;
 
@@ -19,15 +18,15 @@ import lombok.NonNull;
  * @author Cody Washington
  * 
  */
-public interface PolicyArchetype<In extends Request, Context, State> {
+public interface PolicyArchetype<In extends Request<In>, Context, State> {
 
 	State buildState(@NonNull Context context);
 
-	Context buildContext(@NonNull Letter<In> input, @NonNull Instant initializedAt);
+	Context buildContext(@NonNull In input, @NonNull Instant initializedAt);
 
 	PolicyDecision<State> pipeline(Context context, State state);
 
-	default PolicyDecision<State> pipelineRecoverable(@NonNull Letter<In> input, Throwable throwable) {
+	default PolicyDecision<State> pipelineRecoverable(@NonNull In input, Throwable throwable) {
 		return new PolicyDecision.Error<State>(
 				null,
 				PolicyReason.OPERATION_EXCEPTION,
@@ -35,7 +34,7 @@ public interface PolicyArchetype<In extends Request, Context, State> {
 				throwable);
 	}
 
-	default PolicyResult<Letter<In>, Context, State> processPolicy(@NonNull Letter<In> input) {
+	default PolicyResult<In, Context, State> processPolicy(@NonNull In input) {
 		Instant initializedAt = Instant.now();
 
 		Context context = buildContext(input, initializedAt);
@@ -47,7 +46,7 @@ public interface PolicyArchetype<In extends Request, Context, State> {
 		return new PolicyResult<>(input, context, decision, initializedAt, occurredAt);
 	}
 
-	default PolicyResult<Letter<In>, Context, State> recoverPolicy(@NonNull Letter<In> input, Throwable throwable) {
+	default PolicyResult<In, Context, State> recoverPolicy(@NonNull In input, Throwable throwable) {
 		Instant initializedAt = Instant.now();
 
 		PolicyDecision<State> decision = pipelineRecoverable(input, throwable);

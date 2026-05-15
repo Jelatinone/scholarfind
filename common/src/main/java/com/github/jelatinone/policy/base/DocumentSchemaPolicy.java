@@ -1,6 +1,7 @@
 package com.github.jelatinone.policy.base;
 
 import com.github.jelatinone.model.struct.Document;
+import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.policy.Policy;
 import com.github.jelatinone.policy.PolicyContext;
 import com.github.jelatinone.policy.PolicyDecision;
@@ -13,20 +14,20 @@ import lombok.experimental.FieldDefaults;
 
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public final class DocumentSchemaPolicy<Documents extends Document<Documents>, Context extends PolicyContext<Documents>, State>
-    implements Policy<Context, State> {
+public final class DocumentSchemaPolicy<Requests extends Request<Requests>, Documents extends Document<Documents>, Context extends PolicyContext<Requests, Documents>, State>
+		implements Policy<Context, State> {
 
-  long documentSchemaVersion;
+	long documentSchemaVersion;
 
-  @Override
-  public PolicyStep<State> apply(Context context, State state) {
-    if (context.document().documentHeader().schemaVersion() != documentSchemaVersion) {
-      return new PolicyStep.Decide<>(
-          new PolicyDecision.Drop<State>(
-              state,
-              PolicyReason.SCHEMA_MISMATCH,
-              "Stage document schema version mismatch"));
-    }
-    return new PolicyStep.Continue<>(state);
-  }
+	@Override
+	public PolicyStep<State> apply(Context context, State state) {
+		if (context.retrievedDocument().documentHeader().schemaVersion() != documentSchemaVersion) {
+			return new PolicyStep.Decide<>(
+					new PolicyDecision.Drop<State>(
+							state,
+							PolicyReason.SCHEMA_MISMATCH,
+							"Stage document schema version mismatch"));
+		}
+		return new PolicyStep.Continue<>(state);
+	}
 }

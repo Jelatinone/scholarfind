@@ -11,7 +11,6 @@ import com.github.jelatinone.model.struct.Document;
 import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.model.struct.RequestHeader;
 import com.github.jelatinone.model.transit.Emission;
-import com.github.jelatinone.model.transit.Letter;
 import com.github.jelatinone.policy.PolicyDecision;
 
 import lombok.NonNull;
@@ -26,21 +25,21 @@ import lombok.NonNull;
  * @author Cody Washington
  * 
  */
-public interface PipelineArchetype<In extends Request, Out extends Request, Context, State, Documents extends Document<Documents>> {
+public interface PipelineArchetype<In extends Request<In>, Out extends Request<Out>, Context, State, Documents extends Document<Documents>> {
 
 	PersistResult<State, Documents> persistDocument(
-			@NonNull Letter<In> input,
+			@NonNull In input,
 			@NonNull Context context,
 			@NonNull PolicyDecision.Next<State> decision,
 			@NonNull Instant occurredAt);
 
 	void persistExecution(
-			@NonNull Letter<In> input,
+			@NonNull In input,
 			@NonNull PolicyDecision<?> decision,
 			@NonNull Instant occurredAt);
 
 	void persistAttempt(
-			@NonNull Letter<In> input,
+			@NonNull In input,
 			@NonNull PolicyDecision<?> decision,
 			@NonNull Instant initializedAt,
 			@NonNull Instant occurredAt,
@@ -48,47 +47,41 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 
 	In buildRequest(@NonNull In request, @NonNull RequestHeader header);
 
-	<Emit extends Request> Letter<Emit> buildEnvelope(
+	<Emit extends Request<Emit>> Emit buildEnvelope(
 			@NonNull Emission<Emit> emission,
-			@NonNull Letter<In> input,
+			@NonNull In input,
 			@NonNull Context context,
 			@NonNull Documents document);
 
-	default Collection<Letter<? extends Request>> buildEmissions(
-			@NonNull Letter<In> input,
+	default Collection<? extends Request<?>> buildEmissions(
+			@NonNull In input,
 			@NonNull Context context,
-			@NonNull Set<Emission<? extends Request>> emissions,
+			@NonNull Set<Emission<? extends Request<?>>> emissions,
 			@NonNull Documents document) {
 		return emissions.stream()
-				.<Letter<? extends Request>>map(emission -> buildEnvelope(emission, input, context, document))
+				.map(emission -> buildEnvelope(emission, input, context, document))
 				.toList();
 	}
 
-	default Letter<In> retryEnvelope(
-			@NonNull PipelineResult<Documents, In> output) {
-		In payload = output.input().content();
-
+	default In retryEnvelope(@NonNull PipelineResult<Documents, In> output) {
+		In payload = output.input();
 		Instant occurredAt = Instant.now();
+
 		RequestHeader nextHeader = RequestHeader.retry(payload.requestHeader(), occurredAt);
 		In nextRequest = buildRequest(payload, nextHeader);
-		return new Letter<>(
-				output.input().schemaVersion(),
-				output.input().targetId(),
-				output.input().reviewId(),
-				output.input().executionRef(),
-				nextRequest,
-				occurredAt);
+
+		return nextRequest;
 	}
 
-	default Letter<In> errorEnvelope(@NonNull PipelineResult<Documents, In> output) {
+	default In errorEnvelope(@NonNull PipelineResult<Documents, In> output) {
 		return output.input();
 	}
 
 	private PipelineResult<Documents, In> processNext(
-			Letter<In> input,
+			In input,
 			Context context,
 			PolicyDecision.Next<State> decision,
-			PolicyResult<Letter<In>, Context, State> policy) {
+			PolicyResult<In, Context, State> policy) {
 
 		PersistResult<State, Documents> persisted = persistDocument(
 				input,
@@ -102,7 +95,7 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 		persistExecution(input, persistedDecision, policy.emittedAt());
 		persistAttempt(input, persistedDecision, policy.initializedAt(), policy.emittedAt(), null);
 
-		Collection<Letter<? extends Request>> emissions = persistedDocument == null
+		Collection<? extends Request<?>> emissions = persistedDocument == null
 				? List.of()
 				: buildEmissions(input, context, decision.emissions(), persistedDocument);
 
@@ -116,9 +109,9 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 	}
 
 	private PipelineResult<Documents, In> processTerminal(
-			Letter<In> input,
+			In input,
 			PolicyDecision<State> decision,
-			PolicyResult<Letter<In>, Context, State> policy) {
+			PolicyResult<In, Context, State> policy) {
 
 		persistExecution(input, decision, policy.emittedAt());
 		persistAttempt(input, decision, policy.initializedAt(), policy.emittedAt(), cause(decision));
@@ -140,8 +133,8 @@ public interface PipelineArchetype<In extends Request, Out extends Request, Cont
 		};
 	}
 
-	default PipelineResult<Documents, In> processPipeline(@NonNull PolicyResult<Letter<In>, Context, State> policy) {
-		Letter<In> input = policy.input();
+	default PipelineResult<Documents, In> processPipeline(@NonNull PolicyResult<In, Context, State> policy) {
+		In input = policy.input();
 		PolicyDecision<State> decision = policy.decision();
 
 		return switch (decision) {

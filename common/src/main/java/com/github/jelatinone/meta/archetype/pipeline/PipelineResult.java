@@ -5,15 +5,14 @@ import java.util.Collection;
 
 import com.github.jelatinone.model.struct.Document;
 import com.github.jelatinone.model.struct.Request;
-import com.github.jelatinone.model.transit.Letter;
 import com.github.jelatinone.policy.PolicyDecision;
 
-public record PipelineResult<Documents extends Document<?>, In extends Request>(
-		Letter<In> input,
+public record PipelineResult<Documents extends Document<?>, In extends Request<In>>(
+		In input,
 		Documents document,
 
 		PolicyDecision<?> decision,
-		Collection<Letter<? extends Request>> emissions,
+		Collection<? extends Request<?>> emissions,
 
 		Instant initializedAt,
 		Instant occurredAt) {
