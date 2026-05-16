@@ -1,8 +1,8 @@
 package com.github.jelatinone.meta.construct;
 
-import org.jsoup.helper.HttpConnection.Request;
+import com.github.jelatinone.model.struct.Request;
 
 public interface Router {
 
-	void route(Request envelope);
+	void route(Request<?> envelope);
 }

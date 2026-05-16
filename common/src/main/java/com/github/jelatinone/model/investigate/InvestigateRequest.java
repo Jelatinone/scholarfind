@@ -11,6 +11,11 @@ public record InvestigateRequest(
 		UUID targetId,
 		UUID reviewId
 
-) implements Request {
+) implements Request<InvestigateRequest> {
+
+	@Override
+	public InvestigateRequest withRequestHeader(RequestHeader nextHeader) {
+		return new InvestigateRequest(nextHeader, targetId(), reviewId());
+	}
 
 }

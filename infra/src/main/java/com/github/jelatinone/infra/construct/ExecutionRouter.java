@@ -9,7 +9,6 @@ import java.util.function.Consumer;
 import com.github.jelatinone.meta.construct.Router;
 import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.struct.Request;
-import com.github.jelatinone.model.transit.Letter;
 
 import lombok.AccessLevel;
 import lombok.NonNull;
@@ -18,60 +17,58 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ExecutionRouter implements Router {
 
-  Map<ExecutionStage, RouteBinding<?>> bindings;
+	Map<ExecutionStage, RouteBinding<?>> bindings;
 
-  public ExecutionRouter(@NonNull Collection<RouteBinding<?>> bindings) {
-    Map<ExecutionStage, RouteBinding<?>> nextBindings = new EnumMap<>(ExecutionStage.class);
-    bindings.forEach(binding -> {
-      RouteBinding<?> previousBinding = nextBindings.put(binding.forwardRef(), binding);
-      if (previousBinding != null) {
-        throw new IllegalArgumentException(
-            String.format("Duplicate emission binding configured for %s stage", binding.forwardRef()));
-      }
-    });
-    this.bindings = Map.copyOf(nextBindings);
-  }
+	public ExecutionRouter(@NonNull Collection<RouteBinding<?>> bindings) {
+		Map<ExecutionStage, RouteBinding<?>> nextBindings = new EnumMap<>(ExecutionStage.class);
+		bindings.forEach(binding -> {
+			RouteBinding<?> previousBinding = nextBindings.put(binding.forwardRef(), binding);
+			if (previousBinding != null) {
+				throw new IllegalArgumentException(
+						String.format("Duplicate emission binding configured for %s stage", binding.forwardRef()));
+			}
+		});
+		this.bindings = Map.copyOf(nextBindings);
+	}
 
-  @SafeVarargs
-  public static ExecutionRouter of(RouteBinding<?>... bindings) {
-    return new ExecutionRouter(List.of(bindings));
-  }
+	@SafeVarargs
+	public static ExecutionRouter of(RouteBinding<?>... bindings) {
+		return new ExecutionRouter(List.of(bindings));
+	}
 
-  public static <R extends Request> RouteBinding<R> bind(
-      ExecutionStage forwardRef,
-      Class<R> payloadType,
-      Consumer<Letter<R>> forwardTo) {
-    return new RouteBinding<>(forwardRef, payloadType, forwardTo);
-  }
+	public static <R extends Request<?>> RouteBinding<R> bind(
+			ExecutionStage forwardRef,
+			Class<R> payloadType,
+			Consumer<R> forwardTo) {
+		return new RouteBinding<>(forwardRef, payloadType, forwardTo);
+	}
 
-  @Override
-  public void route(Letter<?> envelope) {
-    RouteBinding<?> binding = bindings.get(envelope.executionRef());
-    if (binding == null) {
-      throw new IllegalStateException(
-          String.format("No emission binding configured for %s stage", envelope.executionRef()));
-    }
-    binding.send(envelope);
-  }
+	@Override
+	public void route(Request<?> envelope) {
+		ExecutionStage emittedBy = envelope.requestHeader().emittedBy();
+		RouteBinding<?> binding = bindings.get(emittedBy);
+		if (binding == null) {
+			throw new IllegalStateException(
+					String.format("No emission binding configured for %s stage", emittedBy));
+		}
+		binding.send(envelope);
+	}
 
-  public static record RouteBinding<R extends Request>(
-      ExecutionStage forwardRef,
-      Class<R> payloadType,
-      Consumer<Letter<R>> forwardTo) {
+	public static record RouteBinding<R extends Request<?>>(
+			ExecutionStage forwardRef,
+			Class<R> payloadType,
+			Consumer<R> forwardTo) {
 
-    @SuppressWarnings("unchecked")
-    public void send(Letter<? extends Request> envelope) {
-      Request payload = envelope.content();
-      if (payload == null || !payloadType.isInstance(payload)) {
-        throw new IllegalArgumentException(String.format(
-            "Emission payload type %s is not supported for %s stage",
-            payload == null
-                ? "null"
-                : payload.getClass().getName(),
-            forwardRef()));
-      }
-      forwardTo.accept((Letter<R>) envelope);
-    }
-  }
+		@SuppressWarnings("unchecked")
+		public void send(@NonNull Request<?> envelope) {
+			if (!payloadType.isInstance(envelope)) {
+				throw new IllegalArgumentException(String.format(
+						"Emission payload type %s is not supported for %s stage",
+						envelope.getClass().getName(),
+						forwardRef()));
+			}
+			forwardTo.accept((R) envelope);
+		}
+	}
 
 }
