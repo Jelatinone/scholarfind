@@ -17,7 +17,7 @@ import com.github.jelatinone.model.graph.GraphReview;
 import com.github.jelatinone.model.graph.GraphReviewCause;
 import com.github.jelatinone.model.graph.GraphReviewState;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
-import com.github.jelatinone.model.transit.Letter;
+import com.github.jelatinone.model.struct.Request;
 
 class KernelArchetypeContractsTest {
 
@@ -46,15 +46,15 @@ class KernelArchetypeContractsTest {
 	}
 
 	@Test
-	void postable_copiesLettersIntoImmutableCollection() {
+	void postable_copiesRequestsIntoImmutableCollection() {
 		KernelOperand.Unreviewed operable = new KernelOperand.Unreviewed(target(StructTestFixtures.TARGET_ID));
-		Letter<InvestigateRequest> letter = StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE);
-		List<Letter<InvestigateRequest>> source = new ArrayList<>(List.of(letter));
+		InvestigateRequest request = StructTestFixtures.request(0, ExecutionStage.INVESTIGATE);
+		List<Request<InvestigateRequest>> source = new ArrayList<>(List.of(request));
 
 		KernelResult<InvestigateRequest> postable = new KernelResult<>(operable, source);
 		source.clear();
 
-		assertEquals(List.of(letter), List.copyOf(postable.letters()));
+		assertEquals(List.of(request), List.copyOf(postable.letters()));
 		assertThrows(UnsupportedOperationException.class, () -> postable.letters().clear());
 	}
 

@@ -12,7 +12,6 @@ import com.github.jelatinone.model.investigate.InvestigateDocument;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
 import com.github.jelatinone.model.struct.DocumentHeader;
 import com.github.jelatinone.model.struct.RequestHeader;
-import com.github.jelatinone.model.transit.Letter;
 
 public final class StructTestFixtures {
 
@@ -55,13 +54,4 @@ public final class StructTestFixtures {
 				true);
 	}
 
-	public static Letter<InvestigateRequest> letter(int attempt, ExecutionStage executionRef) {
-		InvestigateRequest request = request(attempt, executionRef);
-		return new Letter<>(
-				request.targetId(),
-				request.reviewId(),
-				executionRef,
-				request,
-				NOW);
-	}
 }

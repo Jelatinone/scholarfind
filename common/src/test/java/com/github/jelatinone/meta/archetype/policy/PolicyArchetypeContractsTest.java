@@ -21,8 +21,8 @@ class PolicyArchetypeContractsTest {
 	void policyArchetype_buildsContextAndDecision() {
 		TestPolicyArchetype archetype = new TestPolicyArchetype();
 
-		PolicyResult<com.github.jelatinone.model.transit.Letter<InvestigateRequest>, String, Integer> result = archetype
-				.processPolicy(StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE));
+		PolicyResult<InvestigateRequest, String, Integer> result = archetype
+				.processPolicy(StructTestFixtures.request(0, ExecutionStage.INVESTIGATE));
 
 		assertEquals("INVESTIGATE", result.context());
 		assertEquals(12, assertInstanceOf(PolicyDecision.Next.class, result.decision()).state());
@@ -33,41 +33,41 @@ class PolicyArchetypeContractsTest {
 		TestPolicyArchetype archetype = new TestPolicyArchetype();
 		PolicyOperation<InvestigateRequest, String, Integer> operation = new PolicyOperation<>(archetype);
 		List<String> callbacks = new ArrayList<>();
-		PolicyPersist<com.github.jelatinone.model.transit.Letter<InvestigateRequest>, String, Integer> persist = new PolicyPersist<>(
+		PolicyPersist<InvestigateRequest, String, Integer> persist = new PolicyPersist<>(
 				new PolicyDisposition<>() {
 					@Override
 					public void next(
-							PolicyResult<com.github.jelatinone.model.transit.Letter<InvestigateRequest>, String, Integer> result) {
+							PolicyResult<InvestigateRequest, String, Integer> result) {
 						callbacks.add("next");
 					}
 
 					@Override
 					public void drop(
-							PolicyResult<com.github.jelatinone.model.transit.Letter<InvestigateRequest>, String, Integer> result) {
+							PolicyResult<InvestigateRequest, String, Integer> result) {
 						callbacks.add("drop");
 					}
 
 					@Override
 					public void retry(
-							PolicyResult<com.github.jelatinone.model.transit.Letter<InvestigateRequest>, String, Integer> result) {
+							PolicyResult<InvestigateRequest, String, Integer> result) {
 						callbacks.add("retry");
 					}
 
 					@Override
 					public void error(
-							PolicyResult<com.github.jelatinone.model.transit.Letter<InvestigateRequest>, String, Integer> result) {
+							PolicyResult<InvestigateRequest, String, Integer> result) {
 						callbacks.add("error");
 					}
 				});
 
-		var result = operation.operate(StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE));
+		var result = operation.operate(StructTestFixtures.request(0, ExecutionStage.INVESTIGATE));
 
 		assertInstanceOf(com.github.jelatinone.meta.result.PostResult.Success.class, persist.post(result));
 		assertEquals(List.of("next"), callbacks);
 		assertEquals(PolicyReason.OPERATION_EXCEPTION,
 				assertInstanceOf(PolicyDecision.Error.class,
 						archetype
-								.recoverPolicy(StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE),
+								.recoverPolicy(StructTestFixtures.request(0, ExecutionStage.INVESTIGATE),
 										new IllegalStateException("boom"))
 								.decision())
 						.reason());
@@ -80,9 +80,8 @@ class PolicyArchetypeContractsTest {
 		}
 
 		@Override
-		public String buildContext(com.github.jelatinone.model.transit.Letter<InvestigateRequest> input,
-				Instant initializedAt) {
-			return input.executionRef().name();
+		public String buildContext(InvestigateRequest input, Instant initializedAt) {
+			return input.requestHeader().emittedBy().name();
 		}
 
 		@Override

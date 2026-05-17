@@ -53,7 +53,6 @@ import com.github.jelatinone.model.scholarship.dossier.requirement.Location;
 import com.github.jelatinone.model.struct.DocumentHeader;
 import com.github.jelatinone.model.struct.RequestHeader;
 import com.github.jelatinone.model.transit.Emission;
-import com.github.jelatinone.model.transit.Letter;
 import com.github.jelatinone.policy.PolicyReason;
 import com.github.jelatinone.policy.PolicyOutcome;
 
@@ -108,12 +107,6 @@ class ModelContractsTest {
     InvestigateRequest request = new InvestigateRequest(requestHeader, StructTestFixtures.TARGET_ID,
         StructTestFixtures.REVIEW_ID);
     InvestigateDocument document = StructTestFixtures.document(1, ExecutionStage.INVESTIGATE);
-    Letter<InvestigateRequest> letter = new Letter<>(
-        request.targetId(),
-        request.reviewId(),
-        ExecutionStage.INVESTIGATE,
-        request,
-        StructTestFixtures.NOW);
     Emission<InvestigateRequest> emission = new Emission<>(request, Duration.ofSeconds(5), ExecutionStage.ANNOTATE);
 
     assertEquals(2, RequestHeader.retry(requestHeader, StructTestFixtures.NOW).attempt());
@@ -122,7 +115,6 @@ class ModelContractsTest {
     assertEquals(requestHeader, request.requestHeader());
     assertEquals(documentHeader, document.withDocumentHeader(documentHeader).documentHeader());
     assertEquals(requestHeader, document.withRequestHeader(requestHeader).requestHeader());
-    assertEquals(Letter.SCHEMA_VERSION, letter.schemaVersion());
     assertEquals(Duration.ofSeconds(5), emission.delay());
   }
 

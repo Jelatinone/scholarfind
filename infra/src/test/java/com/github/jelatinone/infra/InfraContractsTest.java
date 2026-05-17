@@ -18,7 +18,6 @@ import com.github.jelatinone.infra.aws.store.serial.JacksonS3Serializer;
 import com.github.jelatinone.infra.construct.ExecutionRouter;
 import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
-import com.github.jelatinone.model.transit.Letter;
 
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
@@ -33,16 +32,16 @@ class InfraContractsTest {
 
 	@Test
 	void executionRouter_routesBoundStages_andRejectsInvalidPayloads() {
-		List<Letter<InvestigateRequest>> routed = new ArrayList<>();
+		List<InvestigateRequest> routed = new ArrayList<>();
 		ExecutionRouter router = ExecutionRouter.of(
 				ExecutionRouter.bind(ExecutionStage.INVESTIGATE, InvestigateRequest.class, routed::add));
-		Letter<InvestigateRequest> envelope = StructTestFixtures.letter(0, ExecutionStage.INVESTIGATE);
+		InvestigateRequest envelope = StructTestFixtures.request(0, ExecutionStage.INVESTIGATE);
 
 		router.route(envelope);
 
 		assertEquals(List.of(envelope), routed);
 		assertThrows(IllegalStateException.class, () -> router.route(
-				StructTestFixtures.letter(0, ExecutionStage.ANNOTATE)));
+				StructTestFixtures.request(0, ExecutionStage.ANNOTATE)));
 	}
 
 	@Test
@@ -62,13 +61,13 @@ class InfraContractsTest {
 	}
 
 	@Test
-	void jacksonSqsSerializer_roundTripsLetters() throws Exception {
-		JacksonSQSSerializer<Letter<InvestigateRequest>> serializer = new JacksonSQSSerializer<>(
-				JacksonMapper.mapper.getTypeFactory().constructParametricType(Letter.class, InvestigateRequest.class));
-		Letter<InvestigateRequest> envelope = StructTestFixtures.letter(1, ExecutionStage.INVESTIGATE);
+	void jacksonSqsSerializer_roundTripsRequests() throws Exception {
+		JacksonSQSSerializer<InvestigateRequest> serializer = new JacksonSQSSerializer<>(
+				JacksonMapper.mapper.getTypeFactory().constructType(InvestigateRequest.class));
+		InvestigateRequest envelope = StructTestFixtures.request(1, ExecutionStage.INVESTIGATE);
 
 		String encodedBody = serializer.encodeBody(envelope);
-		Letter<InvestigateRequest> decoded = serializer.decode(encodedBody, Map.of());
+		InvestigateRequest decoded = serializer.decode(encodedBody, Map.of());
 
 		assertEquals(envelope, decoded);
 		assertTrue(serializer.encodeAttributes(envelope).isEmpty());

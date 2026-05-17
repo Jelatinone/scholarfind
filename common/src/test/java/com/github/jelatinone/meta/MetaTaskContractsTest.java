@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -24,7 +25,7 @@ import com.github.jelatinone.meta.result.PostResult;
 import com.github.jelatinone.meta.transitory.Directive;
 import com.github.jelatinone.model.audit.AttemptEvent;
 import com.github.jelatinone.model.audit.ExecutionEvent;
-import com.github.jelatinone.model.investigate.InvestigateRequest;
+import com.github.jelatinone.model.investigate.InvestigateDocument;
 import com.github.jelatinone.utility.scheduler.ConstantBackoffScheduler;
 
 class MetaTaskContractsTest {
@@ -73,22 +74,28 @@ class MetaTaskContractsTest {
   void infrastructureBindsRouterAndStores() {
     Router router = envelope -> {
     };
-    MockStore<String, AttemptEvent> attemptStore = new MockStore<>();
-    MockStore<String, ExecutionEvent> executionStore = new MockStore<>();
+    MockStore<UUID, InvestigateDocument> documentStore = new MockStore<>();
+    MockStore<UUID, AttemptEvent> attemptStore = new MockStore<>();
+    MockStore<UUID, ExecutionEvent> executionStore = new MockStore<>();
 
-    Infrastructure<InvestigateRequest, InvestigateRequest, Void> infrastructure = new Infrastructure<>() {
+    Infrastructure<InvestigateDocument> infrastructure = new Infrastructure<>() {
       @Override
       public Router router() {
         return router;
       }
 
       @Override
-      public Store<String, AttemptEvent, Criteria<String>> attemptStore() {
+      public Store<UUID, InvestigateDocument, Criteria<UUID>> documentStore() {
+        return documentStore;
+      }
+
+      @Override
+      public Store<UUID, AttemptEvent, Criteria<UUID>> attemptStore() {
         return attemptStore;
       }
 
       @Override
-      public Store<String, ExecutionEvent, Criteria<String>> executionStore() {
+      public Store<UUID, ExecutionEvent, Criteria<UUID>> executionStore() {
         return executionStore;
       }
 
@@ -98,6 +105,7 @@ class MetaTaskContractsTest {
     };
 
     assertEquals(router, infrastructure.router());
+    assertEquals(documentStore, infrastructure.documentStore());
     assertEquals(attemptStore, infrastructure.attemptStore());
     assertEquals(executionStore, infrastructure.executionStore());
   }
