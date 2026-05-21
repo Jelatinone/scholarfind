@@ -110,7 +110,7 @@ class PipelineArchetypeContractsTest {
 
 		@Override
 		public InvestigateRequest buildRequest(InvestigateRequest request, RequestHeader header) {
-			return new InvestigateRequest(header, request.targetId(), request.reviewId());
+			return request.withRequestHeader(header);
 		}
 
 		@Override

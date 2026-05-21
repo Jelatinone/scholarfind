@@ -15,20 +15,20 @@ public record InvestigateDocument(
     UUID reviewId,
 
     Classification classification,
-    Set<UUID> discoveredEdges
+    Set<UUID> discoveredParentEdges
 
 ) implements Document<InvestigateDocument> {
 
   @Override
   public InvestigateDocument withDocumentHeader(DocumentHeader header) {
-    return new InvestigateDocument(header, requestHeader(), targetId(), reviewId(), classification(),
-        discoveredEdges());
+    return new InvestigateDocument(header, requestHeader(), header.targetId(), header.reviewId(), classification(),
+        discoveredParentEdges());
   }
 
   @Override
   public InvestigateDocument withRequestHeader(RequestHeader header) {
-    return new InvestigateDocument(documentHeader(), header, targetId(), reviewId(), classification(),
-        discoveredEdges());
+    return new InvestigateDocument(documentHeader(), header, header.targetId(), header.reviewId(), classification(),
+        discoveredParentEdges());
   }
 
 }

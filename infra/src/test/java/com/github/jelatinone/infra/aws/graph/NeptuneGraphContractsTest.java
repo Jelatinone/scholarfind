@@ -106,14 +106,18 @@ class NeptuneGraphContractsTest {
   @Test
   void jacksonSerializer_roundTripsSchemableGraphModelKinds() {
     GraphTraversalSource traversal = TinkerGraph.open().traversal();
-    NeptuneGraph<GraphNode.Target, GraphEdge.Reduce, UUID> graph = new NeptuneGraph<>(
+    NeptuneGraph<GraphNode.Target, GraphEdge.Reducer, UUID> graph = new NeptuneGraph<>(
         traversal,
         new JacksonNeptuneGraphSerializer<>(
             GraphNode.Target.class,
-            GraphEdge.Reduce.class));
-    GraphNode.Target target = new GraphNode.Target(ORIGIN, url("https://example.com"), java.time.Instant.EPOCH);
+            GraphEdge.Reducer.class));
+    GraphNode.Target target = new GraphNode.Target(
+        ORIGIN,
+        TARGET,
+        url("https://example.com"),
+        java.time.Instant.EPOCH);
     GraphNode.Entity entity = new GraphNode.Entity(TARGET, UUID.randomUUID(), java.time.Instant.EPOCH);
-    GraphEdge.Reduce resolvesTo = new GraphEdge.Reduce(
+    GraphEdge.Reducer resolvesTo = new GraphEdge.Reducer(
         EDGE,
         UUID.randomUUID(),
         target.targetId(),
@@ -121,17 +125,17 @@ class NeptuneGraphContractsTest {
         java.time.Instant.EPOCH);
 
     graph.putVertex(target);
-    new NeptuneGraph<GraphNode.Entity, GraphEdge.Reduce, UUID>(
+    new NeptuneGraph<GraphNode.Entity, GraphEdge.Reducer, UUID>(
         traversal,
         new JacksonNeptuneGraphSerializer<>(
             GraphNode.Entity.class,
-            GraphEdge.Reduce.class))
+            GraphEdge.Reducer.class))
         .putVertex(entity);
     graph.putEdge(resolvesTo);
 
     Optional<GraphNode.Target> decodedTarget = graph.vertices()
-        .query(new Query.Singular<>(Criteria.identifier(ORIGIN)));
-    Collection<GraphEdge.Reduce> decodedEdges = graph.edges().query(new Query.Several<>(
+        .query(new Query.Singular<>(Criteria.identifier(TARGET)));
+    Collection<GraphEdge.Reducer> decodedEdges = graph.edges().query(new Query.Several<>(
         EdgeCriteria.between(target.targetId(), entity.entityId()),
         5));
 

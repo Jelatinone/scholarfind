@@ -5,6 +5,9 @@ import java.util.Set;
 
 public sealed interface Classification {
 
+  record Missing() implements Classification {
+  }
+
   record Collected(
       Map<Category, Double> categoryEstimates,
 
@@ -12,7 +15,7 @@ public sealed interface Classification {
       Set<Category> contenderCategories) implements Classification {
   }
 
-  record Interpreted(
+  record Processed(
       Map<Category, Double> categoryEstimates,
 
       Double contenderConfidence,

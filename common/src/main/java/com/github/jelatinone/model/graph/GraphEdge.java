@@ -14,7 +14,7 @@ import lombok.NonNull;
  * 
  * @author Cody Washington
  */
-public sealed interface GraphEdge extends Schemable, Edge<UUID> permits GraphEdge.Parent, GraphEdge.Reduce {
+public sealed interface GraphEdge extends Schemable, Edge<UUID> permits GraphEdge.Parent, GraphEdge.Reducer {
 
   @NonNull
   UUID edgeId();
@@ -31,7 +31,7 @@ public sealed interface GraphEdge extends Schemable, Edge<UUID> permits GraphEdg
   /**
    * A target resolved to a stable entity.
    */
-  public record Reduce(
+  public record Reducer(
       long schemaVersion,
 
       @NonNull UUID edgeId,
@@ -43,7 +43,7 @@ public sealed interface GraphEdge extends Schemable, Edge<UUID> permits GraphEdg
       @NonNull Instant emittedAt) implements GraphEdge {
     public static final long SCHEMA_VERSION = 1L;
 
-    public Reduce(UUID edgeId, UUID reviewId, UUID targetId, UUID entityId, Instant emittedAt) {
+    public Reducer(UUID edgeId, UUID reviewId, UUID targetId, UUID entityId, Instant emittedAt) {
       this(SCHEMA_VERSION, edgeId, reviewId, targetId, entityId, emittedAt);
     }
 
@@ -75,7 +75,7 @@ public sealed interface GraphEdge extends Schemable, Edge<UUID> permits GraphEdg
 
     @Override
     public @NonNull String edgeLabel() {
-      return "resolved";
+      return "reducer";
     }
   }
 

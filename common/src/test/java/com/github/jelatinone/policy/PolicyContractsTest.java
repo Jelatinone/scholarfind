@@ -159,7 +159,7 @@ class PolicyContractsTest {
 	}
 
 	private static InvestigateRequest request(InvestigateDocument document) {
-		return new InvestigateRequest(document.requestHeader(), document.targetId(), document.reviewId());
+		return StructTestFixtures.request(document.requestHeader());
 	}
 
 	private record SimpleContext(

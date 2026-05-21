@@ -23,14 +23,16 @@ public sealed interface GraphNode extends Schemable, Vertex<UUID> permits GraphN
   public record Target(
       long schemaVersion,
 
+      @NonNull UUID domainId,
       @NonNull UUID targetId,
+
       @NonNull URL canonicalUrl,
 
       @NonNull Instant emittedAt) implements GraphNode {
     public static final long SCHEMA_VERSION = 1L;
 
-    public Target(UUID targetId, URL canonicalUrl, Instant emittedAt) {
-      this(SCHEMA_VERSION, targetId, canonicalUrl, emittedAt);
+    public Target(UUID domainId, UUID targetId, URL canonicalUrl, Instant emittedAt) {
+      this(SCHEMA_VERSION, domainId, targetId, canonicalUrl, emittedAt);
     }
 
     @Override
@@ -47,6 +49,7 @@ public sealed interface GraphNode extends Schemable, Vertex<UUID> permits GraphN
     public @NonNull Map<String, Object> properties() {
       return Map.of(
           "schemaVersion", schemaVersion(),
+          "domainId", domainId(),
           "targetId", targetId(),
           "canonicalUrl", canonicalUrl(),
           "emittedAt", emittedAt());

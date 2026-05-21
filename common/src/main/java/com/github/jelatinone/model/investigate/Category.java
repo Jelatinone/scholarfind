@@ -2,13 +2,13 @@ package com.github.jelatinone.model.investigate;
 
 public enum Category {
 
-	UNCLASSIFIED,
+  UNCLASSIFIED,
 
-	ARCHIVE,
+  TARGET,
 
-	AGGREGATOR,
+  AGGREGATOR,
 
-	LANDING,
+  LANDING,
 
-	SEARCH,
+  SEARCH,
 }

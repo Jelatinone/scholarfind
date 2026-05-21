@@ -66,6 +66,11 @@ public final class Canonical {
     return UUID.nameUUIDFromBytes(canonical.toExternalForm().getBytes(StandardCharsets.UTF_8));
   }
 
+  public static UUID generateDomainUUID(URL value) {
+    URL canonical = canonicalizeURL(value);
+    return UUID.nameUUIDFromBytes(canonical.getHost().getBytes(StandardCharsets.UTF_8));
+  }
+
   public static UUID generateEdgeUUID(String relation, UUID from, UUID to) {
     String canonical = "%s:%s:%s".formatted(relation, from, to);
     return UUID.nameUUIDFromBytes(canonical.getBytes(StandardCharsets.UTF_8));
@@ -76,6 +81,7 @@ public final class Canonical {
       Instant discoveredAt) {
     URL canonical = canonicalizeURL(value);
     return new GraphNode.Target(
+        generateDomainUUID(canonical),
         generateTargetUUID(canonical),
         canonical,
         discoveredAt);
@@ -100,13 +106,13 @@ public final class Canonical {
         emittedAt);
   }
 
-  public static GraphEdge.Reduce reduce(
+  public static GraphEdge.Reducer reduce(
       UUID reviewId,
       UUID targetId,
       UUID entityId,
       Instant emittedAt) {
-    return new GraphEdge.Reduce(
-        generateEdgeUUID(GraphEdge.Reduce.class.getSimpleName(), targetId, entityId),
+    return new GraphEdge.Reducer(
+        generateEdgeUUID(GraphEdge.Reducer.class.getSimpleName(), targetId, entityId),
         reviewId,
         targetId,
         entityId,

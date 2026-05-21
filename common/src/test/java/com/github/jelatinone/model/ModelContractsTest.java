@@ -77,24 +77,29 @@ class ModelContractsTest {
     UUID targetId = StructTestFixtures.TARGET_ID;
     UUID reviewId = StructTestFixtures.REVIEW_ID;
 
-    GraphNode.Target node = new GraphNode.Target(targetId, CanonicalTestFixtures.url("https://example.com"), now);
+    GraphNode.Target node = new GraphNode.Target(
+        StructTestFixtures.DOMAIN_ID,
+        targetId,
+        CanonicalTestFixtures.url("https://example.com"),
+        now);
     GraphReview review = new GraphReview(reviewId, targetId,
         new GraphReviewCause.Origin("seed"),
-        new GraphReviewState.Created(ExecutionStage.DISCOVERY, "Task-1", now),
+        new GraphReviewState.Available(ExecutionStage.DISCOVERY, "Task-1", now),
         now);
     GraphEdge.Parent edge = new GraphEdge.Parent(edgeId, reviewId, UUID.randomUUID(), targetId, now);
     GraphNode.Entity entity = new GraphNode.Entity(entityId, reviewId, now);
-    GraphEdge.Reduce membership = new GraphEdge.Reduce(UUID.randomUUID(), reviewId, targetId, entityId, now);
+    GraphEdge.Reducer membership = new GraphEdge.Reducer(UUID.randomUUID(), reviewId, targetId, entityId, now);
 
     assertEquals(GraphNode.Target.SCHEMA_VERSION, node.schemaVersion());
     assertEquals(GraphReview.SCHEMA_VERSION, review.schemaVersion());
     assertEquals(GraphEdge.Parent.SCHEMA_VERSION, edge.schemaVersion());
     assertEquals(GraphNode.Entity.SCHEMA_VERSION, entity.schemaVersion());
-    assertEquals(GraphEdge.Reduce.SCHEMA_VERSION, membership.schemaVersion());
+    assertEquals(GraphEdge.Reducer.SCHEMA_VERSION, membership.schemaVersion());
     assertEquals(targetId, node.canonicalId());
     assertEquals(entityId, entity.canonicalId());
     assertEquals(edge.edgeId(), edge.canonicalId());
     assertEquals(membership.edgeId(), membership.canonicalId());
+    assertEquals(StructTestFixtures.DOMAIN_ID, node.properties().get("domainId"));
     assertEquals(targetId, node.properties().get("targetId"));
     assertEquals(entityId, membership.properties().get("entityId"));
     assertInstanceOf(GraphReviewCause.Origin.class, review.causedBy());
@@ -104,8 +109,7 @@ class ModelContractsTest {
   void structTransitAndInvestigateModels_updateHeaders() {
     RequestHeader requestHeader = StructTestFixtures.requestHeader(1, ExecutionStage.INVESTIGATE);
     DocumentHeader documentHeader = StructTestFixtures.documentHeader(ExecutionStage.INVESTIGATE);
-    InvestigateRequest request = new InvestigateRequest(requestHeader, StructTestFixtures.TARGET_ID,
-        StructTestFixtures.REVIEW_ID);
+    InvestigateRequest request = StructTestFixtures.request(1, ExecutionStage.INVESTIGATE);
     InvestigateDocument document = StructTestFixtures.document(1, ExecutionStage.INVESTIGATE);
     Emission<InvestigateRequest> emission = new Emission<>(request, Duration.ofSeconds(5), ExecutionStage.ANNOTATE);
 
@@ -182,11 +186,11 @@ class ModelContractsTest {
         "club");
     Award award = new Award(BigDecimal.ONE, BigDecimal.TEN, "USD", true, 2, "Annual");
     Window window = new Window(LocalDate.parse("2026-01-01"), LocalDate.parse("2026-02-01"), "Spring");
-    Classification.Interpreted classification = new Classification.Interpreted(
-        Map.of(Category.ARCHIVE, 0.8d),
+    Classification.Processed classification = new Classification.Processed(
+        Map.of(Category.TARGET, 0.8d),
         0.8d,
-        Set.of(Category.ARCHIVE),
-        Category.ARCHIVE,
+        Set.of(Category.TARGET),
+        Category.TARGET,
         true);
     Capture capture = new Capture.Resolved(StructTestFixtures.TARGET_ID,
         StructTestFixtures.REVIEW_ID, CanonicalTestFixtures.url("https://example.com"), "body".getBytes(), "hash",
@@ -202,7 +206,7 @@ class ModelContractsTest {
     assertTrue(RequirementKind.STUDENT_ACTIVITY.accepts(Activity.WORK));
     assertFalse(RequirementKind.STUDENT_ACTIVITY.accepts(Degree.MBA));
     assertFalse(DescriptionKind.APPLICATION_WINDOW.accepts(Education.GRADUATE));
-    assertEquals(Category.ARCHIVE, classification.mostPragmaticCategory());
+    assertEquals(Category.TARGET, classification.mostPragmaticCategory());
     assertEquals(4L, mediaMetadata.contentLength());
     assertEquals(StructTestFixtures.TARGET_ID, capture.targetId());
 

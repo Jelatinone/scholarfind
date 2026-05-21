@@ -5,19 +5,20 @@ import java.util.UUID;
 import lombok.NonNull;
 
 public interface Document<Self> {
-	@NonNull
-	DocumentHeader documentHeader();
 
-	@NonNull
-	RequestHeader requestHeader();
+  @NonNull
+  DocumentHeader documentHeader();
 
-	@NonNull
-	UUID targetId();
+  @NonNull
+  RequestHeader requestHeader();
 
-	@NonNull
-	UUID reviewId();
+  @NonNull
+  UUID targetId();
 
-	Self withDocumentHeader(DocumentHeader header);
+  @NonNull
+  UUID reviewId();
 
-	Self withRequestHeader(RequestHeader header);
+  Self withDocumentHeader(DocumentHeader header);
+
+  Self withRequestHeader(RequestHeader header);
 }

@@ -20,7 +20,7 @@ public sealed interface GraphReviewState
 
   int attempts();
 
-  public sealed interface Continuable extends GraphReviewState permits Created, Claimed {
+  public sealed interface Continuable extends GraphReviewState permits Available, Claimed {
 
     @NonNull
     Instant reviewableAt();
@@ -32,20 +32,16 @@ public sealed interface GraphReviewState
     String cause();
   }
 
-  public record Created(
+  public record Available(
       @NonNull ExecutionStage reviewedBy,
       @NonNull String reviewerName,
       @NonNull Instant reviewedAt,
-      @NonNull Instant reviewableAt)
+      @NonNull Instant reviewableAt,
+      int attempts)
       implements Continuable {
 
-    public Created(ExecutionStage reviewedBy, String reviewerName, Instant reviewedAt) {
-      this(reviewedBy, reviewerName, reviewedAt, reviewedAt);
-    }
-
-    @Override
-    public int attempts() {
-      return 0;
+    public Available(ExecutionStage reviewedBy, String reviewerName, Instant reviewedAt) {
+      this(reviewedBy, reviewerName, reviewedAt, reviewedAt, 0);
     }
   }
 

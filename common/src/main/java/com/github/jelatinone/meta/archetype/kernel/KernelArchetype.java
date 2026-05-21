@@ -8,7 +8,7 @@ public interface KernelArchetype {
 
   Instant reviewableAt(int attempt);
 
-  GraphReviewState.Created create();
+  GraphReviewState.Available create();
 
   GraphReviewState.Claimed claim(GraphReviewState.Continuable current);
 
