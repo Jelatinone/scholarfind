@@ -1,6 +1,7 @@
 package com.github.jelatinone.policy;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.github.jelatinone.model.struct.Document;
@@ -10,19 +11,20 @@ import lombok.NonNull;
 
 public interface PolicyContext<Requests extends Request<Requests>, Documents extends Document<Documents>> {
 
-	long envelopeSchemaVersion();
+  long envelopeSchemaVersion();
 
-	@NonNull
-	UUID envelopeTargetId();
+  @NonNull
+  UUID envelopeTargetId();
 
-	@NonNull
-	UUID envelopeReviewId();
+  @NonNull
+  UUID envelopeReviewId();
 
-	@NonNull
-	Instant envelopeReviewedAt();
+  @NonNull
+  Instant envelopeReviewedAt();
 
-	Documents retrievedDocument();
+  @NonNull
+  Optional<Documents> retrievedDocument();
 
-	@NonNull
-	Requests receivedRequest();
+  @NonNull
+  Requests receivedRequest();
 }

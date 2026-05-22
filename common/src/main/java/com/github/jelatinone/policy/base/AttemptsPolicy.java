@@ -15,18 +15,18 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public final class AttemptsPolicy<Requests extends Request<Requests>, Documents extends Document<Documents>, Context extends PolicyContext<Requests, Documents>, State>
-		implements Policy<Context, State> {
-	int maxAttempts;
+    implements Policy<Context, State> {
+  int maxAttempts;
 
-	@Override
-	public PolicyStep<State> apply(Context context, State state) {
-		if (context.retrievedDocument().requestHeader().attempt() >= maxAttempts) {
-			return new PolicyStep.Decide<>(
-					new PolicyDecision.Drop<State>(
-							state,
-							PolicyReason.ATTEMPTS_EXCEEDED,
-							"Request attempts exceeded stage limit"));
-		}
-		return new PolicyStep.Continue<>(state);
-	}
+  @Override
+  public PolicyStep<State> apply(Context context, State state) {
+    return context.retrievedDocument()
+        .filter(document -> document.requestHeader().attempt() >= maxAttempts)
+        .<PolicyStep<State>>map(document -> new PolicyStep.Decide<>(
+            new PolicyDecision.Drop<>(
+                state,
+                PolicyReason.ATTEMPTS_EXCEEDED,
+                "Request attempts exceeded stage limit")))
+        .orElseGet(() -> new PolicyStep.Continue<>(state));
+  }
 }

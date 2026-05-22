@@ -1,6 +1,6 @@
 package com.github.jelatinone.policy.base;
 
-import java.time.Instant;
+import java.time.Duration;
 
 import com.github.jelatinone.model.struct.Document;
 import com.github.jelatinone.model.struct.Request;
@@ -17,24 +17,20 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public final class ExpirationPolicy<Requests extends Request<Requests>, Documents extends Document<Documents>, Context extends PolicyContext<Requests, Documents>, State>
-		implements Policy<Context, State> {
-	int expirationDays;
+    implements Policy<Context, State> {
+  Duration expirationDays;
 
-	@Override
-	public PolicyStep<State> apply(Context context, State state) {
-		Instant discoveredAt = context.retrievedDocument().documentHeader().emittedAt();
-		if (discoveredAt == null) {
-			return new PolicyStep.Continue<>(state);
-		}
-
-		Instant expiresAt = discoveredAt.plusSeconds((long) expirationDays * 24 * 60 * 60);
-		if (expiresAt.isBefore(context.envelopeReviewedAt())) {
-			return new PolicyStep.Decide<>(
-					new PolicyDecision.Drop<State>(
-							state,
-							PolicyReason.DOCUMENT_EXPIRED,
-							"Target expired before stage processing"));
-		}
-		return new PolicyStep.Continue<>(state);
-	}
+  @Override
+  public PolicyStep<State> apply(Context context, State state) {
+    return context.retrievedDocument()
+        .map(document -> document.documentHeader().emittedAt())
+        .map(discoveredAt -> discoveredAt.plus(expirationDays))
+        .filter(expiresAt -> expiresAt.isBefore(context.envelopeReviewedAt()))
+        .<PolicyStep<State>>map(expiresAt -> new PolicyStep.Decide<>(
+            new PolicyDecision.Drop<>(
+                state,
+                PolicyReason.DOCUMENT_EXPIRED,
+                "Target expired before stage processing")))
+        .orElseGet(() -> new PolicyStep.Continue<>(state));
+  }
 }
