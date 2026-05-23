@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 import com.github.jelatinone.api.Criteria;
+import com.github.jelatinone.model.struct.Identity;
 
 import lombok.NonNull;
 import software.amazon.awssdk.services.dynamodb.model.Delete;
@@ -15,7 +16,7 @@ import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.Get;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 
-public interface DynamoCriteria<Key> extends Criteria<StoreLocation<Key>> {
+public interface DynamoCriteria<Key extends Identity> extends Criteria<StoreLocation<Key>> {
 
   List<Mutation<?>> mutations();
 
@@ -41,7 +42,7 @@ public interface DynamoCriteria<Key> extends Criteria<StoreLocation<Key>> {
     }
   }
 
-  static <Key> DynamoCriteria<Key> location(String tableName, Key value) {
+  static <Key extends Identity> DynamoCriteria<Key> location(String tableName, Key value) {
     return new DefaultDynamoCriteria<>(
         Optional.of(new StoreLocation<>(tableName, value)),
         Optional.empty(),
@@ -81,7 +82,7 @@ public interface DynamoCriteria<Key> extends Criteria<StoreLocation<Key>> {
   }
 }
 
-record DefaultDynamoCriteria<Key>(
+record DefaultDynamoCriteria<Key extends Identity>(
     @NonNull Optional<StoreLocation<Key>> identifier,
     @NonNull Optional<Duration> duration,
 

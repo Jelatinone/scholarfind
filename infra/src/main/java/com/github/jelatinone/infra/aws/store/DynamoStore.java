@@ -17,6 +17,7 @@ import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.api.store.StoreException;
 import com.github.jelatinone.infra.aws.AWSInfrastructure;
 import com.github.jelatinone.infra.aws.store.serial.DynamoSerializer;
+import com.github.jelatinone.model.struct.Identity;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -41,7 +42,7 @@ import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @AllArgsConstructor
-public class DynamoStore<Key, Value>
+public class DynamoStore<Key extends Identity, Value>
     implements Store<StoreLocation<Key>, Value, DynamoCriteria<Key>>,
     AWSInfrastructure<CreateTableRequest, CreateTableResponse> {
 

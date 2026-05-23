@@ -1,4 +1,6 @@
 package com.github.jelatinone.infra.aws.store;
 
-public record StoreLocation<Value>(String tableName, Value value) {
+import com.github.jelatinone.model.struct.Identity;
+
+public record StoreLocation<Key extends Identity>(String tableName, Key value) {
 }

@@ -13,6 +13,7 @@ import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.api.store.StoreException;
 import com.github.jelatinone.infra.aws.AWSInfrastructure;
 import com.github.jelatinone.infra.aws.store.serial.S3Serializer;
+import com.github.jelatinone.model.struct.Identity;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -24,8 +25,11 @@ import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.CreateBucketResponse;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
@@ -33,7 +37,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @AllArgsConstructor
-public class S3Store<Key, Value>
+public class S3Store<Key extends Identity, Value>
     implements Store<StoreLocation<Key>, Value, S3Criteria<Key>>,
     AWSInfrastructure<CreateBucketRequest, CreateBucketResponse> {
 
@@ -98,7 +102,7 @@ public class S3Store<Key, Value>
       client.headObject(builder -> builder
           .bucket(location.tableName())
           .key(serializer.encodeKey(location.value()))
-          .applyMutation(criteria.headObjectRequest()));
+          .applyMutation(headObject(criteria)));
       return 1L;
     } catch (NoSuchKeyException exception) {
       return 0L;
@@ -120,7 +124,7 @@ public class S3Store<Key, Value>
       ResponseBytes<GetObjectResponse> object = client.getObjectAsBytes(builder -> builder
           .bucket(location.tableName())
           .key(serializer.encodeKey(location.value()))
-          .applyMutation(criteria.getObjectRequest()));
+          .applyMutation(getObject(criteria)));
       GetObjectResponse response = object.response();
       return Optional.ofNullable(serializer.decode(new S3Serializer.StoredValue<>(
           location.value(),
@@ -155,7 +159,7 @@ public class S3Store<Key, Value>
       DeleteObjectResponse response = client.deleteObject(builder -> builder
           .bucket(location.tableName())
           .key(serializer.encodeKey(location.value()))
-          .applyMutation(criteria.deleteObjectRequest()));
+          .applyMutation(deleteObject(criteria)));
       if (response.sdkHttpResponse() != null && !response.sdkHttpResponse().isSuccessful()) {
         throw new StoreException.RetryStoreException("Failed to delete S3 store item", null);
       }
@@ -178,5 +182,44 @@ public class S3Store<Key, Value>
 
   private StoreLocation<Key> location(S3Criteria<Key> criteria) {
     return criteria.identifier().orElseThrow();
+  }
+
+  private Consumer<HeadObjectRequest.Builder> headObject(S3Criteria<Key> criteria) {
+    Consumer<HeadObjectRequest.Builder> result = builder -> {
+    };
+    for (S3Criteria.Mutation mutation : criteria.mutations()) {
+      result = switch (mutation) {
+        case S3Criteria.Head headObject -> result.andThen(headObject.mutator());
+        case S3Criteria.Get ignored -> result;
+        case S3Criteria.Delete ignored -> result;
+      };
+    }
+    return result;
+  }
+
+  private Consumer<GetObjectRequest.Builder> getObject(S3Criteria<Key> criteria) {
+    Consumer<GetObjectRequest.Builder> result = builder -> {
+    };
+    for (S3Criteria.Mutation mutation : criteria.mutations()) {
+      result = switch (mutation) {
+        case S3Criteria.Head ignored -> result;
+        case S3Criteria.Get getObject -> result.andThen(getObject.mutator());
+        case S3Criteria.Delete ignored -> result;
+      };
+    }
+    return result;
+  }
+
+  private Consumer<DeleteObjectRequest.Builder> deleteObject(S3Criteria<Key> criteria) {
+    Consumer<DeleteObjectRequest.Builder> result = builder -> {
+    };
+    for (S3Criteria.Mutation mutation : criteria.mutations()) {
+      result = switch (mutation) {
+        case S3Criteria.Head ignored -> result;
+        case S3Criteria.Get ignored -> result;
+        case S3Criteria.Delete deleteObject -> result.andThen(deleteObject.mutator());
+      };
+    }
+    return result;
   }
 }
