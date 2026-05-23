@@ -6,11 +6,13 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.github.jelatinone.acquisition.Acquisition;
+import com.github.jelatinone.feature.FeatureMapset;
 import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.classification.Category;
 import com.github.jelatinone.model.classification.Classification;
 import com.github.jelatinone.model.investigate.InvestigateDocument;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
+import com.github.jelatinone.model.investigate.InvestigateResult;
 import com.github.jelatinone.model.struct.DocumentHeader;
 import com.github.jelatinone.model.struct.Identity.DomainIdentity;
 import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
@@ -66,8 +68,10 @@ public final class StructTestFixtures {
         requestHeader(attempt, emittedBy),
         TARGET_ID,
         REVIEW_ID,
-        classification(),
-        Set.of(EDGE_ID));
+        new InvestigateResult.Classified(
+            classification(),
+            new FeatureMapset(),
+            Set.of(EDGE_ID)));
   }
 
   public static Classification.Investigate classification() {
