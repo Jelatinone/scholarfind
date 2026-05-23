@@ -187,7 +187,7 @@ public class S3Store<Key extends Identity, Value>
   private Consumer<HeadObjectRequest.Builder> headObject(S3Criteria<Key> criteria) {
     Consumer<HeadObjectRequest.Builder> result = builder -> {
     };
-    for (S3Criteria.Mutation mutation : criteria.mutations()) {
+    for (S3Criteria.Mutation<?> mutation : criteria.mutations()) {
       result = switch (mutation) {
         case S3Criteria.Head headObject -> result.andThen(headObject.mutator());
         case S3Criteria.Get ignored -> result;
@@ -200,7 +200,7 @@ public class S3Store<Key extends Identity, Value>
   private Consumer<GetObjectRequest.Builder> getObject(S3Criteria<Key> criteria) {
     Consumer<GetObjectRequest.Builder> result = builder -> {
     };
-    for (S3Criteria.Mutation mutation : criteria.mutations()) {
+    for (S3Criteria.Mutation<?> mutation : criteria.mutations()) {
       result = switch (mutation) {
         case S3Criteria.Head ignored -> result;
         case S3Criteria.Get getObject -> result.andThen(getObject.mutator());
@@ -213,7 +213,7 @@ public class S3Store<Key extends Identity, Value>
   private Consumer<DeleteObjectRequest.Builder> deleteObject(S3Criteria<Key> criteria) {
     Consumer<DeleteObjectRequest.Builder> result = builder -> {
     };
-    for (S3Criteria.Mutation mutation : criteria.mutations()) {
+    for (S3Criteria.Mutation<?> mutation : criteria.mutations()) {
       result = switch (mutation) {
         case S3Criteria.Head ignored -> result;
         case S3Criteria.Get ignored -> result;

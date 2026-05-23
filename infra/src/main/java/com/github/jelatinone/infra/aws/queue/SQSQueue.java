@@ -64,17 +64,22 @@ public class SQSQueue<Value>
   @Override
   public void queue(@NonNull SQSCriteria criteria, @NonNull Value message) {
     try {
-      String queueUrl = identifier(criteria);
+      SQSCriteria.Send send = send(criteria);
+      String queueUrl = identifier(send);
       String body = serializer.encodeBody(message);
       Map<String, String> attributes = serializer.encodeAttributes(message);
       SendMessageResponse response = client.sendMessage(builder -> builder
           .queueUrl(queueUrl)
           .messageBody(body)
-          .messageDeduplicationId(criteria.deduplicationId())
-          .messageGroupId(criteria.groupId())
-          .messageSystemAttributes(criteria.messageSystemAttributes())
+          .applyMutation(extra -> {
+            send.deduplicationId().ifPresent(extra::messageDeduplicationId);
+            send.groupId().ifPresent(extra::messageGroupId);
+          })
+          .messageSystemAttributes(send.messageSystemAttributes())
           .messageAttributes(encodeAttributes(attributes)));
       response("send message", response.sdkHttpResponse());
+    } catch (QueueException exception) {
+      throw exception;
     } catch (IOException exception) {
       throw new QueueException.FatalQueueException("Failed to encode queue message", exception);
     } catch (Exception exception) {
@@ -118,12 +123,13 @@ public class SQSQueue<Value>
   @Override
   public Optional<Value> query(Singular<SQSCriteria> query) {
     try {
-      String queueUrl = identifier(query.criteria());
+      SQSCriteria.Receive receive = receive(query.criteria());
+      String queueUrl = identifier(receive);
       ReceiveMessageResponse response = client.receiveMessage(
           builder -> builder
               .queueUrl(queueUrl)
-              .messageAttributeNames(query.criteria().messageAttributeNames())
-              .messageSystemAttributeNames(query.criteria().messageSystemAttributeNames())
+              .messageAttributeNames(receive.messageAttributeNames())
+              .messageSystemAttributeNames(receive.messageSystemAttributeNames())
               .maxNumberOfMessages(1)
               .build());
       response("receive message", response.sdkHttpResponse());
@@ -141,6 +147,8 @@ public class SQSQueue<Value>
 
       delete(queueUrl, message.receiptHandle());
       return Optional.ofNullable(value);
+    } catch (QueueException exception) {
+      throw exception;
     } catch (IOException exception) {
       _logger.error(String.format("Decode queue message failed : %s",
           exception.getMessage()));
@@ -157,12 +165,13 @@ public class SQSQueue<Value>
   @Override
   public Collection<Value> query(Several<SQSCriteria> query) {
     try {
-      String queueUrl = identifier(query.criteria());
+      SQSCriteria.Receive receive = receive(query.criteria());
+      String queueUrl = identifier(receive);
       ReceiveMessageResponse response = client.receiveMessage(
           builder -> builder
               .queueUrl(queueUrl)
-              .messageAttributeNames(query.criteria().messageAttributeNames())
-              .messageSystemAttributeNames(query.criteria().messageSystemAttributeNames())
+              .messageAttributeNames(receive.messageAttributeNames())
+              .messageSystemAttributeNames(receive.messageSystemAttributeNames())
               .maxNumberOfMessages(query.limit())
               .build());
       response("receive message(s)", response.sdkHttpResponse());
@@ -214,6 +223,35 @@ public class SQSQueue<Value>
 
   private static String identifier(Criteria<String> criteria) {
     return criteria.identifier().orElseThrow();
+  }
+
+  private static SQSCriteria.Send send(SQSCriteria criteria) {
+    return switch (criteria) {
+      case SQSCriteria.Send send -> send;
+      case SQSCriteria.Location location -> new SQSCriteria.Send(
+          location.identifier(),
+          location.duration(),
+          Optional.empty(),
+          Optional.empty(),
+          Map.of());
+      case SQSCriteria.Receive receive -> throw new QueueException.FatalQueueException(
+          "Receive criteria cannot be used to send SQS messages",
+          null);
+    };
+  }
+
+  private static SQSCriteria.Receive receive(SQSCriteria criteria) {
+    return switch (criteria) {
+      case SQSCriteria.Receive receive -> receive;
+      case SQSCriteria.Location location -> new SQSCriteria.Receive(
+          location.identifier(),
+          location.duration(),
+          List.of(),
+          List.of());
+      case SQSCriteria.Send send -> throw new QueueException.FatalQueueException(
+          "Send criteria cannot be used to receive SQS messages",
+          null);
+    };
   }
 
   private static void response(String action, SdkHttpResponse response) {

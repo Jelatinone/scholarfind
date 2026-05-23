@@ -17,26 +17,28 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 
 public interface S3Criteria<Key extends Identity> extends Criteria<StoreLocation<Key>> {
 
-  List<Mutation> mutations();
+  List<Mutation<?>> mutations();
 
-  sealed interface Mutation permits Head, Get, Delete {
+  sealed interface Mutation<Request> permits Head, Get, Delete {
+
+    Consumer<Request> mutator();
   }
 
-  record Head(Consumer<HeadObjectRequest.Builder> mutator) implements Mutation {
+  record Head(Consumer<HeadObjectRequest.Builder> mutator) implements Mutation<HeadObjectRequest.Builder> {
     public Head {
       mutator = mutator == null ? builder -> {
       } : mutator;
     }
   }
 
-  record Get(Consumer<GetObjectRequest.Builder> mutator) implements Mutation {
+  record Get(Consumer<GetObjectRequest.Builder> mutator) implements Mutation<GetObjectRequest.Builder> {
     public Get {
       mutator = mutator == null ? builder -> {
       } : mutator;
     }
   }
 
-  record Delete(Consumer<DeleteObjectRequest.Builder> mutator) implements Mutation {
+  record Delete(Consumer<DeleteObjectRequest.Builder> mutator) implements Mutation<DeleteObjectRequest.Builder> {
     public Delete {
       mutator = mutator == null ? builder -> {
       } : mutator;
@@ -50,8 +52,8 @@ public interface S3Criteria<Key extends Identity> extends Criteria<StoreLocation
         List.of());
   }
 
-  default S3Criteria<Key> with(Mutation mutation) {
-    List<Mutation> next = new ArrayList<>(mutations());
+  default S3Criteria<Key> with(Mutation<?> mutation) {
+    List<Mutation<?>> next = new ArrayList<>(mutations());
     next.add(Objects.requireNonNull(mutation));
     return new DefaultS3Criteria<>(identifier(), duration(), next);
   }
@@ -73,5 +75,5 @@ record DefaultS3Criteria<Key extends Identity>(
     @NonNull Optional<StoreLocation<Key>> identifier,
     @NonNull Optional<Duration> duration,
 
-    @NonNull List<S3Criteria.Mutation> mutations) implements S3Criteria<Key> {
+    @NonNull List<S3Criteria.Mutation<?>> mutations) implements S3Criteria<Key> {
 }
