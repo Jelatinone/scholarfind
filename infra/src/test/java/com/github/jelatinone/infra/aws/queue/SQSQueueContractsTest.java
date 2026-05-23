@@ -32,6 +32,7 @@ class SQSQueueContractsTest {
 
   private static final String QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/123456789012/test";
 
+  @SuppressWarnings("resource")
   @Test
   void queue_encodesRawMessagesWithSendCriteria() {
     RecordingSqsClient client = new RecordingSqsClient();
@@ -50,6 +51,7 @@ class SQSQueueContractsTest {
     assertEquals("group-1", request.messageGroupId());
   }
 
+  @SuppressWarnings("resource")
   @Test
   void singularQueryReturnsEnvelopeAndDeletesOnlyWhenAcknowledged() {
     RecordingSqsClient client = new RecordingSqsClient(

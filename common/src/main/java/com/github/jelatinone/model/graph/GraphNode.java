@@ -6,6 +6,7 @@ import java.util.Map;
 
 import com.github.jelatinone.api.graph.Vertex;
 import com.github.jelatinone.model.Schemable;
+import com.github.jelatinone.model.struct.Identity;
 import com.github.jelatinone.model.struct.Identity.DomainIdentity;
 import com.github.jelatinone.model.struct.Identity.EntityIdentity;
 import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
@@ -19,7 +20,7 @@ import lombok.NonNull;
  * 
  * @author Cody Washington
  */
-public sealed interface GraphNode<Identifier extends com.github.jelatinone.model.struct.Identity>
+public sealed interface GraphNode<Identifier extends Identity>
     extends Schemable<Identifier>, Vertex<Identifier> permits GraphNode.Target, GraphNode.Entity {
 
   /**

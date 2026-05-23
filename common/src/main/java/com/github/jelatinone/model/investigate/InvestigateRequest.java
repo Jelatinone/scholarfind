@@ -1,9 +1,12 @@
 package com.github.jelatinone.model.investigate;
 
 import java.net.URL;
+import java.util.Set;
 
 import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.model.struct.RequestHeader;
+import com.github.jelatinone.model.struct.Identity.DomainIdentity;
+import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
 import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
 import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
@@ -25,9 +28,10 @@ public record InvestigateRequest(
   }
 
   public record KernelContext(
-  // TODO: What context can we include without being expensive per-target?
 
-  ) {
+      Set<DomainIdentity> nearbyDomains,
+      Set<TargetIdentity> nearbyNodes,
 
+      Set<EdgeIdentity> nearbyEdges) {
   }
 }

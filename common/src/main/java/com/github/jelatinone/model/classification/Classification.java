@@ -13,7 +13,7 @@ public sealed interface Classification {
       Double contenderConfidence,
       Set<Category> contenderCategories,
 
-      Rank mostPragmaticRank,
+      Rank acquiredRank,
       Category mostPragmaticCategory,
 
       boolean minimumConfienceExceeded) implements Classification {

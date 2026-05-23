@@ -11,7 +11,6 @@ public record InvestigateState(
 
     boolean retrievedDocument,
     boolean resolvedClassification,
-    int step,
 
     List<Emission<? extends Request<?>>> emissions) {
 
@@ -20,7 +19,6 @@ public record InvestigateState(
         null,
         false,
         false,
-        0,
         List.of());
   }
 
@@ -29,7 +27,6 @@ public record InvestigateState(
         nextClassification,
         retrievedDocument(),
         resolvedClassification(),
-        step(),
         emissions());
   }
 
@@ -38,7 +35,6 @@ public record InvestigateState(
         classification(),
         nextRetrievedDocument,
         resolvedClassification(),
-        step(),
         emissions());
   }
 
@@ -47,21 +43,7 @@ public record InvestigateState(
         classification(),
         retrievedDocument(),
         nextResolvedClassification,
-        step(),
         emissions());
-  }
-
-  public InvestigateState withStep(final int nextStep) {
-    return new InvestigateState(
-        classification(),
-        retrievedDocument(),
-        resolvedClassification(),
-        nextStep,
-        emissions());
-  }
-
-  public InvestigateState withStep() {
-    return withStep(step() + 1);
   }
 
   public InvestigateState withEmissions(List<Emission<? extends Request<?>>> nextEmissions) {
@@ -70,7 +52,6 @@ public record InvestigateState(
         classification(),
         retrievedDocument(),
         resolvedClassification(),
-        step(),
         nextEmissions);
   }
 
