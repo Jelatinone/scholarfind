@@ -1,11 +1,15 @@
 package com.github.jelatinone.infra.aws.store;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 
 import com.github.jelatinone.api.Criteria;
 
+import lombok.NonNull;
 import software.amazon.awssdk.services.dynamodb.model.Delete;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.Get;
@@ -13,81 +17,74 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 
 public interface DynamoCriteria<Key> extends Criteria<StoreLocation<Key>> {
 
-  Consumer<GetItemRequest.Builder> getItemRequest();
+  List<Mutation<?>> mutations();
 
-  Consumer<DeleteItemRequest.Builder> deleteItemRequest();
+  sealed interface Mutation<Request> permits Command, Transact {
 
-  Consumer<Get.Builder> transactGet();
+    Consumer<Request> mutator();
+  }
 
-  Consumer<Delete.Builder> transactDelete();
+  record Command<Request>(
+      Consumer<Request> mutator) implements Mutation<Request> {
+    public Command {
+
+      mutator = mutator == null ? builder -> {
+      } : mutator;
+    }
+  }
+
+  record Transact<Request>(
+      Consumer<Request> mutator) implements Mutation<Request> {
+    public Transact {
+      mutator = mutator == null ? builder -> {
+      } : mutator;
+    }
+  }
 
   static <Key> DynamoCriteria<Key> location(String tableName, Key value) {
     return new DefaultDynamoCriteria<>(
         Optional.of(new StoreLocation<>(tableName, value)),
         Optional.empty(),
-        null,
-        null,
-        null,
-        null);
+        List.of());
+  }
+
+  default DynamoCriteria<Key> withMutation(Mutation<?> mutation) {
+    List<Mutation<?>> next = new ArrayList<>(mutations());
+    next.add(Objects.requireNonNull(mutation));
+    return new DefaultDynamoCriteria<>(identifier(), duration(), next);
+  }
+
+  default <Request> DynamoCriteria<Key> withCommandMutation(
+      Consumer<Request> mutator) {
+    return withMutation(new Command<>(mutator));
+  }
+
+  default <Request> DynamoCriteria<Key> withTransactMutation(
+      Consumer<Request> mutator) {
+    return withMutation(new Transact<>(mutator));
   }
 
   default DynamoCriteria<Key> withGetItemMutation(Consumer<GetItemRequest.Builder> mutator) {
-    return new DefaultDynamoCriteria<>(
-        identifier(),
-        duration(),
-        getItemRequest().andThen(mutator),
-        deleteItemRequest(),
-        transactGet(),
-        transactDelete());
+    return withCommandMutation(mutator);
   }
 
   default DynamoCriteria<Key> withDeleteItemMutation(Consumer<DeleteItemRequest.Builder> mutator) {
-    return new DefaultDynamoCriteria<>(
-        identifier(),
-        duration(),
-        getItemRequest(),
-        deleteItemRequest().andThen(mutator),
-        transactGet(),
-        transactDelete());
+    return withCommandMutation(mutator);
   }
 
   default DynamoCriteria<Key> withTransactGetMutation(Consumer<Get.Builder> mutator) {
-    return new DefaultDynamoCriteria<>(
-        identifier(),
-        duration(),
-        getItemRequest(),
-        deleteItemRequest(),
-        transactGet().andThen(mutator),
-        transactDelete());
+    return withTransactMutation(mutator);
   }
 
   default DynamoCriteria<Key> withTransactDeleteMutation(Consumer<Delete.Builder> mutator) {
-    return new DefaultDynamoCriteria<>(
-        identifier(),
-        duration(),
-        getItemRequest(),
-        deleteItemRequest(),
-        transactGet(),
-        transactDelete().andThen(mutator));
+    return withTransactMutation(mutator);
   }
 }
 
 record DefaultDynamoCriteria<Key>(
-    Optional<StoreLocation<Key>> identifier,
-    Optional<Duration> duration,
-    Consumer<GetItemRequest.Builder> getItemRequest,
-    Consumer<DeleteItemRequest.Builder> deleteItemRequest,
-    Consumer<Get.Builder> transactGet,
-    Consumer<Delete.Builder> transactDelete) implements DynamoCriteria<Key> {
+    @NonNull Optional<StoreLocation<Key>> identifier,
+    @NonNull Optional<Duration> duration,
 
-  public DefaultDynamoCriteria {
-    getItemRequest = getItemRequest == null ? builder -> {
-    } : getItemRequest;
-    deleteItemRequest = deleteItemRequest == null ? builder -> {
-    } : deleteItemRequest;
-    transactGet = transactGet == null ? builder -> {
-    } : transactGet;
-    transactDelete = transactDelete == null ? builder -> {
-    } : transactDelete;
-  }
+    @NonNull List<DynamoCriteria.Mutation<?>> mutations) implements DynamoCriteria<Key> {
+
 }

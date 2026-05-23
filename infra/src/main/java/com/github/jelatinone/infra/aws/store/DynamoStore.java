@@ -27,10 +27,13 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableResponse;
 import software.amazon.awssdk.services.dynamodb.model.Delete;
+import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.Get;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.Put;
+import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.ResourceInUseException;
 import software.amazon.awssdk.services.dynamodb.model.TransactGetItem;
@@ -69,7 +72,7 @@ public class DynamoStore<Key, Value>
   public void put(
       StoreLocation<Key> location,
       Value body,
-      Consumer<software.amazon.awssdk.services.dynamodb.model.PutItemRequest.Builder> mutator) {
+      Consumer<PutItemRequest.Builder> mutator) {
     try {
       PutItemResponse response = client.putItem(builder -> builder
           .tableName(location.tableName())
@@ -94,7 +97,7 @@ public class DynamoStore<Key, Value>
       GetItemResponse response = client.getItem(builder -> builder
           .tableName(location.tableName())
           .key(serializer.encodeKey(location.value()))
-          .applyMutation(criteria.getItemRequest()));
+          .applyMutation(command(criteria, GetItemRequest.Builder.class)));
       response("count item", response.sdkHttpResponse());
       return response.item() == null || response.item().isEmpty() ? 0L : 1L;
     } catch (Exception exception) {
@@ -111,7 +114,7 @@ public class DynamoStore<Key, Value>
       GetItemResponse response = client.getItem(builder -> builder
           .tableName(location.tableName())
           .key(serializer.encodeKey(location.value()))
-          .applyMutation(criteria.getItemRequest()));
+          .applyMutation(command(criteria, GetItemRequest.Builder.class)));
       response("get item", response.sdkHttpResponse());
       if (response.item() == null || response.item().isEmpty()) {
         return Optional.empty();
@@ -138,7 +141,7 @@ public class DynamoStore<Key, Value>
       DeleteItemResponse response = client.deleteItem(builder -> builder
           .tableName(location.tableName())
           .key(serializer.encodeKey(location.value()))
-          .applyMutation(criteria.deleteItemRequest()));
+          .applyMutation(command(criteria, DeleteItemRequest.Builder.class)));
       response("delete item", response.sdkHttpResponse());
     } catch (Exception exception) {
       _logger.error(String.format("Store delete failed : %s", exception.getMessage()));
@@ -186,7 +189,7 @@ public class DynamoStore<Key, Value>
           .get(Get.builder()
               .tableName(location.tableName())
               .key(serializer.encodeKey(location.value()))
-              .applyMutation(criteria.transactGet().andThen(mutator))
+              .applyMutation(transact(criteria, Get.Builder.class).andThen(mutator))
               .build())
           .build();
     } catch (Exception exception) {
@@ -207,7 +210,7 @@ public class DynamoStore<Key, Value>
           .delete(Delete.builder()
               .tableName(location.tableName())
               .key(serializer.encodeKey(location.value()))
-              .applyMutation(criteria.transactDelete().andThen(mutator))
+              .applyMutation(transact(criteria, Delete.Builder.class).andThen(mutator))
               .build())
           .build();
     } catch (Exception exception) {
@@ -225,6 +228,35 @@ public class DynamoStore<Key, Value>
 
   private StoreLocation<Key> location(DynamoCriteria<Key> criteria) {
     return criteria.identifier().orElseThrow();
+  }
+
+  private <Request> Consumer<Request> command(DynamoCriteria<Key> criteria, Class<Request> requestType) {
+    Consumer<Request> result = builder -> {
+    };
+    for (DynamoCriteria.Mutation<?> mutation : criteria.mutations()) {
+      result = switch (mutation) {
+        case DynamoCriteria.Command<?> command -> result.andThen(typed(command.mutator()));
+        case DynamoCriteria.Transact<?> ignored -> result;
+      };
+    }
+    return result;
+  }
+
+  private <Request> Consumer<Request> transact(DynamoCriteria<Key> criteria, Class<Request> requestType) {
+    Consumer<Request> result = builder -> {
+    };
+    for (DynamoCriteria.Mutation<?> mutation : criteria.mutations()) {
+      result = switch (mutation) {
+        case DynamoCriteria.Command<?> transact -> result.andThen(typed(transact.mutator()));
+        case DynamoCriteria.Transact<?> ignored -> result;
+      };
+    }
+    return result;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <Request> Consumer<Request> typed(Consumer<?> mutator) {
+    return (Consumer<Request>) mutator;
   }
 
   private void response(String action, SdkHttpResponse response) {
