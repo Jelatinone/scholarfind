@@ -2,11 +2,11 @@ package com.github.jelatinone.model.audit;
 
 public enum ExecutionStage {
 
-	DISCOVERY,
+  DISCOVERY,
 
-	INVESTIGATE,
+  INVESTIGATE,
 
-	ANNOTATE,
+  ANNOTATE,
 
-	PUBLISH,
+  PUBLISH,
 }

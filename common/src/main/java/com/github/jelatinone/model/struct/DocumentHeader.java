@@ -1,11 +1,12 @@
 package com.github.jelatinone.model.struct;
 
 import java.time.Instant;
-import java.util.UUID;
 
 import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.graph.GraphNode;
 import com.github.jelatinone.model.graph.GraphReview;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 import lombok.NonNull;
 
@@ -27,14 +28,14 @@ import lombok.NonNull;
 public record DocumentHeader(
     long schemaVersion,
 
-    @NonNull UUID targetId,
-    @NonNull UUID reviewId,
+    @NonNull TargetIdentity targetId,
+    @NonNull ReviewIdentity reviewId,
 
     @NonNull ExecutionStage emittedBy,
     @NonNull Instant emittedAt) {
   public static final long SCHEMA_VERSION = 1L;
 
-  public DocumentHeader(UUID targetId, UUID reviewId, ExecutionStage emittedBy, Instant emittedAt) {
+  public DocumentHeader(TargetIdentity targetId, ReviewIdentity reviewId, ExecutionStage emittedBy, Instant emittedAt) {
     this(SCHEMA_VERSION, targetId, reviewId, emittedBy, emittedAt);
   }
 }

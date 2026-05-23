@@ -16,6 +16,9 @@ import com.github.jelatinone.fixtures.StructTestFixtures;
 import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.investigate.InvestigateDocument;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
+import com.github.jelatinone.model.struct.Identity;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 import com.github.jelatinone.model.struct.RequestHeader;
 import com.github.jelatinone.policy.base.AttemptsPolicy;
 import com.github.jelatinone.policy.base.DocumentSchemaPolicy;
@@ -127,14 +130,14 @@ class PolicyContractsTest {
     PolicyStep<Integer> mismatchStep = policy.apply(new SimpleRequestContext(
         99L,
         document.targetId(),
-        UUID.randomUUID(),
+        Identity.review(UUID.randomUUID()),
         StructTestFixtures.NOW,
         Optional.of(document),
         request(document)), 1);
     PolicyStep<Integer> identityMismatchStep = policy.apply(new SimpleRequestContext(
         1L,
         document.targetId(),
-        UUID.randomUUID(),
+        Identity.review(UUID.randomUUID()),
         StructTestFixtures.NOW,
         Optional.of(document),
         request(document)), 1);
@@ -166,8 +169,8 @@ class PolicyContractsTest {
 
   private record SimpleContext(
       long envelopeSchemaVersion,
-      UUID envelopeTargetId,
-      UUID envelopeReviewId,
+      TargetIdentity envelopeTargetId,
+      ReviewIdentity envelopeReviewId,
       Instant envelopeReviewedAt,
       Optional<InvestigateDocument> retrievedDocument,
       InvestigateRequest receivedRequest) implements PolicyContext<InvestigateRequest, InvestigateDocument> {
@@ -175,8 +178,8 @@ class PolicyContractsTest {
 
   private record SimpleRequestContext(
       long envelopeSchemaVersion,
-      UUID envelopeTargetId,
-      UUID envelopeReviewId,
+      TargetIdentity envelopeTargetId,
+      ReviewIdentity envelopeReviewId,
       Instant envelopeReviewedAt,
       Optional<InvestigateDocument> retrievedDocument,
       InvestigateRequest receivedRequest) implements PolicyContext<InvestigateRequest, InvestigateDocument> {

@@ -1,6 +1,9 @@
 package com.github.jelatinone.api.graph;
 
-public interface Graph<V extends Vertex<Identifier>, E extends Edge<Identifier>, Identifier> extends AutoCloseable {
+import com.github.jelatinone.model.struct.Identity;
+
+public interface Graph<V extends Vertex<? extends Identifier>, E extends Edge<? extends Identifier, ? extends Identifier, ? extends Identifier>, Identifier extends Identity>
+    extends AutoCloseable {
 
   void putVertex(V node);
 

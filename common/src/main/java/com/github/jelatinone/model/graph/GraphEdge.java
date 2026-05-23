@@ -2,10 +2,13 @@ package com.github.jelatinone.model.graph;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.UUID;
 
 import com.github.jelatinone.api.graph.Edge;
 import com.github.jelatinone.model.Schemable;
+import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
+import com.github.jelatinone.model.struct.Identity.EntityIdentity;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 import lombok.NonNull;
 
@@ -14,19 +17,21 @@ import lombok.NonNull;
  * 
  * @author Cody Washington
  */
-public sealed interface GraphEdge extends Schemable, Edge<UUID> permits GraphEdge.Parent, GraphEdge.Reducer {
+public sealed interface GraphEdge<From extends com.github.jelatinone.model.struct.Identity, To extends com.github.jelatinone.model.struct.Identity>
+    extends Schemable<EdgeIdentity>, Edge<EdgeIdentity, From, To>
+    permits GraphEdge.Parent, GraphEdge.Reducer {
 
   @NonNull
-  UUID edgeId();
+  EdgeIdentity edgeId();
 
   @NonNull
-  UUID reviewId();
+  ReviewIdentity reviewId();
 
   @NonNull
-  UUID from();
+  From from();
 
   @NonNull
-  UUID to();
+  To to();
 
   /**
    * A target resolved to a stable entity.
@@ -34,31 +39,32 @@ public sealed interface GraphEdge extends Schemable, Edge<UUID> permits GraphEdg
   public record Reducer(
       long schemaVersion,
 
-      @NonNull UUID edgeId,
-      @NonNull UUID reviewId,
+      @NonNull EdgeIdentity edgeId,
+      @NonNull ReviewIdentity reviewId,
 
-      @NonNull UUID targetId,
-      @NonNull UUID entityId,
+      @NonNull TargetIdentity targetId,
+      @NonNull EntityIdentity entityId,
 
-      @NonNull Instant emittedAt) implements GraphEdge {
+      @NonNull Instant emittedAt) implements GraphEdge<TargetIdentity, EntityIdentity> {
     public static final long SCHEMA_VERSION = 1L;
 
-    public Reducer(UUID edgeId, UUID reviewId, UUID targetId, UUID entityId, Instant emittedAt) {
+    public Reducer(EdgeIdentity edgeId, ReviewIdentity reviewId, TargetIdentity targetId, EntityIdentity entityId,
+        Instant emittedAt) {
       this(SCHEMA_VERSION, edgeId, reviewId, targetId, entityId, emittedAt);
     }
 
     @Override
-    public @NonNull UUID from() {
+    public @NonNull TargetIdentity from() {
       return targetId();
     }
 
     @Override
-    public @NonNull UUID to() {
+    public @NonNull EntityIdentity to() {
       return entityId();
     }
 
     @Override
-    public @NonNull UUID canonicalId() {
+    public @NonNull EdgeIdentity canonicalId() {
       return edgeId();
     }
 
@@ -85,32 +91,33 @@ public sealed interface GraphEdge extends Schemable, Edge<UUID> permits GraphEdg
   public record Parent(
       long schemaVersion,
 
-      @NonNull UUID edgeId,
-      @NonNull UUID reviewId,
+      @NonNull EdgeIdentity edgeId,
+      @NonNull ReviewIdentity reviewId,
 
-      @NonNull UUID parentTargetId,
-      @NonNull UUID childTargetId,
+      @NonNull TargetIdentity parentTargetId,
+      @NonNull TargetIdentity childTargetId,
 
-      @NonNull Instant emittedAt) implements GraphEdge {
+      @NonNull Instant emittedAt) implements GraphEdge<TargetIdentity, TargetIdentity> {
 
     public static final long SCHEMA_VERSION = 1L;
 
-    public Parent(UUID edgeId, UUID reviewId, UUID parentTargetId, UUID childTargetId, Instant emittedAt) {
+    public Parent(EdgeIdentity edgeId, ReviewIdentity reviewId, TargetIdentity parentTargetId,
+        TargetIdentity childTargetId, Instant emittedAt) {
       this(SCHEMA_VERSION, edgeId, reviewId, parentTargetId, childTargetId, emittedAt);
     }
 
     @Override
-    public @NonNull UUID from() {
+    public @NonNull TargetIdentity from() {
       return parentTargetId();
     }
 
     @Override
-    public @NonNull UUID to() {
+    public @NonNull TargetIdentity to() {
       return childTargetId();
     }
 
     @Override
-    public @NonNull UUID canonicalId() {
+    public @NonNull EdgeIdentity canonicalId() {
       return edgeId();
     }
 

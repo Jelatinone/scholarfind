@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +17,7 @@ import com.github.jelatinone.infra.aws.store.serial.JacksonS3Serializer;
 import com.github.jelatinone.infra.construct.ExecutionRouter;
 import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
@@ -46,17 +46,17 @@ class InfraContractsTest {
 
 	@Test
 	void jacksonDynamoSerializer_roundTripsRequestPayloads() throws Exception {
-		JacksonDynamoSerializer<InvestigateRequest, UUID> serializer = new JacksonDynamoSerializer<>(
+		JacksonDynamoSerializer<InvestigateRequest, TargetIdentity> serializer = new JacksonDynamoSerializer<>(
 				InvestigateRequest.class,
-				UUID::toString);
+				identity -> identity.identifier().toString());
 		InvestigateRequest request = StructTestFixtures.request(2, ExecutionStage.INVESTIGATE);
 
 		Map<String, AttributeValue> encoded = serializer.encodeItem(StructTestFixtures.TARGET_ID, request);
 		InvestigateRequest decoded = serializer.decodeItem(encoded);
 
-		assertEquals(StructTestFixtures.TARGET_ID.toString(), encoded.get("id").s());
+		assertEquals(StructTestFixtures.TARGET_ID.identifier().toString(), encoded.get("id").s());
 		assertEquals(request, decoded);
-		assertEquals(StructTestFixtures.TARGET_ID.toString(), serializer.encodeKey(
+		assertEquals(StructTestFixtures.TARGET_ID.identifier().toString(), serializer.encodeKey(
 				StructTestFixtures.TARGET_ID).get("id").s());
 	}
 
@@ -75,9 +75,9 @@ class InfraContractsTest {
 
 	@Test
 	void jacksonS3Serializer_roundTripsRequests_andDefaultsMetadata() throws Exception {
-		JacksonS3Serializer<InvestigateRequest, UUID> serializer = new JacksonS3Serializer<>(
+		JacksonS3Serializer<InvestigateRequest, TargetIdentity> serializer = new JacksonS3Serializer<>(
 				InvestigateRequest.class,
-				UUID::toString);
+				identity -> identity.identifier().toString());
 		InvestigateRequest request = StructTestFixtures.request(0, ExecutionStage.ANNOTATE);
 
 		var encoded = serializer.encode(StructTestFixtures.TARGET_ID, request);
@@ -93,6 +93,6 @@ class InfraContractsTest {
 		assertEquals("utf-8", encoded.contentEncoding());
 		assertTrue(encoded.metadata().isEmpty());
 		assertEquals(request, decoded);
-		assertEquals(StructTestFixtures.TARGET_ID.toString(), serializer.encodeKey(StructTestFixtures.TARGET_ID));
+		assertEquals(StructTestFixtures.TARGET_ID.identifier().toString(), serializer.encodeKey(StructTestFixtures.TARGET_ID));
 	}
 }

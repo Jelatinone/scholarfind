@@ -2,54 +2,56 @@ package com.github.jelatinone.model.content;
 
 import java.net.URL;
 import java.time.Instant;
-import java.util.UUID;
+
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 import lombok.NonNull;
 
 public sealed interface Capture {
 
-	UUID targetId();
+  TargetIdentity targetId();
 
-	UUID reviewId();
+  ReviewIdentity reviewId();
 
-	URL effectiveUrl();
+  URL effectiveUrl();
 
-	MediaType mediaType();
+  MediaType mediaType();
 
-	MediaEncoding mediaEncoding();
+  MediaEncoding mediaEncoding();
 
-	MediaMetadata mediaMetadata();
+  MediaMetadata mediaMetadata();
 
-	Instant emittedAt();
+  Instant emittedAt();
 
-	public record Metadata(
-			@NonNull UUID targetId,
-			@NonNull UUID reviewId,
+  public record Metadata(
+      @NonNull TargetIdentity targetId,
+      @NonNull ReviewIdentity reviewId,
 
-			@NonNull URL effectiveUrl,
+      @NonNull URL effectiveUrl,
 
-			@NonNull MediaType mediaType,
-			@NonNull MediaEncoding mediaEncoding,
-			@NonNull MediaMetadata mediaMetadata,
+      @NonNull MediaType mediaType,
+      @NonNull MediaEncoding mediaEncoding,
+      @NonNull MediaMetadata mediaMetadata,
 
-			@NonNull Instant emittedAt) implements Capture {
-	}
+      @NonNull Instant emittedAt) implements Capture {
+  }
 
-	public record Resolved(
-			@NonNull UUID targetId,
-			@NonNull UUID reviewId,
+  public record Resolved(
+      @NonNull TargetIdentity targetId,
+      @NonNull ReviewIdentity reviewId,
 
-			@NonNull URL effectiveUrl,
+      @NonNull URL effectiveUrl,
 
-			byte[] sourceBytes,
-			@NonNull String sourceHash,
+      byte[] sourceBytes,
+      @NonNull String sourceHash,
 
-			@NonNull MediaType mediaType,
-			@NonNull MediaEncoding mediaEncoding,
-			@NonNull MediaMetadata mediaMetadata,
+      @NonNull MediaType mediaType,
+      @NonNull MediaEncoding mediaEncoding,
+      @NonNull MediaMetadata mediaMetadata,
 
-			@NonNull Instant emittedAt) implements Capture {
+      @NonNull Instant emittedAt) implements Capture {
 
-	}
+  }
 
 }

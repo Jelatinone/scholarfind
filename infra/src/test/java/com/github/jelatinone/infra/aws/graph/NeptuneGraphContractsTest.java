@@ -27,19 +27,28 @@ import com.github.jelatinone.infra.aws.graph.serial.NeptuneGraphSerializer;
 import com.github.jelatinone.model.Schemable;
 import com.github.jelatinone.model.graph.GraphEdge;
 import com.github.jelatinone.model.graph.GraphNode;
+import com.github.jelatinone.model.struct.Identity;
+import com.github.jelatinone.model.struct.Identity.DomainIdentity;
+import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
+import com.github.jelatinone.model.struct.Identity.EntityIdentity;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 class NeptuneGraphContractsTest {
 
-  static UUID ORIGIN = UUID.fromString("00000000-0000-0000-0000-000000000001");
-  static UUID MIDDLE = UUID.fromString("00000000-0000-0000-0000-000000000004");
-  static UUID TARGET = UUID.fromString("00000000-0000-0000-0000-000000000002");
-  static UUID EDGE = UUID.fromString("00000000-0000-0000-0000-000000000003");
-  static UUID CHILD_EDGE = UUID.fromString("00000000-0000-0000-0000-000000000005");
+  static DomainIdentity DOMAIN = Identity.domain(UUID.fromString("00000000-0000-0000-0000-000000000006"));
+  static TargetIdentity ORIGIN = Identity.target(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+  static TargetIdentity MIDDLE = Identity.target(UUID.fromString("00000000-0000-0000-0000-000000000004"));
+  static TargetIdentity TARGET = Identity.target(UUID.fromString("00000000-0000-0000-0000-000000000002"));
+  static EntityIdentity ENTITY = Identity.entity(UUID.fromString("00000000-0000-0000-0000-000000000007"));
+  static ReviewIdentity REVIEW = Identity.review(UUID.fromString("00000000-0000-0000-0000-000000000008"));
+  static EdgeIdentity EDGE = Identity.edge(UUID.fromString("00000000-0000-0000-0000-000000000003"));
+  static EdgeIdentity CHILD_EDGE = Identity.edge(UUID.fromString("00000000-0000-0000-0000-000000000005"));
 
   @Test
   void putVertexAndEdge_upsertsThroughGremlinTraversalApi() {
     GraphTraversalSource traversal = TinkerGraph.open().traversal();
-    NeptuneGraph<TestVertex, TestEdge, UUID> graph = graph(traversal);
+    NeptuneGraph<TestVertex, TestEdge, Identity> graph = graph(traversal);
 
     graph.putVertex(new TestVertex(ORIGIN, "seed"));
     graph.putVertex(new TestVertex(TARGET, "target"));
@@ -47,15 +56,15 @@ class NeptuneGraphContractsTest {
     graph.putEdge(new TestEdge(EDGE, ORIGIN, TARGET, "parent"));
 
     assertEquals(2L, traversal.V().count().next());
-    assertEquals("seed-updated", traversal.V().has("id", ORIGIN.toString()).values("name").next());
-    assertEquals(1L, traversal.E().has("id", EDGE.toString()).count().next());
-    assertEquals("parent", traversal.E().has("id", EDGE.toString()).values("kind").next());
+    assertEquals("seed-updated", traversal.V().has("id", ORIGIN.identifier().toString()).values("name").next());
+    assertEquals(1L, traversal.E().has("id", EDGE.identifier().toString()).count().next());
+    assertEquals("parent", traversal.E().has("id", EDGE.identifier().toString()).values("kind").next());
   }
 
   @Test
   void vertices_queryByApiGraphCriteria_decodesTraversalResults() {
     GraphTraversalSource traversal = TinkerGraph.open().traversal();
-    NeptuneGraph<TestVertex, TestEdge, UUID> graph = graph(traversal);
+    NeptuneGraph<TestVertex, TestEdge, Identity> graph = graph(traversal);
     graph.putVertex(new TestVertex(ORIGIN, "seed"));
     graph.putVertex(new TestVertex(TARGET, "target"));
     graph.putEdge(new TestEdge(EDGE, ORIGIN, TARGET, "parent"));
@@ -71,7 +80,7 @@ class NeptuneGraphContractsTest {
   @Test
   void vertices_graphCriteriaTraversesRadiusAndCanIncludeOrigin() {
     GraphTraversalSource traversal = TinkerGraph.open().traversal();
-    NeptuneGraph<TestVertex, TestEdge, UUID> graph = graph(traversal);
+    NeptuneGraph<TestVertex, TestEdge, Identity> graph = graph(traversal);
     graph.putVertex(new TestVertex(ORIGIN, "seed"));
     graph.putVertex(new TestVertex(MIDDLE, "middle"));
     graph.putVertex(new TestVertex(TARGET, "target"));
@@ -90,7 +99,7 @@ class NeptuneGraphContractsTest {
   @Test
   void edges_queryByApiGraphCriteria_decodesTraversalResults() {
     GraphTraversalSource traversal = TinkerGraph.open().traversal();
-    NeptuneGraph<TestVertex, TestEdge, UUID> graph = graph(traversal);
+    NeptuneGraph<TestVertex, TestEdge, Identity> graph = graph(traversal);
     graph.putVertex(new TestVertex(ORIGIN, "seed"));
     graph.putVertex(new TestVertex(TARGET, "target"));
     graph.putEdge(new TestEdge(EDGE, ORIGIN, TARGET, "parent"));
@@ -106,26 +115,26 @@ class NeptuneGraphContractsTest {
   @Test
   void jacksonSerializer_roundTripsSchemableGraphModelKinds() {
     GraphTraversalSource traversal = TinkerGraph.open().traversal();
-    NeptuneGraph<GraphNode.Target, GraphEdge.Reducer, UUID> graph = new NeptuneGraph<>(
+    NeptuneGraph<GraphNode.Target, GraphEdge.Reducer, Identity> graph = new NeptuneGraph<>(
         traversal,
         new JacksonNeptuneGraphSerializer<>(
             GraphNode.Target.class,
             GraphEdge.Reducer.class));
     GraphNode.Target target = new GraphNode.Target(
-        ORIGIN,
+        DOMAIN,
         TARGET,
         url("https://example.com"),
         java.time.Instant.EPOCH);
-    GraphNode.Entity entity = new GraphNode.Entity(TARGET, UUID.randomUUID(), java.time.Instant.EPOCH);
+    GraphNode.Entity entity = new GraphNode.Entity(ENTITY, REVIEW, java.time.Instant.EPOCH);
     GraphEdge.Reducer resolvesTo = new GraphEdge.Reducer(
         EDGE,
-        UUID.randomUUID(),
+        REVIEW,
         target.targetId(),
         entity.entityId(),
         java.time.Instant.EPOCH);
 
     graph.putVertex(target);
-    new NeptuneGraph<GraphNode.Entity, GraphEdge.Reducer, UUID>(
+    new NeptuneGraph<GraphNode.Entity, GraphEdge.Reducer, Identity>(
         traversal,
         new JacksonNeptuneGraphSerializer<>(
             GraphNode.Entity.class,
@@ -143,11 +152,11 @@ class NeptuneGraphContractsTest {
     assertEquals(List.of(resolvesTo), List.copyOf(decodedEdges));
   }
 
-  private static NeptuneGraph<TestVertex, TestEdge, UUID> graph(GraphTraversalSource traversal) {
+  private static NeptuneGraph<TestVertex, TestEdge, Identity> graph(GraphTraversalSource traversal) {
     return new NeptuneGraph<>(traversal, serializer());
   }
 
-  private static NeptuneGraphSerializer<TestVertex, TestEdge, UUID> serializer() {
+  private static NeptuneGraphSerializer<TestVertex, TestEdge> serializer() {
     return new JacksonNeptuneGraphSerializer<>(
         TestVertex.class,
         TestEdge.class);
@@ -161,9 +170,10 @@ class NeptuneGraphContractsTest {
     }
   }
 
-  record TestVertex(UUID id, String name, Instant emittedAt) implements Schemable, Vertex<UUID> {
+  record TestVertex(TargetIdentity id, String name, Instant emittedAt) implements Schemable<TargetIdentity>,
+      Vertex<TargetIdentity> {
 
-    TestVertex(UUID id, String name) {
+    TestVertex(TargetIdentity id, String name) {
       this(id, name, Instant.EPOCH);
     }
 
@@ -173,7 +183,7 @@ class NeptuneGraphContractsTest {
     }
 
     @Override
-    public UUID canonicalId() {
+    public TargetIdentity canonicalId() {
       return id();
     }
 
@@ -188,14 +198,15 @@ class NeptuneGraphContractsTest {
     }
 
     @Override
-    public UUID vertexId() {
+    public TargetIdentity vertexId() {
       return id();
     }
   }
 
-  record TestEdge(UUID id, UUID from, UUID to, String kind, Instant emittedAt) implements Schemable, Edge<UUID> {
+  record TestEdge(EdgeIdentity id, TargetIdentity from, TargetIdentity to, String kind, Instant emittedAt)
+      implements Schemable<EdgeIdentity>, Edge<EdgeIdentity, TargetIdentity, TargetIdentity> {
 
-    TestEdge(UUID id, UUID from, UUID to, String kind) {
+    TestEdge(EdgeIdentity id, TargetIdentity from, TargetIdentity to, String kind) {
       this(id, from, to, kind, Instant.EPOCH);
     }
 
@@ -205,7 +216,7 @@ class NeptuneGraphContractsTest {
     }
 
     @Override
-    public UUID canonicalId() {
+    public EdgeIdentity canonicalId() {
       return id();
     }
 
@@ -220,19 +231,19 @@ class NeptuneGraphContractsTest {
     }
 
     @Override
-    public UUID edgeId() {
+    public EdgeIdentity edgeId() {
       return id();
     }
   }
 
   record TestGraphCriteria(
-      Optional<UUID> identifier,
+      Optional<TargetIdentity> identifier,
       Optional<java.time.Duration> duration,
       int originRadius,
       boolean originIncluded,
-      GraphDirection direction) implements GraphCriteria<UUID> {
+      GraphDirection direction) implements GraphCriteria<TargetIdentity> {
 
-    TestGraphCriteria(UUID identifier, int originRadius, boolean originIncluded, GraphDirection direction) {
+    TestGraphCriteria(TargetIdentity identifier, int originRadius, boolean originIncluded, GraphDirection direction) {
       this(Optional.of(identifier), Optional.empty(), originRadius, originIncluded, direction);
     }
   }

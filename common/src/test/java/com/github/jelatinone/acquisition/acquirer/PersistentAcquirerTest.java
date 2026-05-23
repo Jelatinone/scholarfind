@@ -9,7 +9,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
@@ -28,12 +27,13 @@ import com.github.jelatinone.mock.MockStore;
 import com.github.jelatinone.model.content.Capture;
 import com.github.jelatinone.model.content.MediaEncoding;
 import com.github.jelatinone.model.content.MediaType;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 class PersistentAcquirerTest {
 
   @Test
   void metadata_mapsFetcherOutput() {
-    MockStore<UUID, Capture> store = new MockStore<>();
+    MockStore<TargetIdentity, Capture> store = new MockStore<>();
     PersistentCaptureAcquirer acquirer = new PersistentCaptureAcquirer(
         url -> new FetchedBody(CanonicalTestFixtures.url("https://ignored.com"), new byte[0], "ignored",
             MediaType.TEXT_PLAIN,
@@ -71,7 +71,7 @@ class PersistentAcquirerTest {
         MediaEncoding.UTF_8,
         AcquisitionTestFixtures.mediaMetadata("text/html", 5),
         Instant.now());
-    MockStore<UUID, Capture> store = new MockStore<>(Map.of(StructTestFixtures.TARGET_ID, freshCapture));
+    MockStore<TargetIdentity, Capture> store = new MockStore<>(Map.of(StructTestFixtures.TARGET_ID, freshCapture));
     AtomicInteger metadataFetches = new AtomicInteger();
     PersistentCaptureAcquirer acquirer = new PersistentCaptureAcquirer(
         url -> new FetchedBody(CanonicalTestFixtures.url("https://ignored.com"), new byte[0], "ignored",
@@ -112,7 +112,7 @@ class PersistentAcquirerTest {
 
   @Test
   void interpreted_persistsCaptureAndAddsMatchingInterpreterProjection() {
-    MockStore<UUID, Capture> store = new MockStore<>();
+    MockStore<TargetIdentity, Capture> store = new MockStore<>();
     PersistentCaptureAcquirer acquirer = new PersistentCaptureAcquirer(
         url -> new FetchedBody(
             CanonicalTestFixtures.url("https://example.com/final"),

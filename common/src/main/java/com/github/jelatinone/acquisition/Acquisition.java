@@ -4,21 +4,22 @@ import java.net.URL;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 
 import com.github.jelatinone.model.content.MediaEncoding;
 import com.github.jelatinone.model.content.MediaMetadata;
 import com.github.jelatinone.model.content.MediaType;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 import lombok.NonNull;
 
 public sealed interface Acquisition {
 
   @NonNull
-  UUID targetId();
+  TargetIdentity targetId();
 
   @NonNull
-  UUID reviewId();
+  ReviewIdentity reviewId();
 
   @NonNull
   URL resolvedUrl();
@@ -36,8 +37,8 @@ public sealed interface Acquisition {
   }
 
   public record Initial(
-      @NonNull UUID targetId,
-      @NonNull UUID reviewId,
+      @NonNull TargetIdentity targetId,
+      @NonNull ReviewIdentity reviewId,
 
       @NonNull URL canonicalUrl) implements Acquisition {
 
@@ -53,8 +54,8 @@ public sealed interface Acquisition {
   }
 
   public record Metadata(
-      @NonNull UUID targetId,
-      @NonNull UUID reviewId,
+      @NonNull TargetIdentity targetId,
+      @NonNull ReviewIdentity reviewId,
 
       @NonNull URL effectiveUrl,
 
@@ -76,8 +77,8 @@ public sealed interface Acquisition {
   }
 
   public record Interpreted(
-      @NonNull UUID targetId,
-      @NonNull UUID reviewId,
+      @NonNull TargetIdentity targetId,
+      @NonNull ReviewIdentity reviewId,
 
       @NonNull URL effectiveUrl,
 
@@ -94,8 +95,9 @@ public sealed interface Acquisition {
 
   ) implements Acquisition {
 
-    public Interpreted(@NonNull UUID targetId,
-        @NonNull UUID reviewId,
+    public Interpreted(
+        @NonNull TargetIdentity targetId,
+        @NonNull ReviewIdentity reviewId,
 
         @NonNull URL effectiveUrl,
 

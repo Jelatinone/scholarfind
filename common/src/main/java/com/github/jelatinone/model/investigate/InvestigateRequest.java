@@ -1,40 +1,33 @@
 package com.github.jelatinone.model.investigate;
 
 import java.net.URL;
-import java.util.UUID;
 
-import com.github.jelatinone.acquisition.Acquisition.Rank;
 import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.model.struct.RequestHeader;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 public record InvestigateRequest(
     RequestHeader requestHeader,
 
-    UUID targetId,
-    UUID reviewId,
+    TargetIdentity targetId,
+    ReviewIdentity reviewId,
 
     URL canonicalUrl,
 
-    KernelAllotment allotment,
     KernelContext context
 
 ) implements Request<InvestigateRequest> {
 
   @Override
   public InvestigateRequest withRequestHeader(RequestHeader nextHeader) {
-    return new InvestigateRequest(nextHeader, targetId(), reviewId(), canonicalUrl(), allotment(), context());
-  }
-
-  public record KernelAllotment(
-
-      int step,
-      Rank rank) {
+    return new InvestigateRequest(nextHeader, targetId(), reviewId(), canonicalUrl(), context());
   }
 
   public record KernelContext(
+  // TODO: What context can we include without being expensive per-target?
 
-      int upwardEdgeCount,
-      int downwardEdgeCount,
-      int reduceEdgeCount) {
+  ) {
+
   }
 }

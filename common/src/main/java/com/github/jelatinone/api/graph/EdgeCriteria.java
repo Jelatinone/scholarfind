@@ -4,8 +4,9 @@ import java.time.Duration;
 import java.util.Optional;
 
 import com.github.jelatinone.api.Criteria;
+import com.github.jelatinone.model.struct.Identity;
 
-public interface EdgeCriteria<Identifier> extends Criteria<Identifier> {
+public interface EdgeCriteria<Identifier extends Identity> extends Criteria<Identifier> {
 
   Optional<Identifier> from();
 
@@ -13,7 +14,7 @@ public interface EdgeCriteria<Identifier> extends Criteria<Identifier> {
 
   GraphDirection direction();
 
-  public static <Key> EdgeCriteria<Key> identifier(Key id) {
+  public static <Key extends Identity> EdgeCriteria<Key> identifier(Key id) {
     return new DefaultEdgeCriteria<>(
         Optional.of(id),
         Optional.empty(),
@@ -22,7 +23,7 @@ public interface EdgeCriteria<Identifier> extends Criteria<Identifier> {
         GraphDirection.ANY);
   }
 
-  public static <Key> EdgeCriteria<Key> from(Key from) {
+  public static <Key extends Identity> EdgeCriteria<Key> from(Key from) {
     return new DefaultEdgeCriteria<>(
         Optional.empty(),
         Optional.empty(),
@@ -31,7 +32,7 @@ public interface EdgeCriteria<Identifier> extends Criteria<Identifier> {
         GraphDirection.OUT);
   }
 
-  public static <Key> EdgeCriteria<Key> to(Key to) {
+  public static <Key extends Identity> EdgeCriteria<Key> to(Key to) {
     return new DefaultEdgeCriteria<>(
         Optional.empty(),
         Optional.empty(),
@@ -40,7 +41,7 @@ public interface EdgeCriteria<Identifier> extends Criteria<Identifier> {
         GraphDirection.IN);
   }
 
-  public static <Key> EdgeCriteria<Key> between(Key from, Key to) {
+  public static <Key extends Identity> EdgeCriteria<Key> between(Key from, Key to) {
     return new DefaultEdgeCriteria<>(
         Optional.empty(),
         Optional.empty(),
@@ -50,7 +51,7 @@ public interface EdgeCriteria<Identifier> extends Criteria<Identifier> {
   }
 }
 
-record DefaultEdgeCriteria<Identifier>(
+record DefaultEdgeCriteria<Identifier extends Identity>(
     Optional<Identifier> identifier,
     Optional<Duration> duration,
     Optional<Identifier> from,

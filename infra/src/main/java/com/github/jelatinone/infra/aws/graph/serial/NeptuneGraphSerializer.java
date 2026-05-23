@@ -3,7 +3,9 @@ package com.github.jelatinone.infra.aws.graph.serial;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public interface NeptuneGraphSerializer<Vertex, Edge, Identifier> {
+import com.github.jelatinone.model.struct.Identity;
+
+public interface NeptuneGraphSerializer<Vertex, Edge> {
 
   Map<String, Object> encodeVertex(Vertex vertex) throws Exception;
 
@@ -13,7 +15,7 @@ public interface NeptuneGraphSerializer<Vertex, Edge, Identifier> {
 
   Edge decodeEdge(Map<Object, Object> edge) throws Exception;
 
-  <T> Object encodeIdentifier(T identifier);
+  Object encodeIdentifier(Identity identifier);
 
   public static Object property(Map<Object, Object> element, String name) {
     if (element == null || name == null) {

@@ -17,6 +17,8 @@ import com.github.jelatinone.model.graph.GraphReview;
 import com.github.jelatinone.model.graph.GraphReviewCause;
 import com.github.jelatinone.model.graph.GraphReviewState;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
+import com.github.jelatinone.model.struct.Identity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 import com.github.jelatinone.model.struct.Request;
 
 class KernelArchetypeContractsTest {
@@ -32,7 +34,7 @@ class KernelArchetypeContractsTest {
     assertEquals(review, operable.review());
     assertThrows(
         IllegalArgumentException.class,
-        () -> new KernelOperand.Reviewed(target, review(UUID.randomUUID())));
+        () -> new KernelOperand.Reviewed(target, review(Identity.target(UUID.randomUUID()))));
   }
 
   @Test
@@ -51,14 +53,14 @@ class KernelArchetypeContractsTest {
     InvestigateRequest request = StructTestFixtures.request(0, ExecutionStage.INVESTIGATE);
     List<Request<InvestigateRequest>> source = new ArrayList<>(List.of(request));
 
-    KernelResult<InvestigateRequest> postable = new KernelResult<>(operable, source);
+    KernelResult<InvestigateRequest, GraphNode.Target> postable = new KernelResult<>(operable, source);
     source.clear();
 
     assertEquals(List.of(request), List.copyOf(postable.letters()));
     assertThrows(UnsupportedOperationException.class, () -> postable.letters().clear());
   }
 
-  private static GraphNode.Target target(UUID targetId) {
+  private static GraphNode.Target target(TargetIdentity targetId) {
     return new GraphNode.Target(
         StructTestFixtures.DOMAIN_ID,
         targetId,
@@ -66,7 +68,7 @@ class KernelArchetypeContractsTest {
         StructTestFixtures.NOW);
   }
 
-  private static GraphReview review(UUID targetId) {
+  private static GraphReview review(TargetIdentity targetId) {
     return new GraphReview(
         StructTestFixtures.REVIEW_ID,
         targetId,

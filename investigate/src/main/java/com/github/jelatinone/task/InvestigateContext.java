@@ -4,16 +4,17 @@ import com.github.jelatinone.policy.PolicyContext;
 
 import java.time.Instant;
 import java.util.Optional;
-import java.util.UUID;
 
 import com.github.jelatinone.infra.InvestigateInfrastructure;
 import com.github.jelatinone.model.investigate.InvestigateDocument;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 public record InvestigateContext(
     long envelopeSchemaVersion,
-    UUID envelopeTargetId,
-    UUID envelopeReviewId,
+    TargetIdentity envelopeTargetId,
+    ReviewIdentity envelopeReviewId,
     Instant envelopeReviewedAt,
 
     Optional<InvestigateDocument> retrievedDocument,

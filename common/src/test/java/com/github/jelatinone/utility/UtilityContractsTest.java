@@ -12,6 +12,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 
+import com.github.jelatinone.model.struct.Identity;
+
 class UtilityContractsTest {
 
 	@Test
@@ -35,7 +37,7 @@ class UtilityContractsTest {
 						java.security.MessageDigest.getInstance("SHA-256").digest("abc".getBytes())),
 				hash);
 		assertEquals(1L, target.schemaVersion());
-		assertEquals(Canonical.generateTargetUUID(canonicalUrl), target.targetId());
+		assertEquals(Canonical.targetIdentity(canonicalUrl), target.targetId());
 		assertEquals("https://example.com/resource", target.canonicalUrl().toExternalForm());
 		assertEquals(discoveredAt, target.emittedAt());
 	}
@@ -43,8 +45,8 @@ class UtilityContractsTest {
 	@Test
 	void canonical_parentEdge_uses_stable_directional_identity() throws Exception {
 		Instant emittedAt = Instant.parse("2026-05-07T12:00:00Z");
-		UUID reviewId = UUID.randomUUID();
-		UUID parentId = UUID.randomUUID();
+		var reviewId = Identity.review(UUID.randomUUID());
+		var parentId = Identity.target(UUID.randomUUID());
 		var child = Canonical.target("https://example.com/child", emittedAt);
 
 		var edge = Canonical.parent(reviewId, parentId, child, emittedAt);

@@ -1,4 +1,4 @@
-package com.github.jelatinone.model.investigate;
+package com.github.jelatinone.model.classification;
 
 public enum Category {
 

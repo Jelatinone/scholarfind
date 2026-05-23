@@ -1,6 +1,7 @@
 package com.github.jelatinone.model.graph;
 
-import java.util.UUID;
+import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
 
 import lombok.NonNull;
 
@@ -35,7 +36,7 @@ public sealed interface GraphReviewCause {
    * 
    */
   record Transition(
-      @NonNull UUID parentReviewId) implements GraphReviewCause {
+      @NonNull ReviewIdentity parentReviewId) implements GraphReviewCause {
   }
 
   /**
@@ -49,6 +50,6 @@ public sealed interface GraphReviewCause {
    * 
    */
   record Discover(
-      @NonNull UUID relationalEdgeId) implements GraphReviewCause {
+      @NonNull EdgeIdentity relationalEdgeId) implements GraphReviewCause {
   }
 }

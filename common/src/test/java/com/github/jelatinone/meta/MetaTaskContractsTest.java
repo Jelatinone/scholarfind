@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
-import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -26,6 +25,7 @@ import com.github.jelatinone.meta.transitory.Directive;
 import com.github.jelatinone.model.audit.AttemptEvent;
 import com.github.jelatinone.model.audit.ExecutionEvent;
 import com.github.jelatinone.model.investigate.InvestigateDocument;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 import com.github.jelatinone.utility.scheduler.ConstantBackoffScheduler;
 
 class MetaTaskContractsTest {
@@ -74,9 +74,9 @@ class MetaTaskContractsTest {
   void infrastructureBindsRouterAndStores() {
     Router router = envelope -> {
     };
-    MockStore<UUID, InvestigateDocument> documentStore = new MockStore<>();
-    MockStore<UUID, AttemptEvent> attemptStore = new MockStore<>();
-    MockStore<UUID, ExecutionEvent> executionStore = new MockStore<>();
+    MockStore<TargetIdentity, InvestigateDocument> documentStore = new MockStore<>();
+    MockStore<TargetIdentity, AttemptEvent> attemptStore = new MockStore<>();
+    MockStore<TargetIdentity, ExecutionEvent> executionStore = new MockStore<>();
 
     Infrastructure<InvestigateDocument> infrastructure = new Infrastructure<>() {
       @Override
@@ -85,17 +85,17 @@ class MetaTaskContractsTest {
       }
 
       @Override
-      public Store<UUID, InvestigateDocument, Criteria<UUID>> documentStore() {
+      public Store<TargetIdentity, InvestigateDocument, Criteria<TargetIdentity>> documentStore() {
         return documentStore;
       }
 
       @Override
-      public Store<UUID, AttemptEvent, Criteria<UUID>> attemptStore() {
+      public Store<TargetIdentity, AttemptEvent, Criteria<TargetIdentity>> attemptStore() {
         return attemptStore;
       }
 
       @Override
-      public Store<UUID, ExecutionEvent, Criteria<UUID>> executionStore() {
+      public Store<TargetIdentity, ExecutionEvent, Criteria<TargetIdentity>> executionStore() {
         return executionStore;
       }
 

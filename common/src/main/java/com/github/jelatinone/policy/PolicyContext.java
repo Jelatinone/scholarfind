@@ -2,9 +2,10 @@ package com.github.jelatinone.policy;
 
 import java.time.Instant;
 import java.util.Optional;
-import java.util.UUID;
 
 import com.github.jelatinone.model.struct.Document;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 import com.github.jelatinone.model.struct.Request;
 
 import lombok.NonNull;
@@ -14,10 +15,10 @@ public interface PolicyContext<Requests extends Request<Requests>, Documents ext
   long envelopeSchemaVersion();
 
   @NonNull
-  UUID envelopeTargetId();
+  TargetIdentity envelopeTargetId();
 
   @NonNull
-  UUID envelopeReviewId();
+  ReviewIdentity envelopeReviewId();
 
   @NonNull
   Instant envelopeReviewedAt();

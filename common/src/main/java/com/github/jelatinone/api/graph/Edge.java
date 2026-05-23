@@ -1,8 +1,10 @@
 package com.github.jelatinone.api.graph;
 
+import com.github.jelatinone.model.struct.Identity;
+
 import lombok.NonNull;
 
-public interface Edge<Identifier> {
+public interface Edge<Identifier extends Identity, From extends Identity, To extends Identity> {
 
   @NonNull
   String edgeLabel();
@@ -11,8 +13,8 @@ public interface Edge<Identifier> {
   Identifier edgeId();
 
   @NonNull
-  Identifier from();
+  From from();
 
   @NonNull
-  Identifier to();
+  To to();
 }

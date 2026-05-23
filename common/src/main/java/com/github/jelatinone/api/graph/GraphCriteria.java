@@ -4,8 +4,9 @@ import java.time.Duration;
 import java.util.Optional;
 
 import com.github.jelatinone.api.Criteria;
+import com.github.jelatinone.model.struct.Identity;
 
-public interface GraphCriteria<Identifier> extends Criteria<Identifier> {
+public interface GraphCriteria<Identifier extends Identity> extends Criteria<Identifier> {
 
   int originRadius();
 
@@ -13,7 +14,7 @@ public interface GraphCriteria<Identifier> extends Criteria<Identifier> {
 
   GraphDirection direction();
 
-  public static <Identifier> GraphCriteria<Identifier> outgoing(Identifier identifier) {
+  public static <Identifier extends Identity> GraphCriteria<Identifier> outgoing(Identifier identifier) {
     return new DefaultGraphCriteria<Identifier>(
         Optional.of(identifier),
         Optional.empty(),
@@ -22,7 +23,7 @@ public interface GraphCriteria<Identifier> extends Criteria<Identifier> {
         GraphDirection.OUT);
   }
 
-  public static <Identifier> GraphCriteria<Identifier> incoming(Identifier identifier) {
+  public static <Identifier extends Identity> GraphCriteria<Identifier> incoming(Identifier identifier) {
     return new DefaultGraphCriteria<Identifier>(
         Optional.of(identifier),
         Optional.empty(),
@@ -31,7 +32,7 @@ public interface GraphCriteria<Identifier> extends Criteria<Identifier> {
         GraphDirection.IN);
   }
 
-  public static <Identifier> GraphCriteria<Identifier> any(Identifier origin) {
+  public static <Identifier extends Identity> GraphCriteria<Identifier> any(Identifier origin) {
     return new DefaultGraphCriteria<Identifier>(
         Optional.of(origin),
         Optional.empty(),
@@ -41,7 +42,7 @@ public interface GraphCriteria<Identifier> extends Criteria<Identifier> {
   }
 }
 
-record DefaultGraphCriteria<Identifier>(
+record DefaultGraphCriteria<Identifier extends Identity>(
     Optional<Identifier> identifier,
     Optional<Duration> duration,
     int originRadius,

@@ -2,9 +2,10 @@ package com.github.jelatinone.model.graph;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.UUID;
 
 import com.github.jelatinone.model.Schemable;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 import lombok.NonNull;
 
@@ -19,22 +20,23 @@ import lombok.NonNull;
 public record GraphReview(
     long schemaVersion,
 
-    @NonNull UUID reviewId,
-    @NonNull UUID targetId,
+    @NonNull ReviewIdentity reviewId,
+    @NonNull TargetIdentity targetId,
 
     @NonNull GraphReviewCause causedBy,
     @NonNull GraphReviewState reviewState,
 
-    @NonNull Instant emittedAt) implements Schemable {
+    @NonNull Instant emittedAt) implements Schemable<ReviewIdentity> {
   public static final long SCHEMA_VERSION = 1L;
 
-  public GraphReview(UUID reviewId, UUID targetId, GraphReviewCause causedBy, GraphReviewState reviewState,
+  public GraphReview(ReviewIdentity reviewId, TargetIdentity targetId, GraphReviewCause causedBy,
+      GraphReviewState reviewState,
       Instant emittedAt) {
     this(SCHEMA_VERSION, reviewId, targetId, causedBy, reviewState, emittedAt);
   }
 
   @Override
-  public @NonNull UUID canonicalId() {
+  public @NonNull ReviewIdentity canonicalId() {
     return reviewId();
   }
 

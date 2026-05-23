@@ -1,8 +1,8 @@
 package com.github.jelatinone.model.struct;
 
-import java.util.UUID;
-
 import com.github.jelatinone.model.graph.GraphNode;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 import lombok.NonNull;
 
@@ -17,14 +17,14 @@ import lombok.NonNull;
  */
 public interface Request<Self> {
 
-	@NonNull
-	RequestHeader requestHeader();
+  @NonNull
+  RequestHeader requestHeader();
 
-	@NonNull
-	UUID targetId();
+  @NonNull
+  TargetIdentity targetId();
 
-	@NonNull
-	UUID reviewId();
+  @NonNull
+  ReviewIdentity reviewId();
 
-	Self withRequestHeader(RequestHeader header);
+  Self withRequestHeader(RequestHeader header);
 }

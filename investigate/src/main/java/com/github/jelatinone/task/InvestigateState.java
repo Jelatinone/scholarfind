@@ -6,8 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.github.jelatinone.model.investigate.Category;
-import com.github.jelatinone.model.investigate.Classification;
+import com.github.jelatinone.acquisition.Acquisition;
+import com.github.jelatinone.model.classification.Category;
+import com.github.jelatinone.model.classification.Classification;
 import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.model.transit.Emission;
 
@@ -22,10 +23,13 @@ public record InvestigateState(
 
   public static InvestigateState initial() {
     return new InvestigateState(
-        new Classification.Collected(
+        new Classification.Investigate(
             Map.of(),
             0D,
-            Set.copyOf(EnumSet.allOf(Category.class))),
+            Set.copyOf(EnumSet.allOf(Category.class)),
+            Acquisition.Rank.INITIAL,
+            Category.UNCLASSIFIED,
+            false),
         false,
         false,
         0,

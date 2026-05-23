@@ -1,20 +1,19 @@
 package com.github.jelatinone.meta.construct;
 
-import java.util.UUID;
-
 import com.github.jelatinone.api.Criteria;
 import com.github.jelatinone.api.store.Store;
 import com.github.jelatinone.model.audit.AttemptEvent;
 import com.github.jelatinone.model.audit.ExecutionEvent;
 import com.github.jelatinone.model.struct.Document;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 public interface Infrastructure<Documents extends Document<Documents>> extends AutoCloseable {
 
-	Router router();
+  Router router();
 
-	Store<UUID, Documents, Criteria<UUID>> documentStore();
+  Store<TargetIdentity, Documents, Criteria<TargetIdentity>> documentStore();
 
-	Store<UUID, AttemptEvent, Criteria<UUID>> attemptStore();
+  Store<TargetIdentity, AttemptEvent, Criteria<TargetIdentity>> attemptStore();
 
-	Store<UUID, ExecutionEvent, Criteria<UUID>> executionStore();
+  Store<TargetIdentity, ExecutionEvent, Criteria<TargetIdentity>> executionStore();
 }

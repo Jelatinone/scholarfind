@@ -28,30 +28,31 @@ import com.github.jelatinone.api.graph.GraphEdges;
 import com.github.jelatinone.api.graph.GraphException;
 import com.github.jelatinone.api.graph.GraphVertices;
 import com.github.jelatinone.infra.aws.graph.serial.NeptuneGraphSerializer;
+import com.github.jelatinone.model.struct.Identity;
 
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Identifier>, Relationship extends com.github.jelatinone.api.graph.Edge<Identifier>, Identifier>
+public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<? extends Identifier>, Relationship extends com.github.jelatinone.api.graph.Edge<? extends Identifier, ? extends Identifier, ? extends Identifier>, Identifier extends Identity>
     implements Graph<Node, Relationship, Identifier> {
 
   static final String ID_PROPERTY = "id";
 
   GraphTraversalSource graph;
-  NeptuneGraphSerializer<Node, Relationship, Identifier> serializer;
+  NeptuneGraphSerializer<Node, Relationship> serializer;
   GraphVertices<Node, Identifier> vertices;
   GraphEdges<Relationship, Identifier> edges;
 
   public NeptuneGraph(
       Cluster cluster,
-      NeptuneGraphSerializer<Node, Relationship, Identifier> serializer) {
+      NeptuneGraphSerializer<Node, Relationship> serializer) {
     this(traversal().withRemote(DriverRemoteConnection.using(cluster)), serializer);
   }
 
   public NeptuneGraph(
       GraphTraversalSource graph,
-      NeptuneGraphSerializer<Node, Relationship, Identifier> serializer) {
+      NeptuneGraphSerializer<Node, Relationship> serializer) {
     this.graph = graph;
     this.serializer = serializer;
     this.vertices = new NeptuneVertices();
@@ -142,12 +143,12 @@ public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Id
   private final class NeptuneVertices implements GraphVertices<Node, Identifier> {
 
     @Override
-    public boolean query(Exists<Criteria<Identifier>> query) {
+    public boolean query(Exists<Criteria<? extends Identifier>> query) {
       return query(new Count<>(query.criteria())) > 0;
     }
 
     @Override
-    public long query(Count<Criteria<Identifier>> query) {
+    public long query(Count<Criteria<? extends Identifier>> query) {
       try {
         return vertex(query.criteria()).traversal(graph).count().next();
       } catch (Exception exception) {
@@ -156,7 +157,7 @@ public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Id
     }
 
     @Override
-    public Optional<Node> query(Singular<Criteria<Identifier>> query) {
+    public Optional<Node> query(Singular<Criteria<? extends Identifier>> query) {
       try {
         return vertex(query.criteria()).traversal(graph)
             .elementMap()
@@ -170,7 +171,7 @@ public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Id
     }
 
     @Override
-    public Collection<Node> query(Several<Criteria<Identifier>> query) {
+    public Collection<Node> query(Several<Criteria<? extends Identifier>> query) {
       try {
         return vertex(query.criteria()).traversal(graph)
             .limit(query.limit())
@@ -190,12 +191,12 @@ public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Id
   private final class NeptuneEdges implements GraphEdges<Relationship, Identifier> {
 
     @Override
-    public boolean query(Exists<EdgeCriteria<Identifier>> query) {
+    public boolean query(Exists<EdgeCriteria<? extends Identifier>> query) {
       return query(new Count<>(query.criteria())) > 0;
     }
 
     @Override
-    public long query(Count<EdgeCriteria<Identifier>> query) {
+    public long query(Count<EdgeCriteria<? extends Identifier>> query) {
       try {
         return edge(query.criteria()).traversal(graph).count().next();
       } catch (Exception exception) {
@@ -204,7 +205,7 @@ public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Id
     }
 
     @Override
-    public Optional<Relationship> query(Singular<EdgeCriteria<Identifier>> query) {
+    public Optional<Relationship> query(Singular<EdgeCriteria<? extends Identifier>> query) {
       try {
         return edge(query.criteria()).traversal(graph)
             .elementMap()
@@ -218,7 +219,7 @@ public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Id
     }
 
     @Override
-    public Collection<Relationship> query(Several<EdgeCriteria<Identifier>> query) {
+    public Collection<Relationship> query(Several<EdgeCriteria<? extends Identifier>> query) {
       try {
         return edge(query.criteria()).traversal(graph)
             .limit(query.limit())
@@ -235,12 +236,12 @@ public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Id
     }
   }
 
-  private NeptuneVertexCriteria<Identifier> vertex(Criteria<Identifier> criteria) {
-    return new NeptuneVertexCriteria<>(criteria, serializer::encodeIdentifier);
+  private NeptuneVertexCriteria vertex(Criteria<? extends Identifier> criteria) {
+    return new NeptuneVertexCriteria(criteria, serializer::encodeIdentifier);
   }
 
-  private NeptuneEdgeCriteria<Identifier> edge(EdgeCriteria<Identifier> criteria) {
-    return new NeptuneEdgeCriteria<>(criteria, serializer::encodeIdentifier);
+  private NeptuneEdgeCriteria edge(EdgeCriteria<? extends Identifier> criteria) {
+    return new NeptuneEdgeCriteria(criteria, serializer::encodeIdentifier);
   }
 
   private Node decodeVertex(Map<Object, Object> vertex) {
@@ -271,9 +272,9 @@ public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Id
     return traversal;
   }
 
-  private record NeptuneVertexCriteria<Identifier>(
-      Criteria<Identifier> criteria,
-      Function<Identifier, Object> identifierEncoder) {
+  private record NeptuneVertexCriteria(
+      Criteria<? extends Identity> criteria,
+      Function<Identity, Object> identifierEncoder) {
 
     GraphTraversal<?, Vertex> traversal(GraphTraversalSource graph) {
       GraphTraversal<?, Vertex> traversal = base(graph);
@@ -313,9 +314,9 @@ public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Id
     }
   }
 
-  private record NeptuneEdgeCriteria<Identifier>(
-      EdgeCriteria<Identifier> criteria,
-      Function<Identifier, Object> identifierEncoder) {
+  private record NeptuneEdgeCriteria(
+      EdgeCriteria<? extends Identity> criteria,
+      Function<Identity, Object> identifierEncoder) {
 
     GraphTraversal<?, Edge> traversal(GraphTraversalSource graph) {
       GraphTraversal<?, Edge> traversal = base(graph);
@@ -326,8 +327,8 @@ public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Id
     }
 
     private GraphTraversal<?, Edge> base(GraphTraversalSource graph) {
-      Optional<Identifier> from = criteria.from();
-      Optional<Identifier> to = criteria.to();
+      Optional<? extends Identity> from = criteria.from();
+      Optional<? extends Identity> to = criteria.to();
       if (from.isPresent() && to.isPresent()) {
         return between(graph, from.orElseThrow(), to.orElseThrow());
       }
@@ -340,7 +341,7 @@ public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Id
       return graph.E();
     }
 
-    private GraphTraversal<?, Edge> between(GraphTraversalSource graph, Identifier from, Identifier to) {
+    private GraphTraversal<?, Edge> between(GraphTraversalSource graph, Identity from, Identity to) {
       Object fromId = identifierEncoder.apply(from);
       Object toId = identifierEncoder.apply(to);
       return switch (criteria.direction()) {
@@ -356,7 +357,7 @@ public class NeptuneGraph<Node extends com.github.jelatinone.api.graph.Vertex<Id
       };
     }
 
-    private GraphTraversal<?, Edge> incident(GraphTraversalSource graph, Identifier identifier) {
+    private GraphTraversal<?, Edge> incident(GraphTraversalSource graph, Identity identifier) {
       Object encoded = identifierEncoder.apply(identifier);
       return switch (criteria.direction()) {
         case OUT -> graph.V().has(ID_PROPERTY, encoded).outE();

@@ -2,19 +2,19 @@ package com.github.jelatinone.model;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.UUID;
 
+import com.github.jelatinone.model.struct.Identity;
 import lombok.NonNull;
 
 /**
  * Stable shape that can be projected into schema-aware stores.
  */
-public interface Schemable {
+public interface Schemable<Identifier extends Identity> {
 
   long schemaVersion();
 
   @NonNull
-  UUID canonicalId();
+  Identifier canonicalId();
 
   @NonNull
   Map<String, Object> properties();

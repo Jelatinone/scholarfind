@@ -2,14 +2,14 @@ package com.github.jelatinone.model.audit;
 
 import java.time.Instant;
 import java.util.Set;
-import java.util.UUID;
 
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 import com.github.jelatinone.policy.PolicyOutcome;
 
 import lombok.NonNull;
 
 public record ExecutionEvent(
-    @NonNull UUID targetId,
+    @NonNull TargetIdentity targetId,
 
     @NonNull ExecutionStage executionRef,
 

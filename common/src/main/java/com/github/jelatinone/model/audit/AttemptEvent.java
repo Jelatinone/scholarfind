@@ -2,16 +2,16 @@ package com.github.jelatinone.model.audit;
 
 import java.time.Instant;
 import java.util.Set;
-import java.util.UUID;
 
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 import com.github.jelatinone.policy.PolicyOutcome;
 
 import lombok.NonNull;
 
 public record AttemptEvent(
-    @NonNull UUID requestId,
-    @NonNull UUID reviewId,
-    @NonNull UUID targetId,
+    @NonNull ReviewIdentity reviewId,
+    @NonNull TargetIdentity targetId,
 
     Set<AttemptReason> reasons,
     @NonNull PolicyOutcome disposition,

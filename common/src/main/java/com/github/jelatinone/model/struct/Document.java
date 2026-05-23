@@ -1,6 +1,7 @@
 package com.github.jelatinone.model.struct;
 
-import java.util.UUID;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 import lombok.NonNull;
 
@@ -13,10 +14,10 @@ public interface Document<Self> {
   RequestHeader requestHeader();
 
   @NonNull
-  UUID targetId();
+  TargetIdentity targetId();
 
   @NonNull
-  UUID reviewId();
+  ReviewIdentity reviewId();
 
   Self withDocumentHeader(DocumentHeader header);
 

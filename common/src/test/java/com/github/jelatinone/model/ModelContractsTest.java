@@ -25,6 +25,8 @@ import com.github.jelatinone.model.audit.AttemptEvent;
 import com.github.jelatinone.model.audit.AttemptTransition;
 import com.github.jelatinone.model.audit.ExecutionEvent;
 import com.github.jelatinone.model.audit.ExecutionStage;
+import com.github.jelatinone.model.classification.Category;
+import com.github.jelatinone.model.classification.Classification;
 import com.github.jelatinone.model.content.Capture;
 import com.github.jelatinone.model.content.MediaEncoding;
 import com.github.jelatinone.model.content.MediaMetadata;
@@ -34,8 +36,6 @@ import com.github.jelatinone.model.graph.GraphEdge;
 import com.github.jelatinone.model.graph.GraphNode;
 import com.github.jelatinone.model.graph.GraphReview;
 import com.github.jelatinone.model.graph.GraphReviewState;
-import com.github.jelatinone.model.investigate.Category;
-import com.github.jelatinone.model.investigate.Classification;
 import com.github.jelatinone.model.investigate.InvestigateDocument;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
 import com.github.jelatinone.model.scholarship.ScholarshipArchive;
@@ -50,6 +50,11 @@ import com.github.jelatinone.model.scholarship.dossier.requirement.Activity;
 import com.github.jelatinone.model.scholarship.dossier.requirement.Degree;
 import com.github.jelatinone.model.scholarship.dossier.requirement.Education;
 import com.github.jelatinone.model.scholarship.dossier.requirement.Location;
+import com.github.jelatinone.model.struct.Identity;
+import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
+import com.github.jelatinone.model.struct.Identity.EntityIdentity;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 import com.github.jelatinone.model.struct.DocumentHeader;
 import com.github.jelatinone.model.struct.RequestHeader;
 import com.github.jelatinone.model.transit.Emission;
@@ -72,10 +77,10 @@ class ModelContractsTest {
   @Test
   void graphRecords_defaultSchemaVersionsAndPayloads() {
     Instant now = StructTestFixtures.NOW;
-    UUID edgeId = UUID.randomUUID();
-    UUID entityId = UUID.randomUUID();
-    UUID targetId = StructTestFixtures.TARGET_ID;
-    UUID reviewId = StructTestFixtures.REVIEW_ID;
+    EdgeIdentity edgeId = Identity.edge(UUID.randomUUID());
+    EntityIdentity entityId = Identity.entity(UUID.randomUUID());
+    TargetIdentity targetId = StructTestFixtures.TARGET_ID;
+    ReviewIdentity reviewId = StructTestFixtures.REVIEW_ID;
 
     GraphNode.Target node = new GraphNode.Target(
         StructTestFixtures.DOMAIN_ID,
@@ -86,9 +91,10 @@ class ModelContractsTest {
         new GraphReviewCause.Origin("seed"),
         new GraphReviewState.Available(ExecutionStage.DISCOVERY, "Task-1", now),
         now);
-    GraphEdge.Parent edge = new GraphEdge.Parent(edgeId, reviewId, UUID.randomUUID(), targetId, now);
+    GraphEdge.Parent edge = new GraphEdge.Parent(edgeId, reviewId, Identity.target(UUID.randomUUID()), targetId, now);
     GraphNode.Entity entity = new GraphNode.Entity(entityId, reviewId, now);
-    GraphEdge.Reducer membership = new GraphEdge.Reducer(UUID.randomUUID(), reviewId, targetId, entityId, now);
+    GraphEdge.Reducer membership = new GraphEdge.Reducer(Identity.edge(UUID.randomUUID()), reviewId, targetId,
+        entityId, now);
 
     assertEquals(GraphNode.Target.SCHEMA_VERSION, node.schemaVersion());
     assertEquals(GraphReview.SCHEMA_VERSION, review.schemaVersion());
@@ -134,7 +140,6 @@ class ModelContractsTest {
         StructTestFixtures.NOW,
         StructTestFixtures.NOW);
     AttemptEvent attemptEvent = new AttemptEvent(
-        UUID.randomUUID(),
         StructTestFixtures.REVIEW_ID,
         StructTestFixtures.TARGET_ID,
         Set.of(PolicyReason.REQUEST_REJECTED),
@@ -150,7 +155,7 @@ class ModelContractsTest {
   @Test
   void archiveAndScholarshipModels_preserveHeaders() {
     ArchiveHeader header = new ArchiveHeader(
-        UUID.randomUUID(),
+        Identity.entity(UUID.randomUUID()),
         StructTestFixtures.REVIEW_ID,
         new ArchiveState.Active(ExecutionStage.PUBLISH, "Task-1", StructTestFixtures.NOW),
         StructTestFixtures.NOW);
@@ -186,10 +191,11 @@ class ModelContractsTest {
         "club");
     Award award = new Award(BigDecimal.ONE, BigDecimal.TEN, "USD", true, 2, "Annual");
     Window window = new Window(LocalDate.parse("2026-01-01"), LocalDate.parse("2026-02-01"), "Spring");
-    Classification.Processed classification = new Classification.Processed(
+    Classification.Investigate classification = new Classification.Investigate(
         Map.of(Category.TARGET, 0.8d),
         0.8d,
         Set.of(Category.TARGET),
+        com.github.jelatinone.acquisition.Acquisition.Rank.INITIAL,
         Category.TARGET,
         true);
     Capture capture = new Capture.Resolved(StructTestFixtures.TARGET_ID,

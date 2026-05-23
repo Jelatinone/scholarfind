@@ -7,18 +7,24 @@ import java.util.UUID;
 
 import com.github.jelatinone.acquisition.Acquisition;
 import com.github.jelatinone.model.audit.ExecutionStage;
-import com.github.jelatinone.model.investigate.Category;
-import com.github.jelatinone.model.investigate.Classification;
+import com.github.jelatinone.model.classification.Category;
+import com.github.jelatinone.model.classification.Classification;
 import com.github.jelatinone.model.investigate.InvestigateDocument;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
 import com.github.jelatinone.model.struct.DocumentHeader;
+import com.github.jelatinone.model.struct.Identity;
+import com.github.jelatinone.model.struct.Identity.DomainIdentity;
+import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 import com.github.jelatinone.model.struct.RequestHeader;
 
 public final class StructTestFixtures {
 
-  public static final UUID DOMAIN_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
-  public static final UUID TARGET_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
-  public static final UUID REVIEW_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
+  public static final DomainIdentity DOMAIN_ID = Identity.domain(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+  public static final TargetIdentity TARGET_ID = Identity.target(UUID.fromString("11111111-1111-1111-1111-111111111111"));
+  public static final ReviewIdentity REVIEW_ID = Identity.review(UUID.fromString("22222222-2222-2222-2222-222222222222"));
+  public static final EdgeIdentity EDGE_ID = Identity.edge(UUID.fromString("33333333-3333-3333-3333-333333333333"));
 
   public static final Instant NOW = Instant.parse("2026-05-07T12:00:00Z");
 
@@ -39,8 +45,7 @@ public final class StructTestFixtures {
         TARGET_ID,
         REVIEW_ID,
         CanonicalTestFixtures.url("https://example.com"),
-        new InvestigateRequest.KernelAllotment(0, Acquisition.Rank.INITIAL),
-        new InvestigateRequest.KernelContext(0, 0, 0));
+        new InvestigateRequest.KernelContext());
   }
 
   public static InvestigateRequest request(RequestHeader requestHeader) {
@@ -49,8 +54,7 @@ public final class StructTestFixtures {
         requestHeader.targetId(),
         requestHeader.reviewId(),
         CanonicalTestFixtures.url("https://example.com"),
-        new InvestigateRequest.KernelAllotment(0, Acquisition.Rank.INITIAL),
-        new InvestigateRequest.KernelContext(0, 0, 0));
+        new InvestigateRequest.KernelContext());
   }
 
   public static InvestigateDocument document(int attempt, ExecutionStage emittedBy) {
@@ -60,14 +64,15 @@ public final class StructTestFixtures {
         TARGET_ID,
         REVIEW_ID,
         classification(),
-        Set.of(UUID.fromString("33333333-3333-3333-3333-333333333333")));
+        Set.of(EDGE_ID));
   }
 
-  public static Classification.Processed classification() {
-    return new Classification.Processed(
+  public static Classification.Investigate classification() {
+    return new Classification.Investigate(
         Map.of(Category.LANDING, 0.95d),
         0.95d,
         Set.of(Category.LANDING),
+        Acquisition.Rank.INITIAL,
         Category.LANDING,
         true);
   }

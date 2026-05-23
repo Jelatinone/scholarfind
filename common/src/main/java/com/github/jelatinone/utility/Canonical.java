@@ -12,6 +12,12 @@ import java.util.UUID;
 
 import com.github.jelatinone.model.graph.GraphEdge;
 import com.github.jelatinone.model.graph.GraphNode;
+import com.github.jelatinone.model.struct.Identity;
+import com.github.jelatinone.model.struct.Identity.DomainIdentity;
+import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
+import com.github.jelatinone.model.struct.Identity.EntityIdentity;
+import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 public final class Canonical {
 
@@ -62,18 +68,34 @@ public final class Canonical {
   }
 
   public static UUID generateTargetUUID(URL value) {
-    URL canonical = canonicalizeURL(value);
-    return UUID.nameUUIDFromBytes(canonical.toExternalForm().getBytes(StandardCharsets.UTF_8));
+    return targetIdentity(value).identifier();
   }
 
   public static UUID generateDomainUUID(URL value) {
-    URL canonical = canonicalizeURL(value);
-    return UUID.nameUUIDFromBytes(canonical.getHost().getBytes(StandardCharsets.UTF_8));
+    return domainIdentity(value).identifier();
   }
 
-  public static UUID generateEdgeUUID(String relation, UUID from, UUID to) {
-    String canonical = "%s:%s:%s".formatted(relation, from, to);
-    return UUID.nameUUIDFromBytes(canonical.getBytes(StandardCharsets.UTF_8));
+  public static TargetIdentity targetIdentity(URL value) {
+    URL canonical = canonicalizeURL(value);
+    return Identity.target(stableUuid(canonical.toExternalForm()));
+  }
+
+  public static DomainIdentity domainIdentity(URL value) {
+    URL canonical = canonicalizeURL(value);
+    return Identity.domain(stableUuid(canonical.getHost()));
+  }
+
+  public static EdgeIdentity edgeIdentity(String relation, Identity from, Identity to) {
+    String canonical = "%s:%s:%s".formatted(relation, from.identifier(), to.identifier());
+    return Identity.edge(stableUuid(canonical));
+  }
+
+  public static ReviewIdentity reviewIdentity(UUID value) {
+    return Identity.review(value);
+  }
+
+  public static EntityIdentity entityIdentity(UUID value) {
+    return Identity.entity(value);
   }
 
   public static GraphNode.Target target(
@@ -81,8 +103,8 @@ public final class Canonical {
       Instant discoveredAt) {
     URL canonical = canonicalizeURL(value);
     return new GraphNode.Target(
-        generateDomainUUID(canonical),
-        generateTargetUUID(canonical),
+        domainIdentity(canonical),
+        targetIdentity(canonical),
         canonical,
         discoveredAt);
   }
@@ -94,12 +116,12 @@ public final class Canonical {
   }
 
   public static GraphEdge.Parent parent(
-      UUID reviewId,
-      UUID parentTargetId,
+      ReviewIdentity reviewId,
+      TargetIdentity parentTargetId,
       GraphNode.Target childTarget,
       Instant emittedAt) {
     return new GraphEdge.Parent(
-        generateEdgeUUID(GraphEdge.Parent.class.getSimpleName(), parentTargetId, childTarget.targetId()),
+        edgeIdentity(GraphEdge.Parent.class.getSimpleName(), parentTargetId, childTarget.targetId()),
         reviewId,
         parentTargetId,
         childTarget.targetId(),
@@ -107,42 +129,16 @@ public final class Canonical {
   }
 
   public static GraphEdge.Reducer reduce(
-      UUID reviewId,
-      UUID targetId,
-      UUID entityId,
+      ReviewIdentity reviewId,
+      TargetIdentity targetId,
+      EntityIdentity entityId,
       Instant emittedAt) {
     return new GraphEdge.Reducer(
-        generateEdgeUUID(GraphEdge.Reducer.class.getSimpleName(), targetId, entityId),
+        edgeIdentity(GraphEdge.Reducer.class.getSimpleName(), targetId, entityId),
         reviewId,
         targetId,
         entityId,
         emittedAt);
-  }
-
-  /**
-   * @deprecated Parentage is represented by {@link #parent(UUID, UUID,
-   *             GraphNode.Target, Instant)}. Use {@link #target(URL, Instant)}
-   *             when only creating the target node.
-   */
-  @Deprecated
-  public static GraphNode.Target target(
-      URL value,
-      UUID parentTargetId,
-      Instant discoveredAt) {
-    return target(value, discoveredAt);
-  }
-
-  /**
-   * @deprecated Parentage is represented by {@link #parent(UUID, UUID,
-   *             GraphNode.Target, Instant)}. Use {@link #target(String, Instant)}
-   *             when only creating the target node.
-   */
-  @Deprecated
-  public static GraphNode.Target target(
-      String value,
-      UUID parentTargetId,
-      Instant discoveredAt) {
-    return target(canonicalizeURL(value), discoveredAt);
   }
 
   private static int normalizePort(String scheme, int port) {
@@ -191,5 +187,9 @@ public final class Canonical {
     } catch (Exception exception) {
       throw new IllegalStateException("Failed to resolve target URL", exception);
     }
+  }
+
+  private static UUID stableUuid(String canonical) {
+    return UUID.nameUUIDFromBytes(canonical.getBytes(StandardCharsets.UTF_8));
   }
 }
