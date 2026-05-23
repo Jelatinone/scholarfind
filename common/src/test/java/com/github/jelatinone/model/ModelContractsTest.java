@@ -50,8 +50,6 @@ import com.github.jelatinone.model.scholarship.dossier.requirement.Activity;
 import com.github.jelatinone.model.scholarship.dossier.requirement.Degree;
 import com.github.jelatinone.model.scholarship.dossier.requirement.Education;
 import com.github.jelatinone.model.scholarship.dossier.requirement.Location;
-import com.github.jelatinone.model.struct.Identity;
-import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
 import com.github.jelatinone.model.struct.Identity.EntityIdentity;
 import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
 import com.github.jelatinone.model.struct.Identity.TargetIdentity;
@@ -77,36 +75,31 @@ class ModelContractsTest {
   @Test
   void graphRecords_defaultSchemaVersionsAndPayloads() {
     Instant now = StructTestFixtures.NOW;
-    EdgeIdentity edgeId = Identity.edge(UUID.randomUUID());
-    EntityIdentity entityId = Identity.entity(UUID.randomUUID());
+    EntityIdentity entityId = EntityIdentity.create(UUID.randomUUID());
     TargetIdentity targetId = StructTestFixtures.TARGET_ID;
     ReviewIdentity reviewId = StructTestFixtures.REVIEW_ID;
 
-    GraphNode.Target node = new GraphNode.Target(
-        StructTestFixtures.DOMAIN_ID,
-        targetId,
-        CanonicalTestFixtures.url("https://example.com"),
-        now);
-    GraphReview review = new GraphReview(reviewId, targetId,
+    GraphNode.Target node = GraphNode.Target.create(CanonicalTestFixtures.url("https://example.com"), now);
+    GraphReview review = GraphReview.create(reviewId, targetId,
         new GraphReviewCause.Origin("seed"),
         new GraphReviewState.Available(ExecutionStage.DISCOVERY, "Task-1", now),
         now);
-    GraphEdge.Parent edge = new GraphEdge.Parent(edgeId, reviewId, Identity.target(UUID.randomUUID()), targetId, now);
-    GraphNode.Entity entity = new GraphNode.Entity(entityId, reviewId, now);
-    GraphEdge.Reducer membership = new GraphEdge.Reducer(Identity.edge(UUID.randomUUID()), reviewId, targetId,
-        entityId, now);
+    GraphNode.Target child = GraphNode.Target.create(CanonicalTestFixtures.url("https://example.com/child"), now);
+    GraphEdge.Descend edge = GraphEdge.Descend.create(reviewId, TargetIdentity.create(UUID.randomUUID()), child, now);
+    GraphNode.Entity entity = GraphNode.Entity.create(entityId, reviewId, now);
+    GraphEdge.Reduce membership = GraphEdge.Reduce.create(reviewId, targetId, entityId, now);
 
     assertEquals(GraphNode.Target.SCHEMA_VERSION, node.schemaVersion());
     assertEquals(GraphReview.SCHEMA_VERSION, review.schemaVersion());
-    assertEquals(GraphEdge.Parent.SCHEMA_VERSION, edge.schemaVersion());
+    assertEquals(GraphEdge.Descend.SCHEMA_VERSION, edge.schemaVersion());
     assertEquals(GraphNode.Entity.SCHEMA_VERSION, entity.schemaVersion());
-    assertEquals(GraphEdge.Reducer.SCHEMA_VERSION, membership.schemaVersion());
-    assertEquals(targetId, node.canonicalId());
+    assertEquals(GraphEdge.Reduce.SCHEMA_VERSION, membership.schemaVersion());
+    assertEquals(node.targetId(), node.canonicalId());
     assertEquals(entityId, entity.canonicalId());
     assertEquals(edge.edgeId(), edge.canonicalId());
     assertEquals(membership.edgeId(), membership.canonicalId());
-    assertEquals(StructTestFixtures.DOMAIN_ID, node.properties().get("domainId"));
-    assertEquals(targetId, node.properties().get("targetId"));
+    assertEquals(node.domainId(), node.properties().get("domainId"));
+    assertEquals(node.targetId(), node.properties().get("targetId"));
     assertEquals(entityId, membership.properties().get("entityId"));
     assertInstanceOf(GraphReviewCause.Origin.class, review.causedBy());
   }
@@ -155,7 +148,7 @@ class ModelContractsTest {
   @Test
   void archiveAndScholarshipModels_preserveHeaders() {
     ArchiveHeader header = new ArchiveHeader(
-        Identity.entity(UUID.randomUUID()),
+        EntityIdentity.create(UUID.randomUUID()),
         StructTestFixtures.REVIEW_ID,
         new ArchiveState.Active(ExecutionStage.PUBLISH, "Task-1", StructTestFixtures.NOW),
         StructTestFixtures.NOW);

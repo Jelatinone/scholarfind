@@ -28,7 +28,6 @@ import com.github.jelatinone.model.Schemable;
 import com.github.jelatinone.model.graph.GraphEdge;
 import com.github.jelatinone.model.graph.GraphNode;
 import com.github.jelatinone.model.struct.Identity;
-import com.github.jelatinone.model.struct.Identity.DomainIdentity;
 import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
 import com.github.jelatinone.model.struct.Identity.EntityIdentity;
 import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
@@ -36,14 +35,13 @@ import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 
 class NeptuneGraphContractsTest {
 
-  static DomainIdentity DOMAIN = Identity.domain(UUID.fromString("00000000-0000-0000-0000-000000000006"));
-  static TargetIdentity ORIGIN = Identity.target(UUID.fromString("00000000-0000-0000-0000-000000000001"));
-  static TargetIdentity MIDDLE = Identity.target(UUID.fromString("00000000-0000-0000-0000-000000000004"));
-  static TargetIdentity TARGET = Identity.target(UUID.fromString("00000000-0000-0000-0000-000000000002"));
-  static EntityIdentity ENTITY = Identity.entity(UUID.fromString("00000000-0000-0000-0000-000000000007"));
-  static ReviewIdentity REVIEW = Identity.review(UUID.fromString("00000000-0000-0000-0000-000000000008"));
-  static EdgeIdentity EDGE = Identity.edge(UUID.fromString("00000000-0000-0000-0000-000000000003"));
-  static EdgeIdentity CHILD_EDGE = Identity.edge(UUID.fromString("00000000-0000-0000-0000-000000000005"));
+  static TargetIdentity ORIGIN = TargetIdentity.create(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+  static TargetIdentity MIDDLE = TargetIdentity.create(UUID.fromString("00000000-0000-0000-0000-000000000004"));
+  static TargetIdentity TARGET = TargetIdentity.create(UUID.fromString("00000000-0000-0000-0000-000000000002"));
+  static EntityIdentity ENTITY = EntityIdentity.create(UUID.fromString("00000000-0000-0000-0000-000000000007"));
+  static ReviewIdentity REVIEW = ReviewIdentity.create(UUID.fromString("00000000-0000-0000-0000-000000000008"));
+  static EdgeIdentity EDGE = EdgeIdentity.create(UUID.fromString("00000000-0000-0000-0000-000000000003"));
+  static EdgeIdentity CHILD_EDGE = EdgeIdentity.create(UUID.fromString("00000000-0000-0000-0000-000000000005"));
 
   @Test
   void putVertexAndEdge_upsertsThroughGremlinTraversalApi() {
@@ -115,36 +113,28 @@ class NeptuneGraphContractsTest {
   @Test
   void jacksonSerializer_roundTripsSchemableGraphModelKinds() {
     GraphTraversalSource traversal = TinkerGraph.open().traversal();
-    NeptuneGraph<GraphNode.Target, GraphEdge.Reducer, Identity> graph = new NeptuneGraph<>(
+    NeptuneGraph<GraphNode.Target, GraphEdge.Reduce, Identity> graph = new NeptuneGraph<>(
         traversal,
         new JacksonNeptuneGraphSerializer<>(
             GraphNode.Target.class,
-            GraphEdge.Reducer.class));
-    GraphNode.Target target = new GraphNode.Target(
-        DOMAIN,
-        TARGET,
-        url("https://example.com"),
-        java.time.Instant.EPOCH);
-    GraphNode.Entity entity = new GraphNode.Entity(ENTITY, REVIEW, java.time.Instant.EPOCH);
-    GraphEdge.Reducer resolvesTo = new GraphEdge.Reducer(
-        EDGE,
-        REVIEW,
-        target.targetId(),
-        entity.entityId(),
+            GraphEdge.Reduce.class));
+    GraphNode.Target target = GraphNode.Target.create(url("https://example.com"), java.time.Instant.EPOCH);
+    GraphNode.Entity entity = GraphNode.Entity.create(ENTITY, REVIEW, java.time.Instant.EPOCH);
+    GraphEdge.Reduce resolvesTo = GraphEdge.Reduce.create(REVIEW, target.targetId(), entity.entityId(),
         java.time.Instant.EPOCH);
 
     graph.putVertex(target);
-    new NeptuneGraph<GraphNode.Entity, GraphEdge.Reducer, Identity>(
+    new NeptuneGraph<GraphNode.Entity, GraphEdge.Reduce, Identity>(
         traversal,
         new JacksonNeptuneGraphSerializer<>(
             GraphNode.Entity.class,
-            GraphEdge.Reducer.class))
+            GraphEdge.Reduce.class))
         .putVertex(entity);
     graph.putEdge(resolvesTo);
 
     Optional<GraphNode.Target> decodedTarget = graph.vertices()
-        .query(new Query.Singular<>(Criteria.identifier(TARGET)));
-    Collection<GraphEdge.Reducer> decodedEdges = graph.edges().query(new Query.Several<>(
+        .query(new Query.Singular<>(Criteria.identifier(target.targetId())));
+    Collection<GraphEdge.Reduce> decodedEdges = graph.edges().query(new Query.Several<>(
         EdgeCriteria.between(target.targetId(), entity.entityId()),
         5));
 

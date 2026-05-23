@@ -17,7 +17,6 @@ import com.github.jelatinone.model.graph.GraphReview;
 import com.github.jelatinone.model.graph.GraphReviewCause;
 import com.github.jelatinone.model.graph.GraphReviewState;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
-import com.github.jelatinone.model.struct.Identity;
 import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 import com.github.jelatinone.model.struct.Request;
 
@@ -28,13 +27,13 @@ class KernelArchetypeContractsTest {
     GraphNode.Target target = target(StructTestFixtures.TARGET_ID);
     GraphReview review = review(StructTestFixtures.TARGET_ID);
 
-    KernelOperand.Reviewed operable = new KernelOperand.Reviewed(target, review);
+    KernelOperand.Reviewed<GraphNode.Target> operable = new KernelOperand.Reviewed<GraphNode.Target>(target, review);
 
     assertEquals(target, operable.target());
     assertEquals(review, operable.review());
     assertThrows(
         IllegalArgumentException.class,
-        () -> new KernelOperand.Reviewed(target, review(Identity.target(UUID.randomUUID()))));
+        () -> new KernelOperand.Reviewed<GraphNode.Target>(target, review(TargetIdentity.create(UUID.randomUUID()))));
   }
 
   @Test
@@ -42,14 +41,15 @@ class KernelArchetypeContractsTest {
     GraphNode.Target target = target(StructTestFixtures.TARGET_ID);
     GraphReview review = review(StructTestFixtures.TARGET_ID);
 
-    assertThrows(NullPointerException.class, () -> new KernelOperand.Unreviewed(null));
-    assertThrows(NullPointerException.class, () -> new KernelOperand.Reviewed(null, review));
-    assertThrows(NullPointerException.class, () -> new KernelOperand.Reviewed(target, null));
+    assertThrows(NullPointerException.class, () -> new KernelOperand.Unreviewed<GraphNode.Target>(null));
+    assertThrows(NullPointerException.class, () -> new KernelOperand.Reviewed<GraphNode.Target>(null, review));
+    assertThrows(NullPointerException.class, () -> new KernelOperand.Reviewed<GraphNode.Target>(target, null));
   }
 
   @Test
   void postable_copiesRequestsIntoImmutableCollection() {
-    KernelOperand.Unreviewed operable = new KernelOperand.Unreviewed(target(StructTestFixtures.TARGET_ID));
+    KernelOperand.Unreviewed<GraphNode.Target> operable = new KernelOperand.Unreviewed<GraphNode.Target>(
+        target(StructTestFixtures.TARGET_ID));
     InvestigateRequest request = StructTestFixtures.request(0, ExecutionStage.INVESTIGATE);
     List<Request<InvestigateRequest>> source = new ArrayList<>(List.of(request));
 
@@ -61,15 +61,13 @@ class KernelArchetypeContractsTest {
   }
 
   private static GraphNode.Target target(TargetIdentity targetId) {
-    return new GraphNode.Target(
-        StructTestFixtures.DOMAIN_ID,
-        targetId,
-        CanonicalTestFixtures.url("https://example.com"),
+    GraphNode.Target target = GraphNode.Target.create(CanonicalTestFixtures.url("https://example.com"),
         StructTestFixtures.NOW);
+    return GraphNode.Target.create(target.domainId(), targetId, target.canonicalUrl(), target.emittedAt());
   }
 
   private static GraphReview review(TargetIdentity targetId) {
-    return new GraphReview(
+    return GraphReview.create(
         StructTestFixtures.REVIEW_ID,
         targetId,
         new GraphReviewCause.Origin("seed"),

@@ -10,6 +10,7 @@ import com.github.jelatinone.model.struct.Identity.DomainIdentity;
 import com.github.jelatinone.model.struct.Identity.EntityIdentity;
 import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
 import com.github.jelatinone.model.struct.Identity.TargetIdentity;
+import com.github.jelatinone.utility.Canonical;
 
 import lombok.NonNull;
 
@@ -19,8 +20,7 @@ import lombok.NonNull;
  * @author Cody Washington
  */
 public sealed interface GraphNode<Identifier extends com.github.jelatinone.model.struct.Identity>
-    extends Schemable<Identifier>, Vertex<Identifier>
-    permits GraphNode.Target, GraphNode.Entity {
+    extends Schemable<Identifier>, Vertex<Identifier> permits GraphNode.Target, GraphNode.Entity {
 
   /**
    * A discovered URL target that can be processed by execution stages.
@@ -38,6 +38,24 @@ public sealed interface GraphNode<Identifier extends com.github.jelatinone.model
 
     public Target(DomainIdentity domainId, TargetIdentity targetId, URL canonicalUrl, Instant emittedAt) {
       this(SCHEMA_VERSION, domainId, targetId, canonicalUrl, emittedAt);
+    }
+
+    public static Target create(URL value) {
+      return create(value, Instant.now());
+    }
+
+    public static Target create(URL value, Instant emittedAt) {
+      URL canonical = Canonical.canonicalizeURL(value);
+      return new Target(
+          DomainIdentity.create(canonical),
+          TargetIdentity.create(canonical),
+          canonical,
+          emittedAt);
+    }
+
+    public static Target create(DomainIdentity domainId, TargetIdentity targetId, URL canonicalUrl,
+        Instant emittedAt) {
+      return new Target(domainId, targetId, canonicalUrl, emittedAt);
     }
 
     @Override
@@ -80,6 +98,14 @@ public sealed interface GraphNode<Identifier extends com.github.jelatinone.model
 
     public Entity(EntityIdentity entityId, ReviewIdentity reviewId, Instant emittedAt) {
       this(SCHEMA_VERSION, entityId, reviewId, emittedAt);
+    }
+
+    public static Entity create(EntityIdentity entityId, ReviewIdentity reviewId) {
+      return create(entityId, reviewId, Instant.now());
+    }
+
+    public static Entity create(EntityIdentity entityId, ReviewIdentity reviewId, Instant emittedAt) {
+      return new Entity(entityId, reviewId, emittedAt);
     }
 
     @Override

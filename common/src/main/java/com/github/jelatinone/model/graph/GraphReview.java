@@ -35,6 +35,21 @@ public record GraphReview(
     this(SCHEMA_VERSION, reviewId, targetId, causedBy, reviewState, emittedAt);
   }
 
+  public static GraphReview create(TargetIdentity targetId, GraphReviewCause causedBy, GraphReviewState reviewState) {
+    return create(targetId, causedBy, reviewState, Instant.now());
+  }
+
+  public static GraphReview create(TargetIdentity targetId, GraphReviewCause causedBy, GraphReviewState reviewState,
+      Instant emittedAt) {
+    return new GraphReview(ReviewIdentity.create(java.util.UUID.randomUUID()), targetId, causedBy, reviewState,
+        emittedAt);
+  }
+
+  public static GraphReview create(ReviewIdentity reviewId, TargetIdentity targetId, GraphReviewCause causedBy,
+      GraphReviewState reviewState, Instant emittedAt) {
+    return new GraphReview(reviewId, targetId, causedBy, reviewState, emittedAt);
+  }
+
   @Override
   public @NonNull ReviewIdentity canonicalId() {
     return reviewId();

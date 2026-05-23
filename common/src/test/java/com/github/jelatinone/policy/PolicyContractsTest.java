@@ -16,7 +16,6 @@ import com.github.jelatinone.fixtures.StructTestFixtures;
 import com.github.jelatinone.model.audit.ExecutionStage;
 import com.github.jelatinone.model.investigate.InvestigateDocument;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
-import com.github.jelatinone.model.struct.Identity;
 import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
 import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 import com.github.jelatinone.model.struct.RequestHeader;
@@ -130,14 +129,14 @@ class PolicyContractsTest {
     PolicyStep<Integer> mismatchStep = policy.apply(new SimpleRequestContext(
         99L,
         document.targetId(),
-        Identity.review(UUID.randomUUID()),
+        ReviewIdentity.create(UUID.randomUUID()),
         StructTestFixtures.NOW,
         Optional.of(document),
         request(document)), 1);
     PolicyStep<Integer> identityMismatchStep = policy.apply(new SimpleRequestContext(
         1L,
         document.targetId(),
-        Identity.review(UUID.randomUUID()),
+        ReviewIdentity.create(UUID.randomUUID()),
         StructTestFixtures.NOW,
         Optional.of(document),
         request(document)), 1);

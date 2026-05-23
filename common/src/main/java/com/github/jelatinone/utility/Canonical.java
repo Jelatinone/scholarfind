@@ -6,18 +6,11 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Instant;
 import java.util.HexFormat;
+import java.util.Optional;
 import java.util.UUID;
 
-import com.github.jelatinone.model.graph.GraphEdge;
-import com.github.jelatinone.model.graph.GraphNode;
-import com.github.jelatinone.model.struct.Identity;
-import com.github.jelatinone.model.struct.Identity.DomainIdentity;
-import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
-import com.github.jelatinone.model.struct.Identity.EntityIdentity;
-import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
-import com.github.jelatinone.model.struct.Identity.TargetIdentity;
+import lombok.NonNull;
 
 public final class Canonical {
 
@@ -40,15 +33,11 @@ public final class Canonical {
     }
   }
 
-  public static URL canonicalizeURL(URL value) {
-    if (value == null) {
-      throw new IllegalArgumentException("Unable to canonicalize null URL");
-    }
-
+  public static URL canonicalizeURL(@NonNull URL value) {
     try {
       URI uri = value.toURI();
-      String scheme = uri.getScheme() == null ? null : uri.getScheme().toLowerCase();
-      String host = uri.getHost() == null ? null : uri.getHost().toLowerCase();
+      String scheme = Optional.ofNullable(uri.getScheme()).map(String::toLowerCase).orElse(null);
+      String host = Optional.ofNullable(uri.getHost()).map(String::toLowerCase).orElse(null);
       int port = normalizePort(scheme, uri.getPort());
       String path = normalizePath(uri.getPath());
       String query = normalizeQuery(uri.getRawQuery());
@@ -65,80 +54,6 @@ public final class Canonical {
     } catch (URISyntaxException | MalformedURLException exception) {
       throw new IllegalArgumentException("Unable to canonicalize URL", exception);
     }
-  }
-
-  public static UUID generateTargetUUID(URL value) {
-    return targetIdentity(value).identifier();
-  }
-
-  public static UUID generateDomainUUID(URL value) {
-    return domainIdentity(value).identifier();
-  }
-
-  public static TargetIdentity targetIdentity(URL value) {
-    URL canonical = canonicalizeURL(value);
-    return Identity.target(stableUuid(canonical.toExternalForm()));
-  }
-
-  public static DomainIdentity domainIdentity(URL value) {
-    URL canonical = canonicalizeURL(value);
-    return Identity.domain(stableUuid(canonical.getHost()));
-  }
-
-  public static EdgeIdentity edgeIdentity(String relation, Identity from, Identity to) {
-    String canonical = "%s:%s:%s".formatted(relation, from.identifier(), to.identifier());
-    return Identity.edge(stableUuid(canonical));
-  }
-
-  public static ReviewIdentity reviewIdentity(UUID value) {
-    return Identity.review(value);
-  }
-
-  public static EntityIdentity entityIdentity(UUID value) {
-    return Identity.entity(value);
-  }
-
-  public static GraphNode.Target target(
-      URL value,
-      Instant discoveredAt) {
-    URL canonical = canonicalizeURL(value);
-    return new GraphNode.Target(
-        domainIdentity(canonical),
-        targetIdentity(canonical),
-        canonical,
-        discoveredAt);
-  }
-
-  public static GraphNode.Target target(
-      String value,
-      Instant discoveredAt) {
-    return target(canonicalizeURL(value), discoveredAt);
-  }
-
-  public static GraphEdge.Parent parent(
-      ReviewIdentity reviewId,
-      TargetIdentity parentTargetId,
-      GraphNode.Target childTarget,
-      Instant emittedAt) {
-    return new GraphEdge.Parent(
-        edgeIdentity(GraphEdge.Parent.class.getSimpleName(), parentTargetId, childTarget.targetId()),
-        reviewId,
-        parentTargetId,
-        childTarget.targetId(),
-        emittedAt);
-  }
-
-  public static GraphEdge.Reducer reduce(
-      ReviewIdentity reviewId,
-      TargetIdentity targetId,
-      EntityIdentity entityId,
-      Instant emittedAt) {
-    return new GraphEdge.Reducer(
-        edgeIdentity(GraphEdge.Reducer.class.getSimpleName(), targetId, entityId),
-        reviewId,
-        targetId,
-        entityId,
-        emittedAt);
   }
 
   private static int normalizePort(String scheme, int port) {
@@ -169,10 +84,6 @@ public final class Canonical {
     return query;
   }
 
-  public static boolean isRedirect(int statusCode) {
-    return statusCode >= 300 && statusCode < 400;
-  }
-
   public static URI toURI(URL url) {
     try {
       return url.toURI();
@@ -189,7 +100,31 @@ public final class Canonical {
     }
   }
 
-  private static UUID stableUuid(String canonical) {
+  public static UUID stableUUID(String canonical) {
     return UUID.nameUUIDFromBytes(canonical.getBytes(StandardCharsets.UTF_8));
+  }
+
+  public static boolean isInformational(int statusCode) {
+    return statusCode >= 100 && statusCode < 200;
+  }
+
+  public static boolean isSuccess(int statusCode) {
+    return statusCode >= 200 && statusCode < 300;
+  }
+
+  public static boolean isRedirect(int statusCode) {
+    return statusCode >= 300 && statusCode < 400;
+  }
+
+  public static boolean isClientError(int statusCode) {
+    return statusCode >= 400 && statusCode < 500;
+  }
+
+  public static boolean isServerError(int statusCode) {
+    return statusCode >= 500 && statusCode < 600;
+  }
+
+  public static boolean isError(int statusCode) {
+    return isClientError(statusCode) || isServerError(statusCode);
   }
 }

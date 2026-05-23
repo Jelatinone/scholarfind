@@ -5,6 +5,7 @@ import java.util.Map;
 
 import com.github.jelatinone.api.graph.Edge;
 import com.github.jelatinone.model.Schemable;
+import com.github.jelatinone.model.struct.Identity;
 import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
 import com.github.jelatinone.model.struct.Identity.EntityIdentity;
 import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
@@ -17,9 +18,8 @@ import lombok.NonNull;
  * 
  * @author Cody Washington
  */
-public sealed interface GraphEdge<From extends com.github.jelatinone.model.struct.Identity, To extends com.github.jelatinone.model.struct.Identity>
-    extends Schemable<EdgeIdentity>, Edge<EdgeIdentity, From, To>
-    permits GraphEdge.Parent, GraphEdge.Reducer {
+public sealed interface GraphEdge<From extends Identity, To extends Identity>
+    extends Schemable<EdgeIdentity>, Edge<EdgeIdentity, From, To> permits GraphEdge.Descend, GraphEdge.Reduce {
 
   @NonNull
   EdgeIdentity edgeId();
@@ -36,7 +36,7 @@ public sealed interface GraphEdge<From extends com.github.jelatinone.model.struc
   /**
    * A target resolved to a stable entity.
    */
-  public record Reducer(
+  public record Reduce(
       long schemaVersion,
 
       @NonNull EdgeIdentity edgeId,
@@ -48,9 +48,23 @@ public sealed interface GraphEdge<From extends com.github.jelatinone.model.struc
       @NonNull Instant emittedAt) implements GraphEdge<TargetIdentity, EntityIdentity> {
     public static final long SCHEMA_VERSION = 1L;
 
-    public Reducer(EdgeIdentity edgeId, ReviewIdentity reviewId, TargetIdentity targetId, EntityIdentity entityId,
+    public Reduce(EdgeIdentity edgeId, ReviewIdentity reviewId, TargetIdentity targetId, EntityIdentity entityId,
         Instant emittedAt) {
       this(SCHEMA_VERSION, edgeId, reviewId, targetId, entityId, emittedAt);
+    }
+
+    public static Reduce create(ReviewIdentity reviewId, TargetIdentity targetId, EntityIdentity entityId) {
+      return create(reviewId, targetId, entityId, Instant.now());
+    }
+
+    public static Reduce create(ReviewIdentity reviewId, TargetIdentity targetId, EntityIdentity entityId,
+        Instant emittedAt) {
+      return new Reduce(
+          EdgeIdentity.create(Reduce.class.getSimpleName(), targetId, entityId),
+          reviewId,
+          targetId,
+          entityId,
+          emittedAt);
     }
 
     @Override
@@ -88,7 +102,7 @@ public sealed interface GraphEdge<From extends com.github.jelatinone.model.struc
   /**
    * A parent target discovered a child target.
    */
-  public record Parent(
+  public record Descend(
       long schemaVersion,
 
       @NonNull EdgeIdentity edgeId,
@@ -101,9 +115,23 @@ public sealed interface GraphEdge<From extends com.github.jelatinone.model.struc
 
     public static final long SCHEMA_VERSION = 1L;
 
-    public Parent(EdgeIdentity edgeId, ReviewIdentity reviewId, TargetIdentity parentTargetId,
+    public Descend(EdgeIdentity edgeId, ReviewIdentity reviewId, TargetIdentity parentTargetId,
         TargetIdentity childTargetId, Instant emittedAt) {
       this(SCHEMA_VERSION, edgeId, reviewId, parentTargetId, childTargetId, emittedAt);
+    }
+
+    public static Descend create(ReviewIdentity reviewId, TargetIdentity parentTargetId, GraphNode.Target childTarget) {
+      return create(reviewId, parentTargetId, childTarget, Instant.now());
+    }
+
+    public static Descend create(ReviewIdentity reviewId, TargetIdentity parentTargetId, GraphNode.Target childTarget,
+        Instant emittedAt) {
+      return new Descend(
+          EdgeIdentity.create(Descend.class.getSimpleName(), parentTargetId, childTarget.targetId()),
+          reviewId,
+          parentTargetId,
+          childTarget.targetId(),
+          emittedAt);
     }
 
     @Override

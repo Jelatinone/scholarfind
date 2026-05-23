@@ -12,7 +12,6 @@ import com.github.jelatinone.model.classification.Classification;
 import com.github.jelatinone.model.investigate.InvestigateDocument;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
 import com.github.jelatinone.model.struct.DocumentHeader;
-import com.github.jelatinone.model.struct.Identity;
 import com.github.jelatinone.model.struct.Identity.DomainIdentity;
 import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
 import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
@@ -21,10 +20,14 @@ import com.github.jelatinone.model.struct.RequestHeader;
 
 public final class StructTestFixtures {
 
-  public static final DomainIdentity DOMAIN_ID = Identity.domain(UUID.fromString("00000000-0000-0000-0000-000000000001"));
-  public static final TargetIdentity TARGET_ID = Identity.target(UUID.fromString("11111111-1111-1111-1111-111111111111"));
-  public static final ReviewIdentity REVIEW_ID = Identity.review(UUID.fromString("22222222-2222-2222-2222-222222222222"));
-  public static final EdgeIdentity EDGE_ID = Identity.edge(UUID.fromString("33333333-3333-3333-3333-333333333333"));
+  public static final DomainIdentity DOMAIN_ID = DomainIdentity
+      .create(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+  public static final TargetIdentity TARGET_ID = TargetIdentity
+      .create(UUID.fromString("11111111-1111-1111-1111-111111111111"));
+  public static final ReviewIdentity REVIEW_ID = ReviewIdentity
+      .create(UUID.fromString("22222222-2222-2222-2222-222222222222"));
+  public static final EdgeIdentity EDGE_ID = EdgeIdentity
+      .create(UUID.fromString("33333333-3333-3333-3333-333333333333"));
 
   public static final Instant NOW = Instant.parse("2026-05-07T12:00:00Z");
 
