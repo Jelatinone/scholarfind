@@ -11,12 +11,14 @@ import lombok.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.github.jelatinone.api.Acknowledgement;
 import com.github.jelatinone.api.Criteria;
 import com.github.jelatinone.api.Query.Count;
 import com.github.jelatinone.api.Query.Exists;
 import com.github.jelatinone.api.Query.Several;
 import com.github.jelatinone.api.Query.Singular;
 import com.github.jelatinone.api.queue.Queue;
+import com.github.jelatinone.api.queue.QueueEnvelope;
 import com.github.jelatinone.api.queue.QueueException;
 import com.github.jelatinone.infra.aws.AWSInfrastructure;
 import com.github.jelatinone.infra.aws.queue.serial.SQSSerializer;
@@ -41,7 +43,7 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @AllArgsConstructor
 public class SQSQueue<Value>
-    implements Queue<Value, SQSCriteria>, AWSInfrastructure<CreateQueueRequest, CreateQueueResponse> {
+    implements Queue<String, Value, SQSCriteria>, AWSInfrastructure<CreateQueueRequest, CreateQueueResponse> {
 
   SqsClient client;
   SQSSerializer<Value> serializer;
@@ -121,7 +123,7 @@ public class SQSQueue<Value>
   }
 
   @Override
-  public Optional<Value> query(Singular<SQSCriteria> query) {
+  public Optional<QueueEnvelope<Value>> query(Singular<SQSCriteria> query) {
     try {
       SQSCriteria.Receive receive = receive(query.criteria());
       String queueUrl = identifier(receive);
@@ -144,9 +146,8 @@ public class SQSQueue<Value>
 
       Value value = serializer.decode(message.body(),
           decodeAttributes(message.messageAttributes()));
-
-      delete(queueUrl, message.receiptHandle());
-      return Optional.ofNullable(value);
+      QueueEnvelope<Value> envelope = wrap(value, queueUrl, message.receiptHandle());
+      return Optional.ofNullable(envelope);
     } catch (QueueException exception) {
       throw exception;
     } catch (IOException exception) {
@@ -163,7 +164,7 @@ public class SQSQueue<Value>
   }
 
   @Override
-  public Collection<Value> query(Several<SQSCriteria> query) {
+  public Collection<QueueEnvelope<Value>> query(Several<SQSCriteria> query) {
     try {
       SQSCriteria.Receive receive = receive(query.criteria());
       String queueUrl = identifier(receive);
@@ -176,16 +177,15 @@ public class SQSQueue<Value>
               .build());
       response("receive message(s)", response.sdkHttpResponse());
 
-      List<Value> envelopes = response.messages().stream()
+      List<QueueEnvelope<Value>> envelopes = response.messages().stream()
           .filter(java.util.Objects::nonNull)
           .map((message) -> {
             Value value;
             try {
               value = serializer.decode(message.body(),
                   decodeAttributes(message.messageAttributes()));
-
-              delete(queueUrl, message.receiptHandle());
-              return value;
+              QueueEnvelope<Value> envelope = wrap(value, queueUrl, message.receiptHandle());
+              return envelope;
             } catch (IOException exception) {
               _logger.error(String.format("Decode queue message failed : %s",
                   exception.getMessage()));
@@ -214,6 +214,26 @@ public class SQSQueue<Value>
         .collect(Collectors.toMap(
             Map.Entry::getKey,
             entry -> MessageAttributeValue.builder().dataType("String").stringValue(entry.getValue()).build()));
+  }
+
+  private QueueEnvelope<Value> wrap(Value value, String queueUrl, String receiptHandle) {
+    return new QueueEnvelope<Value>(value, new Acknowledgement() {
+
+      @Override
+      public void success() {
+        delete(queueUrl, receiptHandle);
+      }
+
+      @Override
+      public void retry() {
+        // Do nothing ;)
+      }
+
+      @Override
+      public void error() {
+        delete(queueUrl, receiptHandle);
+      }
+    });
   }
 
   @Override

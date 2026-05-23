@@ -16,17 +16,17 @@ import lombok.experimental.FieldDefaults;
 
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class QueueCollect<Consumes, Queryable> implements Collect<QueueEnvelope<Consumes>> {
+public class QueueCollect<Consumes, Identifier> implements Collect<QueueEnvelope<Consumes>> {
 
-  Configuration<Consumes, Criteria<Queryable>> config;
+  Configuration<Consumes, Identifier> config;
 
   @Builder
   @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-  public static final class Configuration<Consumes, Criterion> {
+  public static final class Configuration<Consumes, Identifier> {
 
-    Query.Several<Criterion> collectionQuery;
+    Query.Several<Criteria<Identifier>> collectionQuery;
 
-    Queue<QueueEnvelope<Consumes>, Criterion> collectionSource;
+    Queue<Identifier, Consumes, Criteria<Identifier>> collectionSource;
   }
 
   @Override

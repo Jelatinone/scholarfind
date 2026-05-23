@@ -44,7 +44,7 @@ class MockContractsTest {
     List<QueueEnvelope<String>> firstPoll = queue.query(new Several<>(MockQueue.ANY, 1)).stream().toList();
     QueueEnvelope<String> alpha = firstPoll.get(0);
     alpha.acknowledgement().retry();
-    queue.send("gamma");
+    queue.queue(MockQueue.ANY, "gamma");
 
     QueueEnvelope<String> beta = queue.query(new Singular<>(MockQueue.ANY)).orElseThrow();
     beta.acknowledgement().error();

@@ -24,12 +24,17 @@ class QueueArchetypeContractsTest {
   void queueCollect_mapsSeveralQueryResults() {
     MockQueue<String> queue = new MockQueue<String>().addInput("a");
     QueueCollect<String, ?> collect = new QueueCollect<>(QueueCollect.Configuration
-        .<String, com.github.jelatinone.api.Criteria<Void>>builder()
+        .<String, Void>builder()
         .collectionSource(queue)
         .collectionQuery(new Several<>(MockQueue.ANY, 1))
         .build());
 
-    assertInstanceOf(CollectionResult.Alive.class, collect.collect());
+    CollectionResult.Alive<?> result = assertInstanceOf(CollectionResult.Alive.class, collect.collect());
+
+    assertEquals(List.of("a"), result.collection().stream()
+        .map(QueueEnvelope.class::cast)
+        .map(QueueEnvelope::content)
+        .toList());
   }
 
   @Test

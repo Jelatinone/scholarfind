@@ -14,10 +14,10 @@ import com.github.jelatinone.api.Query.Count;
 import com.github.jelatinone.api.Query.Exists;
 import com.github.jelatinone.api.Query.Several;
 import com.github.jelatinone.api.Query.Singular;
+import com.github.jelatinone.api.queue.Queue;
 import com.github.jelatinone.api.queue.QueueEnvelope;
-import com.github.jelatinone.api.queue.RetryableQueue;
 
-public class MockQueue<Value> implements RetryableQueue<Value, Criteria<Void>> {
+public class MockQueue<Value> implements Queue<Void, Value, Criteria<Void>> {
 
   public static final Criteria<Void> ANY = Criteria.duration(Duration.ZERO);
 
@@ -78,16 +78,14 @@ public class MockQueue<Value> implements RetryableQueue<Value, Criteria<Void>> {
   }
 
   @Override
-  public synchronized void queue(Criteria<Void> criteria, QueueEnvelope<Value> message) {
-    output.addLast(message.content());
+  public synchronized void queue(Criteria<Void> criteria, Value message) {
+    output.addLast(message);
   }
 
-  @Override
   public synchronized void retry(Value message) {
     retry.addLast(message);
   }
 
-  @Override
   public synchronized void error(Value message) {
     error.addLast(message);
   }
