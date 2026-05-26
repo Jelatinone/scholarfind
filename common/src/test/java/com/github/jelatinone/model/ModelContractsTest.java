@@ -57,6 +57,7 @@ import com.github.jelatinone.model.struct.DocumentHeader;
 import com.github.jelatinone.model.struct.RequestHeader;
 import com.github.jelatinone.model.transit.Emission;
 import com.github.jelatinone.policy.PolicyReason;
+import com.github.jelatinone.utility.Normal;
 import com.github.jelatinone.policy.PolicyOutcome;
 
 class ModelContractsTest {
@@ -185,8 +186,8 @@ class ModelContractsTest {
     Award award = new Award(BigDecimal.ONE, BigDecimal.TEN, "USD", true, 2, "Annual");
     Window window = new Window(LocalDate.parse("2026-01-01"), LocalDate.parse("2026-02-01"), "Spring");
     Classification.Investigate classification = new Classification.Investigate(
-        Map.of(Category.TARGET, 0.8d),
-        0.8d,
+        Map.of(Category.TARGET, Normal.normalize(0.8d)),
+        Normal.normalize(0.8d),
         Set.of(Category.TARGET),
         com.github.jelatinone.acquisition.Acquisition.Rank.INITIAL,
         Category.TARGET,

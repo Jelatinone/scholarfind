@@ -18,6 +18,7 @@ import com.github.jelatinone.model.struct.Identity.DomainIdentity;
 import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
 import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
 import com.github.jelatinone.model.struct.Identity.TargetIdentity;
+import com.github.jelatinone.utility.Normal;
 import com.github.jelatinone.model.struct.RequestHeader;
 
 public final class StructTestFixtures {
@@ -76,8 +77,8 @@ public final class StructTestFixtures {
 
   public static Classification.Investigate classification() {
     return new Classification.Investigate(
-        Map.of(Category.LANDING, 0.95d),
-        0.95d,
+        Map.of(Category.LANDING, Normal.normalize(0.95d)),
+        Normal.normalize(0.95d),
         Set.of(Category.LANDING),
         Acquisition.Rank.INITIAL,
         Category.LANDING,
