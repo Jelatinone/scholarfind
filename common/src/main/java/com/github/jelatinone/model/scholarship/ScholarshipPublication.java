@@ -2,16 +2,16 @@ package com.github.jelatinone.model.scholarship;
 
 import java.util.Set;
 
-import com.github.jelatinone.model.archive.Archive;
-import com.github.jelatinone.model.archive.ArchiveHeader;
+import com.github.jelatinone.model.publication.Publication;
+import com.github.jelatinone.model.publication.PublicationHeader;
 import com.github.jelatinone.model.scholarship.dossier.Description;
 import com.github.jelatinone.model.scholarship.dossier.Requirement;
 
 import lombok.NonNull;
 
-public record ScholarshipArchive(
+public record ScholarshipPublication(
 
-    @NonNull ArchiveHeader archiveHeader,
+    @NonNull PublicationHeader archiveHeader,
 
     Set<Description<?>> itemDescriptions,
 
@@ -21,11 +21,11 @@ public record ScholarshipArchive(
     Set<Requirement<?>> applicationRequirements,
     Set<Requirement<?>> eligibilityRequirements
 
-) implements Archive<ScholarshipArchive> {
+) implements Publication<ScholarshipPublication> {
 
   @Override
-  public ScholarshipArchive withArchiveHeader(ArchiveHeader header) {
-    return new ScholarshipArchive(
+  public ScholarshipPublication withArchiveHeader(PublicationHeader header) {
+    return new ScholarshipPublication(
         header,
         itemDescriptions(),
         summary(),

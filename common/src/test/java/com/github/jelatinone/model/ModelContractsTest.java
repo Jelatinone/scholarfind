@@ -19,8 +19,6 @@ import org.junit.jupiter.api.Test;
 import com.github.jelatinone.fixtures.AcquisitionTestFixtures;
 import com.github.jelatinone.fixtures.CanonicalTestFixtures;
 import com.github.jelatinone.fixtures.StructTestFixtures;
-import com.github.jelatinone.model.archive.ArchiveHeader;
-import com.github.jelatinone.model.archive.ArchiveState;
 import com.github.jelatinone.model.audit.AttemptEvent;
 import com.github.jelatinone.model.audit.AttemptTransition;
 import com.github.jelatinone.model.audit.ExecutionEvent;
@@ -38,7 +36,9 @@ import com.github.jelatinone.model.graph.GraphReview;
 import com.github.jelatinone.model.graph.GraphReviewState;
 import com.github.jelatinone.model.investigate.InvestigateDocument;
 import com.github.jelatinone.model.investigate.InvestigateRequest;
-import com.github.jelatinone.model.scholarship.ScholarshipArchive;
+import com.github.jelatinone.model.publication.PublicationHeader;
+import com.github.jelatinone.model.publication.PublicationState;
+import com.github.jelatinone.model.scholarship.ScholarshipPublication;
 import com.github.jelatinone.model.scholarship.dossier.Description;
 import com.github.jelatinone.model.scholarship.dossier.DescriptionKind;
 import com.github.jelatinone.model.scholarship.dossier.Magnitude;
@@ -148,12 +148,12 @@ class ModelContractsTest {
 
   @Test
   void archiveAndScholarshipModels_preserveHeaders() {
-    ArchiveHeader header = new ArchiveHeader(
+    PublicationHeader header = new PublicationHeader(
         EntityIdentity.create(UUID.randomUUID()),
         StructTestFixtures.REVIEW_ID,
-        new ArchiveState.Active(ExecutionStage.PUBLISH, "Task-1", StructTestFixtures.NOW),
+        new PublicationState.Active(ExecutionStage.PUBLISH, "Task-1", StructTestFixtures.NOW),
         StructTestFixtures.NOW);
-    ScholarshipArchive archive = new ScholarshipArchive(
+    ScholarshipPublication archive = new ScholarshipPublication(
         header,
         Set.of(new Description<>(DescriptionKind.SCHOLARSHIP_NAME, "Hope Scholarship")),
         "summary",
@@ -168,11 +168,11 @@ class ModelContractsTest {
   @Test
   void archiveStates_requireReviewMetadata() {
     assertThrows(NullPointerException.class,
-        () -> new ArchiveState.Pending(null, "Task-1", StructTestFixtures.NOW));
+        () -> new PublicationState.Pending(null, "Task-1", StructTestFixtures.NOW));
     assertThrows(NullPointerException.class,
-        () -> new ArchiveState.Active(ExecutionStage.PUBLISH, null, StructTestFixtures.NOW));
+        () -> new PublicationState.Active(ExecutionStage.PUBLISH, null, StructTestFixtures.NOW));
     assertThrows(NullPointerException.class,
-        () -> new ArchiveState.Expired(ExecutionStage.PUBLISH, "Task-1", null));
+        () -> new PublicationState.Expired(ExecutionStage.PUBLISH, "Task-1", null));
   }
 
   @Test

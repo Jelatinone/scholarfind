@@ -7,9 +7,9 @@ import java.util.Map;
 import com.github.jelatinone.api.graph.Vertex;
 import com.github.jelatinone.model.Schemable;
 import com.github.jelatinone.model.struct.Identity;
-import com.github.jelatinone.model.struct.Identity.DomainIdentity;
 import com.github.jelatinone.model.struct.Identity.EntityIdentity;
 import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
+import com.github.jelatinone.model.struct.Identity.SemanticIdentity;
 import com.github.jelatinone.model.struct.Identity.TargetIdentity;
 import com.github.jelatinone.utility.Canonical;
 
@@ -21,7 +21,7 @@ import lombok.NonNull;
  * @author Cody Washington
  */
 public sealed interface GraphNode<Identifier extends Identity>
-    extends Schemable<Identifier>, Vertex<Identifier> permits GraphNode.Target, GraphNode.Entity {
+    extends Schemable<Identifier>, Vertex<Identifier> permits GraphNode.Target, GraphNode.Entity, GraphNode.Semantic {
 
   /**
    * A discovered URL target that can be processed by execution stages.
@@ -29,16 +29,14 @@ public sealed interface GraphNode<Identifier extends Identity>
   public record Target(
       long schemaVersion,
 
-      @NonNull DomainIdentity domainId,
       @NonNull TargetIdentity targetId,
-
       @NonNull URL canonicalUrl,
 
       @NonNull Instant emittedAt) implements GraphNode<TargetIdentity> {
     public static final long SCHEMA_VERSION = 1L;
 
-    public Target(DomainIdentity domainId, TargetIdentity targetId, URL canonicalUrl, Instant emittedAt) {
-      this(SCHEMA_VERSION, domainId, targetId, canonicalUrl, emittedAt);
+    public Target(TargetIdentity targetId, URL canonicalUrl, Instant emittedAt) {
+      this(SCHEMA_VERSION, targetId, canonicalUrl, emittedAt);
     }
 
     public static Target create(URL value) {
@@ -48,15 +46,14 @@ public sealed interface GraphNode<Identifier extends Identity>
     public static Target create(URL value, Instant emittedAt) {
       URL canonical = Canonical.canonicalizeURL(value);
       return new Target(
-          DomainIdentity.create(canonical),
           TargetIdentity.create(canonical),
           canonical,
           emittedAt);
     }
 
-    public static Target create(DomainIdentity domainId, TargetIdentity targetId, URL canonicalUrl,
+    public static Target create(TargetIdentity targetId, URL canonicalUrl,
         Instant emittedAt) {
-      return new Target(domainId, targetId, canonicalUrl, emittedAt);
+      return new Target(targetId, canonicalUrl, emittedAt);
     }
 
     @Override
@@ -73,7 +70,6 @@ public sealed interface GraphNode<Identifier extends Identity>
     public @NonNull Map<String, Object> properties() {
       return Map.of(
           "schemaVersion", schemaVersion(),
-          "domainId", domainId(),
           "targetId", targetId(),
           "canonicalUrl", canonicalUrl(),
           "emittedAt", emittedAt());
@@ -92,21 +88,20 @@ public sealed interface GraphNode<Identifier extends Identity>
       long schemaVersion,
 
       @NonNull EntityIdentity entityId,
-      @NonNull ReviewIdentity reviewId,
 
       @NonNull Instant emittedAt) implements GraphNode<EntityIdentity> {
     public static final long SCHEMA_VERSION = 1L;
 
-    public Entity(EntityIdentity entityId, ReviewIdentity reviewId, Instant emittedAt) {
-      this(SCHEMA_VERSION, entityId, reviewId, emittedAt);
+    public Entity(EntityIdentity entityId, Instant emittedAt) {
+      this(SCHEMA_VERSION, entityId, emittedAt);
     }
 
-    public static Entity create(EntityIdentity entityId, ReviewIdentity reviewId) {
-      return create(entityId, reviewId, Instant.now());
+    public static Entity create(EntityIdentity entityId) {
+      return create(entityId, Instant.now());
     }
 
-    public static Entity create(EntityIdentity entityId, ReviewIdentity reviewId, Instant emittedAt) {
-      return new Entity(entityId, reviewId, emittedAt);
+    public static Entity create(EntityIdentity entityId, Instant emittedAt) {
+      return new Entity(entityId, emittedAt);
     }
 
     @Override
@@ -124,6 +119,53 @@ public sealed interface GraphNode<Identifier extends Identity>
       return Map.of(
           "schemaVersion", schemaVersion(),
           "entityId", entityId(),
+          "emittedAt", emittedAt());
+    }
+
+    @Override
+    public @NonNull String vertexLabel() {
+      return "entity";
+    }
+  }
+
+  public record Semantic(
+      long schemaVersion,
+
+      @NonNull SemanticIdentity semanticId,
+      @NonNull ReviewIdentity reviewId,
+
+      String label,
+
+      @NonNull Instant emittedAt) implements GraphNode<SemanticIdentity> {
+    public static final long SCHEMA_VERSION = 1L;
+
+    public Semantic(SemanticIdentity semanticId, ReviewIdentity reviewId, String label, Instant emittedAt) {
+      this(SCHEMA_VERSION, semanticId, reviewId, label, emittedAt);
+    }
+
+    public static Semantic create(SemanticIdentity entityId, ReviewIdentity reviewId, String label) {
+      return create(entityId, reviewId, label, Instant.now());
+    }
+
+    public static Semantic create(SemanticIdentity entityId, ReviewIdentity reviewId, String label, Instant emittedAt) {
+      return new Semantic(entityId, reviewId, label, emittedAt);
+    }
+
+    @Override
+    public @NonNull SemanticIdentity canonicalId() {
+      return semanticId();
+    }
+
+    @Override
+    public @NonNull SemanticIdentity vertexId() {
+      return semanticId();
+    }
+
+    @Override
+    public @NonNull Map<String, Object> properties() {
+      return Map.of(
+          "schemaVersion", schemaVersion(),
+          "semanticId", semanticId(),
           "reviewId", reviewId(),
           "emittedAt", emittedAt());
     }
@@ -132,5 +174,6 @@ public sealed interface GraphNode<Identifier extends Identity>
     public @NonNull String vertexLabel() {
       return "entity";
     }
+
   }
 }

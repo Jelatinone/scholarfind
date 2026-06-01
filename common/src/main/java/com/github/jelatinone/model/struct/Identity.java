@@ -8,22 +8,12 @@ import com.github.jelatinone.utility.Canonical;
 import lombok.NonNull;
 
 public sealed interface Identity
-    permits Identity.DomainIdentity, Identity.TargetIdentity, Identity.EntityIdentity, Identity.EdgeIdentity,
-    Identity.ReviewIdentity {
+    permits Identity.TargetIdentity, Identity.EntityIdentity, Identity.SemanticIdentity, Identity.EdgeIdentity,
+    Identity.ReviewIdentity,
+    Identity.PipelineIdentity, Identity.DiffIdentity {
 
   @NonNull
   UUID identifier();
-
-  public record DomainIdentity(@NonNull UUID identifier) implements Identity {
-    public static DomainIdentity create(@NonNull UUID identifier) {
-      return new DomainIdentity(identifier);
-    }
-
-    public static DomainIdentity create(@NonNull URL value) {
-      URL canonical = Canonical.canonicalizeURL(value);
-      return new DomainIdentity(Canonical.stableUUID(canonical.getHost()));
-    }
-  }
 
   public record TargetIdentity(@NonNull UUID identifier) implements Identity {
     public static TargetIdentity create(@NonNull UUID identifier) {
@@ -56,6 +46,24 @@ public sealed interface Identity
   public record ReviewIdentity(@NonNull UUID identifier) implements Identity {
     public static ReviewIdentity create(@NonNull UUID identifier) {
       return new ReviewIdentity(identifier);
+    }
+  }
+
+  public record PipelineIdentity(@NonNull UUID identifier) implements Identity {
+    public static PipelineIdentity create(@NonNull UUID identifier) {
+      return new PipelineIdentity(identifier);
+    }
+  }
+
+  public record SemanticIdentity(@NonNull UUID identifier) implements Identity {
+    public static SemanticIdentity create(@NonNull UUID identifier) {
+      return new SemanticIdentity(identifier);
+    }
+  }
+
+  public record DiffIdentity(@NonNull UUID identifier) implements Identity {
+    public static DiffIdentity create(@NonNull UUID identifier) {
+      return new DiffIdentity(identifier);
     }
   }
 }

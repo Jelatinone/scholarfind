@@ -5,7 +5,6 @@ import java.util.Set;
 
 import com.github.jelatinone.model.struct.Request;
 import com.github.jelatinone.model.struct.RequestHeader;
-import com.github.jelatinone.model.struct.Identity.DomainIdentity;
 import com.github.jelatinone.model.struct.Identity.EdgeIdentity;
 import com.github.jelatinone.model.struct.Identity.ReviewIdentity;
 import com.github.jelatinone.model.struct.Identity.TargetIdentity;
@@ -28,10 +27,7 @@ public record InvestigateRequest(
   }
 
   public record KernelContext(
-
-      Set<DomainIdentity> nearbyDomains,
       Set<TargetIdentity> nearbyNodes,
-
       Set<EdgeIdentity> nearbyEdges) {
   }
 }

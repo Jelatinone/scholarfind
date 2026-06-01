@@ -35,7 +35,7 @@ public sealed interface GraphReviewCause {
    *          discovered child.
    * 
    */
-  record Discover(
+  record Discovery(
       @NonNull EdgeIdentity relationalEdgeId) implements GraphReviewCause {
   }
 }
