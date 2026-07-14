@@ -13,7 +13,7 @@ public sealed interface GraphReviewState
   @NonNull
   List<AttemptEvent> events();
 
-  // //TODO: Create a seperate emissions type which uses a sealed interface
+  // TODO: Create a seperate emissions type which uses a sealed interface
 
   public sealed interface Continuable extends GraphReviewState permits Available, Claimed {
 
