@@ -15,142 +15,124 @@ import lombok.NonNull;
 
 public sealed interface Acquisition {
 
-  @NonNull
-  TargetIdentity targetId();
+	@NonNull
+	TargetIdentity targetId();
 
-  @NonNull
-  ReviewIdentity reviewId();
+	@NonNull
+	ReviewIdentity reviewId();
 
-  @NonNull
-  URL resolvedUrl();
+	@NonNull
+	URL resolvedUrl();
 
-  @NonNull
-  Rank rank();
+	public enum Rank {
 
-  public enum Rank {
+		INITIAL,
 
-    INITIAL,
+		METADATA,
 
-    METADATA,
+		INTERPRETED,
+	}
 
-    INTERPRETED,
-  }
+	public record Initial(
+			@NonNull TargetIdentity targetId,
+			@NonNull ReviewIdentity reviewId,
 
-  public record Initial(
-      @NonNull TargetIdentity targetId,
-      @NonNull ReviewIdentity reviewId,
+			@NonNull URL canonicalUrl) implements Acquisition {
 
-      @NonNull URL canonicalUrl) implements Acquisition {
+		@Override
+		public URL resolvedUrl() {
+			return canonicalUrl();
+		}
+	}
 
-    @Override
-    public URL resolvedUrl() {
-      return canonicalUrl();
-    }
+	public record Metadata(
+			@NonNull TargetIdentity targetId,
+			@NonNull ReviewIdentity reviewId,
 
-    @Override
-    public Rank rank() {
-      return Rank.INITIAL;
-    }
-  }
+			@NonNull URL effectiveUrl,
 
-  public record Metadata(
-      @NonNull TargetIdentity targetId,
-      @NonNull ReviewIdentity reviewId,
+			@NonNull MediaType mediaType,
+			@NonNull MediaEncoding mediaEncoding,
+			@NonNull MediaMetadata mediaMetadata,
 
-      @NonNull URL effectiveUrl,
+			@NonNull Instant emittedAt) implements Acquisition {
 
-      @NonNull MediaType mediaType,
-      @NonNull MediaEncoding mediaEncoding,
-      @NonNull MediaMetadata mediaMetadata,
+		@Override
+		public URL resolvedUrl() {
+			return effectiveUrl();
+		}
+	}
 
-      @NonNull Instant emittedAt) implements Acquisition {
+	public record Interpreted(
+			@NonNull TargetIdentity targetId,
+			@NonNull ReviewIdentity reviewId,
 
-    @Override
-    public URL resolvedUrl() {
-      return effectiveUrl();
-    }
+			@NonNull URL effectiveUrl,
 
-    @Override
-    public Rank rank() {
-      return Rank.METADATA;
-    }
-  }
+			@NonNull MediaType mediaType,
+			@NonNull MediaEncoding mediaEncoding,
+			@NonNull MediaMetadata mediaMetadata,
 
-  public record Interpreted(
-      @NonNull TargetIdentity targetId,
-      @NonNull ReviewIdentity reviewId,
+			@NonNull Instant emittedAt,
 
-      @NonNull URL effectiveUrl,
+			byte[] sourceBytes,
+			Set<Projection> sourceProjections,
 
-      @NonNull MediaType mediaType,
-      @NonNull MediaEncoding mediaEncoding,
-      @NonNull MediaMetadata mediaMetadata,
+			@NonNull String sourceHash
 
-      @NonNull Instant emittedAt,
+	) implements Acquisition {
 
-      byte[] sourceBytes,
-      Set<Projection> sourceProjections,
+		public Interpreted(
+				@NonNull TargetIdentity targetId,
+				@NonNull ReviewIdentity reviewId,
 
-      @NonNull String sourceHash
+				@NonNull URL effectiveUrl,
 
-  ) implements Acquisition {
+				@NonNull MediaType mediaType,
+				@NonNull MediaEncoding mediaEncoding,
+				@NonNull MediaMetadata mediaMetadata,
 
-    public Interpreted(
-        @NonNull TargetIdentity targetId,
-        @NonNull ReviewIdentity reviewId,
+				@NonNull Instant emittedAt,
 
-        @NonNull URL effectiveUrl,
+				byte[] sourceBytes,
 
-        @NonNull MediaType mediaType,
-        @NonNull MediaEncoding mediaEncoding,
-        @NonNull MediaMetadata mediaMetadata,
+				@NonNull String sourceHash) {
+			this(
+					targetId,
+					reviewId,
+					effectiveUrl,
+					mediaType,
+					mediaEncoding,
+					mediaMetadata,
+					emittedAt,
+					sourceBytes,
+					null,
+					sourceHash);
+		}
 
-        @NonNull Instant emittedAt,
+		public Interpreted {
+			sourceProjections = sourceProjections == null ? Set.of() : Set.copyOf(sourceProjections);
+		}
 
-        byte[] sourceBytes,
+		public Interpreted withProjection(@NonNull Projection sourceProjection) {
+			Set<Projection> nextProjections = new HashSet<>(sourceProjections());
+			nextProjections.add(sourceProjection);
+			return new Interpreted(
+					targetId(),
+					reviewId(),
+					effectiveUrl(),
+					mediaType(),
+					mediaEncoding(),
+					mediaMetadata(),
+					emittedAt(),
+					sourceBytes(),
+					nextProjections,
+					sourceHash());
+		}
 
-        @NonNull String sourceHash) {
-      this(
-          targetId,
-          reviewId,
-          effectiveUrl,
-          mediaType,
-          mediaEncoding,
-          mediaMetadata,
-          emittedAt,
-          sourceBytes,
-          null,
-          sourceHash);
-    }
-
-    public Interpreted {
-      sourceProjections = sourceProjections == null ? Set.of() : Set.copyOf(sourceProjections);
-    }
-
-    public Interpreted withProjection(@NonNull Projection sourceProjection) {
-      Set<Projection> updatedProjections = new HashSet<>(sourceProjections());
-      updatedProjections.add(sourceProjection);
-      return new Interpreted(
-          targetId(),
-          reviewId(),
-          effectiveUrl(),
-          mediaType(),
-          mediaEncoding(),
-          mediaMetadata(),
-          emittedAt(),
-          sourceBytes(),
-          updatedProjections,
-          sourceHash());
-    }
-
-    @Override
-    public URL resolvedUrl() {
-      return effectiveUrl();
-    }
-
-    @Override
-    public Rank rank() {
-      return Rank.INTERPRETED;
-    }
-  }
+		@Override
+		public URL resolvedUrl() {
+			return effectiveUrl();
+		}
+	}
 }
