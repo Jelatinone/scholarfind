@@ -62,157 +62,156 @@ import com.github.jelatinone.policy.PolicyOutcome;
 
 class ModelContractsTest {
 
-  @Test
-  void mediaTypesAndEncodings_resolveExpectedHeaders() {
-    assertEquals(MediaType.TEXT_HTML, MediaType.resolve("text/html; charset=UTF-8"));
-    assertEquals(MediaType.APPLICATION_JSON, MediaType.resolve("application/json"));
-    assertEquals(MediaType.OTHER, MediaType.resolve(null));
+	@Test
+	void mediaTypesAndEncodings_resolveExpectedHeaders() {
+		assertEquals(MediaType.TEXT_HTML, MediaType.resolve("text/html; charset=UTF-8"));
+		assertEquals(MediaType.APPLICATION_JSON, MediaType.resolve("application/json"));
+		assertEquals(MediaType.OTHER, MediaType.resolve(null));
 
-    assertEquals(MediaEncoding.UTF_8, MediaEncoding.resolve("text/plain; charset=utf-8"));
-    assertEquals(MediaEncoding.WINDOWS_1252, MediaEncoding.resolve("text/plain; charset=windows-1252"));
-    assertEquals(MediaEncoding.UTF_8, MediaEncoding.resolve(null));
-  }
+		assertEquals(MediaEncoding.UTF_8, MediaEncoding.resolve("text/plain; charset=utf-8"));
+		assertEquals(MediaEncoding.WINDOWS_1252, MediaEncoding.resolve("text/plain; charset=windows-1252"));
+		assertEquals(MediaEncoding.UTF_8, MediaEncoding.resolve(null));
+	}
 
-  @Test
-  void graphRecords_defaultSchemaVersionsAndPayloads() {
-    Instant now = StructTestFixtures.NOW;
-    EntityIdentity entityId = EntityIdentity.create(UUID.randomUUID());
-    TargetIdentity targetId = StructTestFixtures.TARGET_ID;
-    ReviewIdentity reviewId = StructTestFixtures.REVIEW_ID;
+	@Test
+	void graphRecords_defaultSchemaVersionsAndPayloads() {
+		Instant now = StructTestFixtures.NOW;
+		EntityIdentity entityId = EntityIdentity.create(UUID.randomUUID());
+		TargetIdentity targetId = StructTestFixtures.TARGET_ID;
+		ReviewIdentity reviewId = StructTestFixtures.REVIEW_ID;
 
-    GraphNode.Target node = GraphNode.Target.create(CanonicalTestFixtures.url("https://example.com"), now);
-    GraphReview review = GraphReview.create(reviewId, targetId,
-        new GraphReviewCause.Origin("seed"),
-        new GraphReviewState.Available(ExecutionStage.DISCOVERY, "Task-1", now),
-        now);
-    GraphNode.Target child = GraphNode.Target.create(CanonicalTestFixtures.url("https://example.com/child"), now);
-    GraphEdge.Descend edge = GraphEdge.Descend.create(reviewId, TargetIdentity.create(UUID.randomUUID()), child, now);
-    GraphNode.Entity entity = GraphNode.Entity.create(entityId, reviewId, now);
-    GraphEdge.Reduce membership = GraphEdge.Reduce.create(reviewId, targetId, entityId, now);
+		GraphNode.Target node = GraphNode.Target.create(CanonicalTestFixtures.url("https://example.com"), now);
+		GraphReview review = GraphReview.create(reviewId, targetId,
+				new GraphReviewCause.Origin("seed"),
+				new GraphReviewState.Available(now),
+				now);
+		GraphNode.Target child = GraphNode.Target.create(CanonicalTestFixtures.url("https://example.com/child"), now);
+		GraphEdge.Descend edge = GraphEdge.Descend.create(reviewId, TargetIdentity.create(UUID.randomUUID()), child, now);
+		GraphNode.Entity entity = GraphNode.Entity.create(entityId, now);
+		GraphEdge.Reduce membership = GraphEdge.Reduce.create(reviewId, targetId, entityId, now);
 
-    assertEquals(GraphNode.Target.SCHEMA_VERSION, node.schemaVersion());
-    assertEquals(GraphReview.SCHEMA_VERSION, review.schemaVersion());
-    assertEquals(GraphEdge.Descend.SCHEMA_VERSION, edge.schemaVersion());
-    assertEquals(GraphNode.Entity.SCHEMA_VERSION, entity.schemaVersion());
-    assertEquals(GraphEdge.Reduce.SCHEMA_VERSION, membership.schemaVersion());
-    assertEquals(node.targetId(), node.canonicalId());
-    assertEquals(entityId, entity.canonicalId());
-    assertEquals(edge.edgeId(), edge.canonicalId());
-    assertEquals(membership.edgeId(), membership.canonicalId());
-    assertEquals(node.domainId(), node.properties().get("domainId"));
-    assertEquals(node.targetId(), node.properties().get("targetId"));
-    assertEquals(entityId, membership.properties().get("entityId"));
-    assertInstanceOf(GraphReviewCause.Origin.class, review.causedBy());
-  }
+		assertEquals(GraphNode.Target.SCHEMA_VERSION, node.schemaVersion());
+		assertEquals(GraphReview.SCHEMA_VERSION, review.schemaVersion());
+		assertEquals(GraphEdge.Descend.SCHEMA_VERSION, edge.schemaVersion());
+		assertEquals(GraphNode.Entity.SCHEMA_VERSION, entity.schemaVersion());
+		assertEquals(GraphEdge.Reduce.SCHEMA_VERSION, membership.schemaVersion());
+		assertEquals(node.targetId(), node.canonicalId());
+		assertEquals(entityId, entity.canonicalId());
+		assertEquals(edge.edgeId(), edge.canonicalId());
+		assertEquals(membership.edgeId(), membership.canonicalId());
+		assertEquals(node.targetId(), node.properties().get("targetId"));
+		assertEquals(entityId, membership.properties().get("entityId"));
+		assertInstanceOf(GraphReviewCause.Origin.class, review.causedBy());
+	}
 
-  @Test
-  void structTransitAndInvestigateModels_updateHeaders() {
-    RequestHeader requestHeader = StructTestFixtures.requestHeader(1, ExecutionStage.INVESTIGATE);
-    DocumentHeader documentHeader = StructTestFixtures.documentHeader(ExecutionStage.INVESTIGATE);
-    InvestigateRequest request = StructTestFixtures.request(1, ExecutionStage.INVESTIGATE);
-    InvestigateDocument document = StructTestFixtures.document(1, ExecutionStage.INVESTIGATE);
-    Emission<InvestigateRequest> emission = new Emission<>(request, Duration.ofSeconds(5), ExecutionStage.ANNOTATE);
+	@Test
+	void structTransitAndInvestigateModels_updateHeaders() {
+		RequestHeader requestHeader = StructTestFixtures.requestHeader(1, ExecutionStage.INVESTIGATE);
+		DocumentHeader documentHeader = StructTestFixtures.documentHeader(ExecutionStage.INVESTIGATE);
+		InvestigateRequest request = StructTestFixtures.request(1, ExecutionStage.INVESTIGATE);
+		InvestigateDocument document = StructTestFixtures.document(1, ExecutionStage.INVESTIGATE);
+		Emission<InvestigateRequest> emission = new Emission<>(request, Duration.ofSeconds(5), ExecutionStage.ANNOTATE);
 
-    assertEquals(2, RequestHeader.retry(requestHeader, StructTestFixtures.NOW).attempt());
-    assertEquals(0, RequestHeader.next(requestHeader, StructTestFixtures.NOW, 99L).attempt());
-    assertEquals(documentHeader, document.documentHeader());
-    assertEquals(requestHeader, request.requestHeader());
-    assertEquals(documentHeader, document.withDocumentHeader(documentHeader).documentHeader());
-    assertEquals(requestHeader, document.withRequestHeader(requestHeader).requestHeader());
-    assertEquals(Duration.ofSeconds(5), emission.delay());
-  }
+		assertEquals(2, RequestHeader.retry(requestHeader, StructTestFixtures.NOW).attempt());
+		assertEquals(0, RequestHeader.next(requestHeader, StructTestFixtures.NOW, 99L).attempt());
+		assertEquals(documentHeader, document.documentHeader());
+		assertEquals(requestHeader, request.requestHeader());
+		assertEquals(documentHeader, document.withDocumentHeader(documentHeader).documentHeader());
+		assertEquals(requestHeader, document.withRequestHeader(requestHeader).requestHeader());
+		assertEquals(Duration.ofSeconds(5), emission.delay());
+	}
 
-  @Test
-  void auditRecords_bindDomainDirective_andReasons() {
-    AttemptTransition transition = new AttemptTransition(PolicyOutcome.RETRY, PolicyReason.OPERATION_EXCEPTION,
-        StructTestFixtures.NOW);
-    ExecutionEvent executionEvent = new ExecutionEvent(
-        StructTestFixtures.TARGET_ID,
-        ExecutionStage.INVESTIGATE,
-        Set.of(transition),
-        PolicyOutcome.NEXT,
-        StructTestFixtures.NOW,
-        StructTestFixtures.NOW);
-    AttemptEvent attemptEvent = new AttemptEvent(
-        StructTestFixtures.REVIEW_ID,
-        StructTestFixtures.TARGET_ID,
-        Set.of(PolicyReason.REQUEST_REJECTED),
-        PolicyOutcome.ERROR,
-        StructTestFixtures.NOW,
-        StructTestFixtures.NOW);
+	@Test
+	void auditRecords_bindDomainDirective_andReasons() {
+		AttemptTransition transition = new AttemptTransition(PolicyOutcome.RETRY, PolicyReason.OPERATION_EXCEPTION,
+				StructTestFixtures.NOW);
+		ExecutionEvent executionEvent = new ExecutionEvent(
+				StructTestFixtures.TARGET_ID,
+				ExecutionStage.INVESTIGATE,
+				Set.of(transition),
+				PolicyOutcome.NEXT,
+				StructTestFixtures.NOW,
+				StructTestFixtures.NOW);
+		AttemptEvent attemptEvent = new AttemptEvent(
+				StructTestFixtures.REVIEW_ID,
+				StructTestFixtures.TARGET_ID,
+				Set.of(PolicyReason.REQUEST_REJECTED),
+				PolicyOutcome.ERROR,
+				StructTestFixtures.NOW,
+				StructTestFixtures.NOW);
 
-    assertEquals("REQUEST_REJECTED", PolicyReason.REQUEST_REJECTED.reason());
-    assertEquals(PolicyOutcome.ERROR, attemptEvent.disposition());
-    assertEquals(PolicyOutcome.NEXT, executionEvent.outcome());
-  }
+		assertEquals("REQUEST_REJECTED", PolicyReason.REQUEST_REJECTED.reason());
+		assertEquals(PolicyOutcome.ERROR, attemptEvent.disposition());
+		assertEquals(PolicyOutcome.NEXT, executionEvent.outcome());
+	}
 
-  @Test
-  void archiveAndScholarshipModels_preserveHeaders() {
-    PublicationHeader header = new PublicationHeader(
-        EntityIdentity.create(UUID.randomUUID()),
-        StructTestFixtures.REVIEW_ID,
-        new PublicationState.Active(ExecutionStage.PUBLISH, "Task-1", StructTestFixtures.NOW),
-        StructTestFixtures.NOW);
-    ScholarshipPublication archive = new ScholarshipPublication(
-        header,
-        Set.of(new Description<>(DescriptionKind.SCHOLARSHIP_NAME, "Hope Scholarship")),
-        "summary",
-        "description",
-        Set.of(new Requirement<>(RequirementKind.STUDENT_ACTIVITY, Activity.LEADERSHIP, Magnitude.MUST_HAVE, null)),
-        Set.of(new Requirement<>(RequirementKind.STUDENT_LOCATION, Location.STATE, Magnitude.MAY_HAVE, null)));
+	@Test
+	void archiveAndScholarshipModels_preserveHeaders() {
+		PublicationHeader header = new PublicationHeader(
+				EntityIdentity.create(UUID.randomUUID()),
+				StructTestFixtures.REVIEW_ID,
+				new PublicationState.Active(ExecutionStage.PUBLISH, "Task-1", StructTestFixtures.NOW),
+				StructTestFixtures.NOW);
+		ScholarshipPublication archive = new ScholarshipPublication(
+				header,
+				Set.of(new Description<>(DescriptionKind.SCHOLARSHIP_NAME, "Hope Scholarship")),
+				"summary",
+				"description",
+				Set.of(new Requirement<>(RequirementKind.STUDENT_ACTIVITY, Activity.LEADERSHIP, Magnitude.MUST_HAVE, null)),
+				Set.of(new Requirement<>(RequirementKind.STUDENT_LOCATION, Location.STATE, Magnitude.MAY_HAVE, null)));
 
-    assertEquals(header, archive.archiveHeader());
-    assertEquals(header, archive.withArchiveHeader(header).archiveHeader());
-  }
+		assertEquals(header, archive.archiveHeader());
+		assertEquals(header, archive.withArchiveHeader(header).archiveHeader());
+	}
 
-  @Test
-  void archiveStates_requireReviewMetadata() {
-    assertThrows(NullPointerException.class,
-        () -> new PublicationState.Pending(null, "Task-1", StructTestFixtures.NOW));
-    assertThrows(NullPointerException.class,
-        () -> new PublicationState.Active(ExecutionStage.PUBLISH, null, StructTestFixtures.NOW));
-    assertThrows(NullPointerException.class,
-        () -> new PublicationState.Expired(ExecutionStage.PUBLISH, "Task-1", null));
-  }
+	@Test
+	void archiveStates_requireReviewMetadata() {
+		assertThrows(NullPointerException.class,
+				() -> new PublicationState.Pending(null, "Task-1", StructTestFixtures.NOW));
+		assertThrows(NullPointerException.class,
+				() -> new PublicationState.Active(ExecutionStage.PUBLISH, null, StructTestFixtures.NOW));
+		assertThrows(NullPointerException.class,
+				() -> new PublicationState.Expired(ExecutionStage.PUBLISH, "Task-1", null));
+	}
 
-  @Test
-  void dossierKinds_validateBoundValues() {
-    Description<String> description = new Description<>(DescriptionKind.ORGANIZATION_NAME, "OpenAI");
-    Requirement<Activity> requirement = new Requirement<>(
-        RequirementKind.STUDENT_ACTIVITY,
-        Activity.STEM,
-        Magnitude.MUST_HAVE,
-        "club");
-    Award award = new Award(BigDecimal.ONE, BigDecimal.TEN, "USD", true, 2, "Annual");
-    Window window = new Window(LocalDate.parse("2026-01-01"), LocalDate.parse("2026-02-01"), "Spring");
-    Classification.Investigate classification = new Classification.Investigate(
-        Map.of(Category.TARGET, Normal.normalize(0.8d)),
-        Normal.normalize(0.8d),
-        Set.of(Category.TARGET),
-        com.github.jelatinone.acquisition.Acquisition.Rank.INITIAL,
-        Category.TARGET,
-        true);
-    Capture capture = new Capture.Resolved(StructTestFixtures.TARGET_ID,
-        StructTestFixtures.REVIEW_ID, CanonicalTestFixtures.url("https://example.com"), "body".getBytes(), "hash",
-        MediaType.TEXT_PLAIN,
-        MediaEncoding.UTF_8, new MediaMetadata(200, 0, 0, null, null), StructTestFixtures.NOW);
-    MediaMetadata mediaMetadata = AcquisitionTestFixtures.mediaMetadata("text/plain", 4);
+	@Test
+	void dossierKinds_validateBoundValues() {
+		Description<String> description = new Description<>(DescriptionKind.ORGANIZATION_NAME, "OpenAI");
+		Requirement<Activity> requirement = new Requirement<>(
+				RequirementKind.STUDENT_ACTIVITY,
+				Activity.STEM,
+				Magnitude.MUST_HAVE,
+				"club");
+		Award award = new Award(BigDecimal.ONE, BigDecimal.TEN, "USD", true, 2, "Annual");
+		Window window = new Window(LocalDate.parse("2026-01-01"), LocalDate.parse("2026-02-01"), "Spring");
+		Classification.Investigate classification = new Classification.Investigate(
+				Map.of(Category.TARGET, Normal.normalize(0.8d)),
+				Normal.normalize(0.8d),
+				Set.of(Category.TARGET),
+				com.github.jelatinone.acquisition.Acquisition.Rank.INITIAL,
+				Category.TARGET,
+				true);
+		Capture capture = new Capture.Resolved(StructTestFixtures.TARGET_ID,
+				StructTestFixtures.REVIEW_ID, CanonicalTestFixtures.url("https://example.com"), "body".getBytes(), "hash",
+				MediaType.TEXT_PLAIN,
+				MediaEncoding.UTF_8, new MediaMetadata(200, 0, 0, null, null), StructTestFixtures.NOW);
+		MediaMetadata mediaMetadata = AcquisitionTestFixtures.mediaMetadata("text/plain", 4);
 
-    assertEquals("OpenAI", description.description());
-    assertEquals(Activity.STEM, requirement.requirement());
-    assertEquals("USD", award.currencyCode());
-    assertEquals(LocalDate.parse("2026-02-01"), window.closeDate());
-    assertTrue(DescriptionKind.AWARD.accepts(award));
-    assertTrue(RequirementKind.STUDENT_ACTIVITY.accepts(Activity.WORK));
-    assertFalse(RequirementKind.STUDENT_ACTIVITY.accepts(Degree.MBA));
-    assertFalse(DescriptionKind.APPLICATION_WINDOW.accepts(Education.GRADUATE));
-    assertEquals(Category.TARGET, classification.mostPragmaticCategory());
-    assertEquals(4L, mediaMetadata.contentLength());
-    assertEquals(StructTestFixtures.TARGET_ID, capture.targetId());
+		assertEquals("OpenAI", description.description());
+		assertEquals(Activity.STEM, requirement.requirement());
+		assertEquals("USD", award.currencyCode());
+		assertEquals(LocalDate.parse("2026-02-01"), window.closeDate());
+		assertTrue(DescriptionKind.AWARD.accepts(award));
+		assertTrue(RequirementKind.STUDENT_ACTIVITY.accepts(Activity.WORK));
+		assertFalse(RequirementKind.STUDENT_ACTIVITY.accepts(Degree.MBA));
+		assertFalse(DescriptionKind.APPLICATION_WINDOW.accepts(Education.GRADUATE));
+		assertEquals(Category.TARGET, classification.mostPragmaticCategory());
+		assertEquals(4L, mediaMetadata.contentLength());
+		assertEquals(StructTestFixtures.TARGET_ID, capture.targetId());
 
-    assertThrows(IllegalArgumentException.class,
-        () -> new Description<>(DescriptionKind.CANONICAL_URL, "not-a-url"));
-    assertThrows(IllegalArgumentException.class,
-        () -> new Requirement<>(RequirementKind.STUDENT_PURSUED_DEGREE, Activity.ARTS, Magnitude.MAY_HAVE, null));
-  }
+		assertThrows(IllegalArgumentException.class,
+				() -> new Description<>(DescriptionKind.CANONICAL_URL, "not-a-url"));
+		assertThrows(IllegalArgumentException.class,
+				() -> new Requirement<>(RequirementKind.STUDENT_PURSUED_DEGREE, Activity.ARTS, Magnitude.MAY_HAVE, null));
+	}
 }
